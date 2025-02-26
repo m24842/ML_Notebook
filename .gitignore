@@ -1,0 +1,7 @@
+commands.txt
+data/
+.venv/
+assets/
+*.mp4
+*.pth
+*.npz
