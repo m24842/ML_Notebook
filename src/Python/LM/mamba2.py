@@ -136,7 +136,7 @@ class Mamba2LMHeadModel(nn.Module):
         if h is None:
             h = [None for _ in range(self.args.n_layer)]
 
-        x = self.backbone.embedding(input_ids)
+        x = self.backbone.embedding(input_ids.clone())
         for i, layer in enumerate(self.backbone.layers):
             y, h[i] = layer.mixer(layer.norm(x), h[i])
             x = y + x
@@ -236,8 +236,12 @@ class Mamba2(nn.Module):
         if h:
             return self.step(u, h)
 
-        A = -torch.exp(self.A_log)  # (nheads,)
-        zxbcdt = self.in_proj(u)  # (batch, seqlen, d_in_proj)
+        # Keep track of original sequence length
+        seqlen = u.shape[1]
+        
+        A = -torch.exp(self.A_log)
+        zxbcdt = self.in_proj(u)
+        
         z, xBC, dt = torch.split(
             zxbcdt,
             [
@@ -247,34 +251,45 @@ class Mamba2(nn.Module):
             ],
             dim=-1,
         )
-        dt = F.softplus(dt + self.dt_bias)  # (batch, seqlen, nheads)
-
-        # Pad or truncate xBC seqlen to d_conv
-        conv_state = F.pad(
-            rearrange(xBC, "b l d -> b d l"), (self.args.d_conv - u.shape[1], 0)
-        )
-
-        xBC = silu(
-            self.conv1d(xBC.transpose(1, 2)).transpose(1, 2)[:, : u.shape[1], :]
-        )  # (batch, seqlen, d_inner + 2 * d_state))
+        
+        # Prepare for conv1d
+        xBC_conv = xBC.permute(0, 2, 1).contiguous()
+        
+        # Apply convolution
+        conv_out = self.conv1d(xBC_conv)
+        
+        # Important: Slice to maintain original sequence length
+        # The convolution with padding=d_conv-1 produces extra timesteps we don't need
+        conv_out = conv_out[:, :, :seqlen]
+        
+        # Back to [B, L, C]
+        xBC = conv_out.permute(0, 2, 1).contiguous()
+        xBC = silu(xBC)
+        
         x, B, C = torch.split(
             xBC, [self.args.d_inner, self.args.d_state, self.args.d_state], dim=-1
         )
-        x = rearrange(x, "b l (h p) -> b l h p", p=self.args.headdim)
+        
+        # Reshape x for the SSM operation
+        x = x.reshape(x.shape[0], seqlen, self.args.nheads, -1)
+        
+        dt = F.softplus(dt + self.dt_bias)
+        
         y, ssm_state = ssd(
             x * dt.unsqueeze(-1),
             A * dt,
-            rearrange(B, "b l n -> b l 1 n"),
-            rearrange(C, "b l n -> b l 1 n"),
+            B.unsqueeze(2),
+            C.unsqueeze(2),
             self.args.chunk_size,
             device=self.device,
         )
+        
         y = y + x * self.D.unsqueeze(-1)
-        y = rearrange(y, "b l h p -> b l (h p)")
+        y = y.reshape(y.shape[0], seqlen, -1)
         y = self.norm(y, z)
         y = self.out_proj(y)
 
-        h = InferenceCache(conv_state, ssm_state)
+        h = InferenceCache(xBC_conv, ssm_state)
         return y, h
 
     def step(self, u: Tensor, h: InferenceCache) -> tuple[Tensor, InferenceCache]:
