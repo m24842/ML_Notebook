@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.autograd.functional as AF
 import matplotlib.pyplot as plt
 from mamba2 import *
 from MultiLinear import MultiLinear
 import math
+from AssociativeMemory import AssociativeAttentionBlock
 
 device = torch.device('mps')
 torch.autograd.set_detect_anomaly(True)
@@ -340,3 +342,48 @@ class MoE_MambaLM(nn.Module):
     def reset(self, batch_size=1):
         for layer in self.backbone.layers:
             layer.mixer.reset(batch_size)
+            
+class AssociativeNet(nn.Module):
+    def __init__(self, d_model, d_mem, num_layers, n_heads, vocab_size, retrieval_rate, retrieval_depth, device=None):
+        super().__init__()
+        self.d_model = d_model
+        self.d_mem = d_mem
+        self.num_layers = num_layers
+        self.n_heads = n_heads
+        self.retrieval_rate = retrieval_rate
+        self.retrieval_depth = retrieval_depth
+        self.device = device if device else torch.device('cpu')
+        self.vocab_size = vocab_size
+        
+        self.backbone = nn.ModuleDict(
+            dict(
+                embedding = nn.Embedding(vocab_size, d_model, device=device),
+                layers = nn.ModuleList([
+                    nn.ModuleDict(
+                        dict(
+                            mixer=AssociativeAttentionBlock(d_model, d_mem, retrieval_rate, retrieval_depth, n_heads, device=device),
+                            feedfoward=nn.Sequential(
+                                nn.Linear(d_model, d_model),
+                                nn.SiLU(),
+                                nn.Linear(d_model, d_model),
+                            ),
+                            norm=nn.LayerNorm(d_model),
+                        )
+                    ) for _ in range(self.num_layers)
+                ]),
+            )
+        )
+        
+        self.prob_out = nn.Linear(self.d_model, self.vocab_size, bias=False, device=device)
+        
+        self.to(self.device)
+        
+    def forward(self, x):
+        batch_size, seq_len = x.size()[:2]
+        x_latent = self.backbone.embedding(x.clone().long())
+        for layer in self.backbone.layers:
+            x_latent, _ = layer.mixer(x_latent)
+            x_latent = x_latent + layer.feedfoward(x_latent)
+            x_latent = layer.norm(x_latent[:, :, 0])
+        x = self.prob_out(x_latent)
+        return x

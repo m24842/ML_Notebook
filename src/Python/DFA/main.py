@@ -80,7 +80,8 @@ for epoch in range(epochs):
         
         if bp: nn.functional.cross_entropy(output, target, reduction="mean").backward()
         total_loss += nn.functional.cross_entropy(output, target, reduction="mean")
-        if dfa: net.backward(error.T)
+        if dfa: net.backward(error)
+        torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
         optimizer.step()
     print(f"Epoch {epoch}, Loss: {total_loss.item()/(len(train_loader.dataset))}")
 

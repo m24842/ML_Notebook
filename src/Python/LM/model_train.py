@@ -1,18 +1,29 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 from datasets import load_dataset
 import tqdm
+import math
 import sys
 sys.path.append('src/Python/MultiLinear')
+sys.path.append('src/Python/AssociativeMemory')
 from model import *
 
-model_path = 'src/Python/LM/mambalm.pth'
-optimizer_path = 'src/Python/LM/mambalm_optimizer.pth'
-scheduler_path = 'src/Python/LM/mambalm_scheduler.pth'
+model_path = 'src/Python/LM/associative.pth'
+optimizer_path = 'src/Python/LM/associative_optimizer.pth'
+scheduler_path = 'src/Python/LM/associative_scheduler.pth'
+
+def text_to_binary(text):
+    binary_tensor = torch.tensor([int(bit) for c in text for bit in f"{ord(c):08b}"], dtype=torch.long)
+    return binary_tensor
+
+def binary_to_text(binary_tensor):
+    text = ''.join([chr(int(''.join(map(str, binary_tensor[i:i+8].tolist())), 2)) for i in range(0, len(binary_tensor), 8)])
+    return text
 
 def char_to_index(char):
     return ord(char) - 32
@@ -20,26 +31,26 @@ def char_to_index(char):
 def text_to_indices(text):
     return torch.tensor([char_to_index(c) for c in text])
 
-def char_to_onehot(char):
+def char_to_onehot(char, vocab_size=256):
     try:
         idx = ord(char) - 32
-        onehot = torch.zeros(95)
+        onehot = torch.zeros(vocab_size)
         onehot[idx] = 1
     except:
         print(f"Invalid char: {char}")
-        onehot = torch.zeros(95)
+        onehot = torch.zeros(vocab_size)
     return onehot
 
 def prob_dist_to_char(prob_dist):
     idx = torch.argmax(prob_dist)
     return chr(idx.item() + 32)
 
-def text_to_tensor(text):
-    return torch.stack([char_to_onehot(c) for c in text], dim=0)
+def text_to_tensor(text, vocab_size=256):
+    return torch.stack([char_to_onehot(c, vocab_size) for c in text], dim=0)
 
-def indices_to_onehot(indices):
+def indices_to_onehot(indices, vocab_size=256):
     onehot = torch.zeros((indices.size(0), indices.size(1), 95))
-    indices[indices > 94] = 0
+    indices[indices > vocab_size-1] = 0
     onehot[:, torch.arange(indices.size(1)), indices] = 1
     return onehot.to(device)
 
@@ -48,66 +59,51 @@ def count_parameters(model):
 
 def train(net, optimizer, scheduler, dataloader, epochs):
     print('Training...')
-    total_length = 101
+    total_length = 100
     avgs = []
     for epoch in range(1, epochs+1):
+        train_dataset = np.random.choice(dataset["train"]["text"], size=4, replace=False).tolist()
+        dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
         avg_loss = 0
         for i, data in enumerate(dataloader):
             optimizer.zero_grad()
             data = [text[:total_length] for text in data]
-            x = torch.stack([torch.cat([text_to_indices(text), torch.zeros(total_length - len(text))]) for text in data], dim=0).to(device).to(torch.long)
+            x_tensors = []
+            for text in data:
+                values = text_to_indices(text)
+                target_size = total_length
+                # values = text_to_binary(text)
+                # target_size = 8 * total_length
+                values = values[:target_size]
+                padding_size = target_size - values.size(0)
+                padded_values = torch.cat([values, torch.zeros(padding_size, dtype=torch.long)])
+                x_tensors.append(padded_values)
+
+            x = torch.stack(x_tensors, dim=0).to(device)
+            x_diff = x.clone()
+            # x_diff[:, 1:] = x_diff[:, 1:] - x_diff[:, :-1] + 1
+
             try:
                 net.reset()
             except:
                 pass
-            # outputs_f, outputs_b, states_f, states_b = net.bidirection(
-            #     x_f=x[:, :context_length],
-            #     x_b=x[:, -context_length:],
-            #     length=x.size(1)-context_length,
-            #     # decode=True,
-            #     return_state=True,
-            # )
             outputs, _ = net(x[:, :-1])
-            outputs = outputs + 1e-8
-            # states_f = states_f.reshape(states_f.size(1), states_f.size(2), states_f.size(0), states_f.size(3), states_f.size(4), states_f.size(5))
-            # states_b = states_b.reshape(states_b.size(1), states_b.size(2), states_b.size(0), states_b.size(3), states_b.size(4), states_b.size(5))
+            # outputs = net(x[:, :-1])
             
             loss = 0
-            # loss += nn.functional.binary_cross_entropy(outputs_f[:, -1], indices_to_onehot(x)[:, -1], reduction='mean')
-            # loss += nn.functional.binary_cross_entropy(outputs_b[:, 0], indices_to_onehot(x)[:, 0], reduction='mean')
-            # loss += nn.functional.smooth_l1_loss(states_f[: 40:60], states_b[: 40:60], reduction='mean')
-            # loss += nn.functional.cross_entropy(outputs, indices_to_onehot(x[:, 1:]), reduction='mean')
-            loss += nn.functional.cross_entropy(outputs.transpose(1, 2), x[:, 1:], reduction='mean')
+            loss += F.cross_entropy(outputs.transpose(1, 2), x[:, 1:], reduction='mean')
             
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
             optimizer.step()
             avg_loss += loss.item()/math.prod(x.size()[:2])
             
-            print(f'Epoch {epoch}, Loss: {loss.item()/math.prod(x.size()[:2]):.5f}, LR: {optimizer.param_groups[0]["lr"]:.0e}')
+            print(f'Epoch {epoch}, Batch {(i+1):}, Loss: {loss.item()/math.prod(x.size()[:2]):.5e}, LR: {optimizer.param_groups[0]["lr"]:.0e}')
             
-            # # Differences
-            # with torch.no_grad():
-            #     outputs_diff = torch.abs(outputs_f + outputs_b - 2*indices_to_onehot(x)).flatten(2).mean(0)
-            #     outputs_diff_magnitudes = outputs_diff.sum(1).cpu().detach().numpy()
-            #     plt.clf()
-            #     plt.plot(outputs_diff_magnitudes)
-                
-            #     states_diff = torch.abs(states_f - states_b).flatten(2).mean(0)
-            #     states_diff_magnitudes = states_diff.sum(1).cpu().detach().numpy()
-            #     plt.plot(states_diff_magnitudes)
-            
-            #     # plt.ylim(0, max(outputs_diff_magnitudes))
-            #     plt.ylim(0, max(np.concatenate((outputs_diff_magnitudes, states_diff_magnitudes))))
-            #     plt.pause(1e-1)
-            
-            if epoch % 2 == 0 and i == 0:
-                # outputs_f_decoded = outputs_f
-                # outputs_b_decoded = outputs_b
-                # print(''.join([prob_dist_to_char(outputs_f_decoded[0, k]) for k in range(outputs_f_decoded.size(1))]))
-                # print(''.join([prob_dist_to_char(outputs_b_decoded[0, k]) for k in range(outputs_b_decoded.size(1))]))
+            if True:#epoch % 2 == 0 and i == 0:
                 print(''.join([prob_dist_to_char(outputs[0, k]) for k in range(outputs.size(1))]))
-                print(data[0][1:])
+                # print(binary_to_text(torch.argmax(outputs[0, 7:, :2], dim=-1).cpu().detach()).encode('unicode_escape').decode())
+                print(data[0][1:].encode('unicode_escape').decode())
                 print()
             
         scheduler.step(avg_loss/(i+1))
@@ -124,45 +120,88 @@ def train(net, optimizer, scheduler, dataloader, epochs):
         plt.yscale('log')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.pause(1e-3)
+        plt.pause(1e-1)
 
 @torch.no_grad()
 def test(net, dataloader):
     net.eval()
     print('Testing...')
     context_length = 100
-    total_length = 500
+    total_length = 200
     for i, data in enumerate(dataloader):
-        x = torch.stack([torch.cat([text_to_indices(text)]) for text in data], dim=0).to(device)
-        
+        x_tensors = []
+        for text in data:
+            values = text_to_indices(text)
+            target_size = total_length
+            # values = text_to_binary(text)
+            # target_size = 8 * total_length
+            values = values[:target_size]
+            padding_size = target_size - values.size(0)
+            padded_values = torch.cat([values, torch.zeros(padding_size, dtype=torch.long)])
+            x_tensors.append(padded_values)
+
+        x = torch.stack(x_tensors, dim=0).to(device)
+    
         try:
             net.reset(x.size(0))
         except:
             pass
+        # outputs = []
+        # out = x[:, 0:1]
+        # for t in tqdm.tqdm(range(min(total_length, x.size(1))), desc="Processing", leave=False):
+        #     out = net.step(x[:, t:t+1] if t < context_length else out, use_cache=True)
+        #     outputs.append(out.detach().cpu())
+        #     out = torch.argmax(out, dim=-1)
+        # outputs = torch.stack(outputs, dim=1).squeeze(2)
+        # First process the context then generate the rest
+        context_x = x[:, :8*context_length]
+        
+        # Option 1: Use step-by-step generation
         outputs = []
-        out = x[:, 0:1]
-        for t in tqdm.tqdm(range(min(total_length, x.size(1))), desc="Processing", leave=False):
-            out = net.step(x[:, t:t+1] if t < context_length else out, use_cache=True)
+        out = context_x[:, 0:1]
+        net_state = [InferenceCache.alloc(x.size(0), net.args, device=device) for _ in range(net.args.n_layer)]
+        
+        # Process context tokens first to build state
+        for t in tqdm.tqdm(range(min(8*context_length, context_x.size(1))), desc="Processing Context"):
+            logits, net_state = net(context_x[:, t:t+1], net_state)
+            out = torch.argmax(logits, dim=-1)
             outputs.append(out.detach().cpu())
-            out = torch.argmax(out, dim=-1)
-        outputs = torch.stack(outputs, dim=1).squeeze(2)
+        
+        # Then generate new tokens
+        for t in tqdm.tqdm(range(8*total_length - 8*context_length), desc="Generating"):
+            logits, net_state = net(out, net_state)
+            out = torch.argmax(logits, dim=-1)
+            outputs.append(out.detach().cpu())
+            
+        outputs = torch.cat(outputs, dim=1)
 
         for j in range(outputs.size(0)):
-            print(''.join([prob_dist_to_char(outputs[j, k]) for k in range(outputs.size(1))]))
+            # print(''.join([prob_dist_to_char(outputs[j, k]) for k in range(outputs.size(1))]))
+            print(binary_to_text(outputs[0]).encode('unicode_escape').decode())
             print()
 
-# net = TemporalAutoencoderLM().to(device)
-# net = MoE_MambaLM(latent_dim=512, state_dim=1024, num_experts=4, top_k=2, num_layers=12, vocab_size=95).to(device)
+net = MoE_MambaLM(latent_dim=64, state_dim=64, num_experts=8, top_k=2, num_layers=4, vocab_size=2).to(device)
 mamba_config = Mamba2Config(
-    d_model=512,
-    d_state=2048,
+    d_model=256,
+    d_state=256,
     d_conv=4,
-    n_layer=24,
+    n_layer=4,
     vocab_size=95,
     pad_vocab_size_multiple=5,
-    chunk_size=100,
+    chunk_size=99,
 )
 net = Mamba2LMHeadModel(mamba_config, device)
+# mamba_config = Mamba2Config(
+#     d_model=64,
+#     d_state=128,
+#     d_conv=4,
+#     n_layer=24,
+#     vocab_size=2,
+#     pad_vocab_size_multiple=1,
+#     chunk_size=799,
+# )
+# net = Mamba2LMHeadModel(mamba_config, device)
+# net = AssociativeNet(256, 128, 4, 4, 95, 2, 4, device=device)
 try:
     net.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
 except:

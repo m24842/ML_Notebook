@@ -144,7 +144,7 @@ class Mamba2LMHeadModel(nn.Module):
         x = self.backbone.norm_f(x)
         logits = self.lm_head(x)
         return logits[:, :seqlen], cast(list[InferenceCache], h)
-
+    
     def generate(
         self,
         input_ids: LongTensor,
@@ -222,6 +222,29 @@ class Mamba2(nn.Module):
         self.D = nn.Parameter(torch.empty(args.nheads, device=device))
         self.norm = RMSNorm(args.d_inner, device=device)
         self.out_proj = nn.Linear(args.d_inner, args.d_model, bias=False, device=device)
+        
+        self._init_weights()
+
+    def _init_weights(self):
+        """Proper weight initialization for stability and training efficiency."""
+
+        # Xavier/Glorot for Linear layers
+        nn.init.xavier_uniform_(self.in_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
+
+        # Kaiming He Initialization for Conv1D
+        nn.init.kaiming_uniform_(self.conv1d.weight, nonlinearity='relu')
+        if self.conv1d.bias is not None:
+            nn.init.zeros_(self.conv1d.bias)
+
+        # Initialize dt_bias (time-step scaling factor)
+        nn.init.uniform_(self.dt_bias, -0.5, 0.5)
+
+        # Initialize A_log with small negative values for stability
+        nn.init.uniform_(self.A_log, -0.1, -0.01)
+
+        # Initialize D with small values (identity-like for residual connections)
+        nn.init.uniform_(self.D, 0.9, 1.1)
 
     def forward(self, u: Tensor, h: InferenceCache | None = None):
         """
@@ -274,7 +297,7 @@ class Mamba2(nn.Module):
         x = x.reshape(x.shape[0], seqlen, self.args.nheads, -1)
         
         dt = F.softplus(dt + self.dt_bias)
-        
+
         y, ssm_state = ssd(
             x * dt.unsqueeze(-1),
             A * dt,
@@ -344,6 +367,7 @@ class Mamba2(nn.Module):
         x = rearrange(x, "b (h p) -> b h p", p=self.args.headdim)
         dBx = torch.einsum("bh, bn, bhp -> bhpn", dt, B, x)
         h.ssm_state = h.ssm_state * rearrange(dA, "b h -> b h 1 1") + dBx
+        C_state = torch.matmul(h.ssm_state, torch.randn((h.ssm_state.shape[-1], C.shape[-1]), device=self.device))
         y = torch.einsum("bhpn, bn -> bhp", h.ssm_state, C)
         y = y + rearrange(self.D, "h -> h 1") * x
         y = rearrange(y, "b h p -> b (h p)")
