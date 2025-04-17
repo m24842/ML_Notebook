@@ -1,4 +1,7 @@
 {
-    "typeCheckingMode": "basic",
-    "reportMissingImports": false
+    "typeCheckingMode": "off",
+    "reportMissingImports": false,
+    "exclude": [
+        "data",
+    ],
 }

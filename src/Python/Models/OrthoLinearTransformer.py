@@ -67,7 +67,7 @@ class OrthoLinearAttention(nn.Module):
         out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / (q * kn).sum(-1, keepdim=True)
         out = rearrange(out, '(b h) s d -> b s (h d)', h=self.n_heads)
         return self.out_proj(out)
-    
+
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0):
         super().__init__()
