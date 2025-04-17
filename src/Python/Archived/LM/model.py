@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from mamba2 import *
 from MultiLinear import MultiLinear
 import math
-from AssociativeMemory import AssociativeAttentionBlock
+from transformers import AutoTokenizer
 
 device = torch.device('mps')
 torch.autograd.set_detect_anomaly(True)
@@ -138,56 +138,6 @@ class TemporalAutoencoderLM(nn.Module):
     
     def reset(self, batch_size=1):
         self.tauto.reset(batch_size)
-    
-class LetterAutoencoder(nn.Module):
-    def __init__(self, input_dim=95, hidden_dim=64, latent_dim=8):
-        super(LetterAutoencoder, self).__init__()
-
-        # encoder
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.SiLU(),
-            nn.Linear(hidden_dim, latent_dim),
-            nn.SiLU(),
-            )
-        
-        # latent mean and variance
-        self.mean_layer = nn.Linear(latent_dim, 8)
-        self.logvar_layer = nn.Linear(latent_dim, 8)
-        
-        # decoder
-        self.decoder = nn.Sequential(
-            nn.Linear(8, latent_dim),
-            nn.SiLU(),
-            nn.Linear(latent_dim, hidden_dim),
-            nn.SiLU(),
-            nn.Linear(hidden_dim, input_dim),
-            nn.Softmax(dim=-1),
-            )
-        
-        self.mu = None
-        self.logvar = None
-     
-    def encode(self, x, reparam=False):
-        x = self.encoder(x)
-        self.mu, self.logvar = self.mean_layer(x), self.logvar_layer(x)
-        if reparam:
-            return self.reparameterize()
-        return self.mu, self.logvar
-
-    def reparameterize(self):
-        epsilon = torch.randn_like(self.logvar).to(device)      
-        z = self.mu + self.logvar*epsilon
-        return z
-
-    def decode(self, x):
-        return self.decoder(x)
-
-    def forward(self, x):
-        self.mu, self.logvar = self.encode(x)
-        z = self.reparameterize()
-        x_recon = self.decode(z)
-        return x_recon, self.mu, self.logvar
     
 class MambaExpert(nn.Module):
     def __init__(self, d_model, d_state, d_conv=4, expand=2):
@@ -342,48 +292,135 @@ class MoE_MambaLM(nn.Module):
     def reset(self, batch_size=1):
         for layer in self.backbone.layers:
             layer.mixer.reset(batch_size)
-            
-class AssociativeNet(nn.Module):
-    def __init__(self, d_model, d_mem, num_layers, n_heads, vocab_size, retrieval_rate, retrieval_depth, device=None):
+    
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, device=None):
         super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+        
+        self.to(device)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
+    
+class FixedAttention(nn.Module):
+    def __init__(self, d_model, n_heads, device):
+        super(FixedAttention, self).__init__()
         self.d_model = d_model
-        self.d_mem = d_mem
-        self.num_layers = num_layers
         self.n_heads = n_heads
-        self.retrieval_rate = retrieval_rate
-        self.retrieval_depth = retrieval_depth
-        self.device = device if device else torch.device('cpu')
+        self.device = device
+        
+        self.fc = nn.Linear(d_model, d_model, bias=False)
+        
+        nn.init.xavier_uniform_(self.fc.weight)
+        
+        self.to(device)
+        
+    def forward(self, q, k, v, attn_mask=None):
+        q_exp = torch.exp(q)
+        return self.fc(q_exp), attn_mask
+    
+class LinearAttention(nn.Module):
+    def __init__(self, d_model, n_heads, device):
+        super(LinearAttention, self).__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.device = device
+
+        self.Q = nn.Linear(d_model, d_model, bias=False)
+        self.K = nn.Linear(d_model, d_model, bias=False)
+        self.V = nn.Linear(d_model, d_model, bias=False)
+        
+        nn.init.xavier_uniform_(self.Q.weight)
+        nn.init.xavier_uniform_(self.K.weight)
+        nn.init.xavier_uniform_(self.V.weight)
+        
+        self.to(device)
+    
+    def forward(self, q, k, v, attn_mask=None):
+        seq_len, batch_size = q.size()[:2]
+        q = self.Q(q)
+        k = self.K(k)
+        v = self.V(v)
+        q_exp = torch.exp(q)
+        k_exp = torch.exp(k)
+        q_head = q_exp.reshape(seq_len, batch_size, self.n_heads, self.d_model//self.n_heads)
+        k_head = k_exp.reshape(seq_len, batch_size, self.n_heads, self.d_model//self.n_heads)
+        v_head = v.reshape(seq_len, batch_size, self.n_heads, self.d_model//self.n_heads)
+        kv_head = torch.einsum('sbnd, sbne -> sbnde', k_head, v_head)
+        norm = torch.einsum('sbnd, sbne -> sbnde', k_head, torch.ones_like(v_head))
+        out = torch.einsum('sbnd, sbnde -> sbne', q_head, kv_head) / torch.einsum('sbnd, sbnde -> sbne', q_head, norm)
+        out = out.reshape(seq_len, batch_size, self.d_model)
+        out = out.cumsum(dim=1)
+        del q, k, v, q_exp, k_exp, q_head, k_head, v_head, kv_head, norm
+        return out, attn_mask
+    
+class TransformerLM(nn.Module):
+    def __init__(self, d_model, nhead, num_layers, vocab_size, device):
+        super(TransformerLM, self).__init__()
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_layers = num_layers
         self.vocab_size = vocab_size
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
         
         self.backbone = nn.ModuleDict(
             dict(
                 embedding = nn.Embedding(vocab_size, d_model, device=device),
+                positional_encoding = PositionalEncoding(d_model, dropout=0, device=device),
                 layers = nn.ModuleList([
                     nn.ModuleDict(
                         dict(
-                            mixer=AssociativeAttentionBlock(d_model, d_mem, retrieval_rate, retrieval_depth, n_heads, device=device),
+                            # attention=nn.MultiheadAttention(d_model, nhead),
+                            # attention=LinearAttention(d_model, nhead, device),
+                            attention=FixedAttention(d_model, nhead, device),
+                            norm1=nn.LayerNorm(d_model),
                             feedfoward=nn.Sequential(
-                                nn.Linear(d_model, d_model),
-                                nn.SiLU(),
-                                nn.Linear(d_model, d_model),
+                                nn.Linear(d_model, 4*d_model),
+                                nn.GELU(),
+                                nn.Linear(4*d_model, d_model),
                             ),
-                            norm=nn.LayerNorm(d_model),
+                            norm2=nn.LayerNorm(d_model),
                         )
                     ) for _ in range(self.num_layers)
                 ]),
+                out_proj=nn.Linear(d_model, vocab_size, bias=False),
             )
         )
         
-        self.prob_out = nn.Linear(self.d_model, self.vocab_size, bias=False, device=device)
-        
-        self.to(self.device)
-        
+        self.to(device)
+    
+    def encode(self, x):
+        return self.tokenizer(x, padding=True, truncation=True, return_tensors="pt")["input_ids"].to(self.device)
+    
+    def decode(self, x):
+        return [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in x]
+
     def forward(self, x):
         batch_size, seq_len = x.size()[:2]
-        x_latent = self.backbone.embedding(x.clone().long())
+        x = self.backbone.embedding(x.clone().long())
+        x = x + self.backbone.positional_encoding(x.permute(1, 0, 2)).permute(1, 0, 2)
+        attn_mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
+        attn_mask = attn_mask.masked_fill(attn_mask == 1, float('-inf'))
         for layer in self.backbone.layers:
-            x_latent, _ = layer.mixer(x_latent)
-            x_latent = x_latent + layer.feedfoward(x_latent)
-            x_latent = layer.norm(x_latent[:, :, 0])
-        x = self.prob_out(x_latent)
+            x_attn = x.permute(1, 0, 2)
+            x_attn, _ = layer.attention(x_attn, x_attn, x_attn, attn_mask=attn_mask)
+            x_attn = x_attn.permute(1, 0, 2)
+            x = layer.norm1(x + x_attn)
+            x_ff = layer.feedfoward(layer.norm1(x))
+            x = layer.norm2(x + x_ff)
+        x = self.backbone.out_proj(x)
         return x

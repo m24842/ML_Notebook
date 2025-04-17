@@ -13,9 +13,10 @@ sys.path.append('src/Python/MultiLinear')
 sys.path.append('src/Python/AssociativeMemory')
 from model import *
 
-model_path = 'src/Python/LM/associative.pth'
-optimizer_path = 'src/Python/LM/associative_optimizer.pth'
-scheduler_path = 'src/Python/LM/associative_scheduler.pth'
+model_name = 'fixed_attn'
+model_path = f'src/Python/LM/{model_name}.pth'
+optimizer_path = f'src/Python/LM/{model_name}_optimizer.pth'
+scheduler_path = f'src/Python/LM/{model_name}_scheduler.pth'
 
 def text_to_binary(text):
     binary_tensor = torch.tensor([int(bit) for c in text for bit in f"{ord(c):08b}"], dtype=torch.long)
@@ -59,7 +60,7 @@ def count_parameters(model):
 
 def train(net, optimizer, scheduler, dataloader, epochs):
     print('Training...')
-    total_length = 100
+    total_length = 1000
     avgs = []
     for epoch in range(1, epochs+1):
         train_dataset = np.random.choice(dataset["train"]["text"], size=4, replace=False).tolist()
@@ -68,45 +69,52 @@ def train(net, optimizer, scheduler, dataloader, epochs):
         for i, data in enumerate(dataloader):
             optimizer.zero_grad()
             data = [text[:total_length] for text in data]
-            x_tensors = []
-            for text in data:
-                values = text_to_indices(text)
-                target_size = total_length
-                # values = text_to_binary(text)
-                # target_size = 8 * total_length
-                values = values[:target_size]
-                padding_size = target_size - values.size(0)
-                padded_values = torch.cat([values, torch.zeros(padding_size, dtype=torch.long)])
-                x_tensors.append(padded_values)
+            encoded_data = net.encode(data)
+            # x_tensors = []
+            # for text in data:
+            #     values = text_to_indices(text)
+            #     target_size = total_length
+            #     # values = text_to_binary(text)
+            #     # target_size = 8 * total_length
+            #     values = values[:target_size]
+            #     padding_size = target_size - values.size(0)
+            #     padded_values = torch.cat([values, torch.zeros(padding_size, dtype=torch.long)])
+            #     x_tensors.append(padded_values)
 
-            x = torch.stack(x_tensors, dim=0).to(device)
-            x_diff = x.clone()
+            # x = torch.stack(x_tensors, dim=0).to(device)
+            # x_diff = x.clone()
             # x_diff[:, 1:] = x_diff[:, 1:] - x_diff[:, :-1] + 1
 
             try:
                 net.reset()
             except:
                 pass
-            outputs, _ = net(x[:, :-1])
+            # outputs, _ = net(x[:, :-1])
             # outputs = net(x[:, :-1])
+            outputs = net(encoded_data[:, :-1])
             
             loss = 0
-            loss += F.cross_entropy(outputs.transpose(1, 2), x[:, 1:], reduction='mean')
+            # loss += F.cross_entropy(outputs.transpose(1, 2), x[:, 1:], reduction='mean')
+            loss += F.cross_entropy(outputs.transpose(1, 2), encoded_data[:, 1:], reduction='mean')
             
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
             optimizer.step()
-            avg_loss += loss.item()/math.prod(x.size()[:2])
+            # avg_loss += loss.item()/math.prod(x.size()[:2])
+            avg_loss += loss.item()/math.prod(encoded_data.size()[:2])
             
-            print(f'Epoch {epoch}, Batch {(i+1):}, Loss: {loss.item()/math.prod(x.size()[:2]):.5e}, LR: {optimizer.param_groups[0]["lr"]:.0e}')
+            # print(f'Epoch {epoch}, Batch {(i+1):}, Loss: {loss.item()/math.prod(x.size()[:2]):.5e}, LR: {optimizer.param_groups[0]["lr"]:.0e}')
+            print(f'Epoch {epoch}, Batch {(i+1):}, Loss: {loss.item()/math.prod(encoded_data.size()[:2]):.5e}, LR: {optimizer.param_groups[0]["lr"]:.0e}')
             
             if True:#epoch % 2 == 0 and i == 0:
-                print(''.join([prob_dist_to_char(outputs[0, k]) for k in range(outputs.size(1))]))
+                # print(''.join([prob_dist_to_char(outputs[0, k]) for k in range(outputs.size(1))]))
                 # print(binary_to_text(torch.argmax(outputs[0, 7:, :2], dim=-1).cpu().detach()).encode('unicode_escape').decode())
-                print(data[0][1:].encode('unicode_escape').decode())
+                print(''.join(net.decode(torch.argmax(outputs[0], dim=-1).long().unsqueeze(0))))
                 print()
-            
-        scheduler.step(avg_loss/(i+1))
+                print(data[0].encode('unicode_escape').decode())
+                print()
+        
+        scheduler.step(avg_loss)
         lr_ratio = optimizer.param_groups[0]['lr'] / initial_lr
         for param_group in optimizer.param_groups:
             param_group['weight_decay'] = initial_weight_decay * lr_ratio
@@ -114,13 +122,15 @@ def train(net, optimizer, scheduler, dataloader, epochs):
         torch.save(optimizer.state_dict(), optimizer_path)
         torch.save(scheduler.state_dict(), scheduler_path)
         
-        avgs.append(avg_loss/(i+1))
+        avgs.append(avg_loss)
         plt.clf()
         plt.plot(avgs)
         plt.yscale('log')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.pause(1e-1)
+        
+    plt.savefig(f'src/Python/LM/{model_name}_train_loss.png')
 
 @torch.no_grad()
 def test(net, dataloader):
@@ -180,17 +190,17 @@ def test(net, dataloader):
             print(binary_to_text(outputs[0]).encode('unicode_escape').decode())
             print()
 
-net = MoE_MambaLM(latent_dim=64, state_dim=64, num_experts=8, top_k=2, num_layers=4, vocab_size=2).to(device)
-mamba_config = Mamba2Config(
-    d_model=256,
-    d_state=256,
-    d_conv=4,
-    n_layer=4,
-    vocab_size=95,
-    pad_vocab_size_multiple=5,
-    chunk_size=99,
-)
-net = Mamba2LMHeadModel(mamba_config, device)
+# net = MoE_MambaLM(latent_dim=64, state_dim=64, num_experts=8, top_k=2, num_layers=4, vocab_size=2).to(device)
+# mamba_config = Mamba2Config(
+#     d_model=256,
+#     d_state=256,
+#     d_conv=4,
+#     n_layer=4,
+#     vocab_size=95,
+#     pad_vocab_size_multiple=5,
+#     chunk_size=99,
+# )
+# net = Mamba2LMHeadModel(mamba_config, device)
 # mamba_config = Mamba2Config(
 #     d_model=64,
 #     d_state=128,
@@ -202,6 +212,13 @@ net = Mamba2LMHeadModel(mamba_config, device)
 # )
 # net = Mamba2LMHeadModel(mamba_config, device)
 # net = AssociativeNet(256, 128, 4, 4, 95, 2, 4, device=device)
+net = TransformerLM(
+    d_model=768,
+    nhead=12,
+    num_layers=4,
+    vocab_size=30522,
+    device=device
+)
 try:
     net.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
 except:
@@ -210,7 +227,7 @@ except:
 initial_lr = 5e-4
 initial_weight_decay = 1e-4
 optimizer = optim.AdamW(net.parameters(), lr=initial_lr, weight_decay=initial_weight_decay)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=100)
 try:
     optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True))
 except:
@@ -221,7 +238,7 @@ except:
     pass
 
 dataset = load_dataset("imdb")
-train_dataset = np.random.choice(dataset["train"]["text"], size=128, replace=False).tolist()
+train_dataset = np.random.choice(dataset["train"]["text"], size=4, replace=False).tolist()
 test_dataset = np.random.choice(dataset["test"]["text"], size=1, replace=False).tolist()
 
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
@@ -231,6 +248,6 @@ optimizer.param_groups[0]['lr'] = initial_lr
 
 print(f'Model Parameters: {count_parameters(net):,}')
 
-train(net, optimizer, scheduler, train_dataloader, epochs=1000)
+train(net, optimizer, scheduler, train_dataloader, epochs=500)
 
 test(net, test_dataloader)
