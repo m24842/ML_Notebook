@@ -4,6 +4,8 @@ from einops import rearrange
 from typing import Optional
 from rotary_embedding_torch import RotaryEmbedding
 
+__all__ = ['OrthoLinearAttention', 'OrthoLinearTransformer']
+
 class OrthoLinearAttention(nn.Module):
     """
     Orthogonal Linear Attention:
@@ -69,10 +71,11 @@ class OrthoLinearAttention(nn.Module):
         return self.out_proj(out)
 
 class OrthoLinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
+        self.causal = causal
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
@@ -105,7 +108,7 @@ class OrthoLinearTransformer(nn.Module):
         x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
-            a_out = layer.attention(x, rope=self.rope, causal=True)
+            a_out = layer.attention(x, rope=self.rope, causal=self.causal)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x + layer.dropout1(ff_out)

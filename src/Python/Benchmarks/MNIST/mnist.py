@@ -9,7 +9,7 @@ import os
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from Models import *
+from models import *
 
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"

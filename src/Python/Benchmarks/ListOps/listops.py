@@ -9,7 +9,7 @@ import time
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from Models import *
+from models import *
 
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
@@ -117,7 +117,7 @@ def test(model, data_loader, criterion, is_val=False):
 
 def arg_parse():
     parser = ArgumentParser()
-    parser.add_argument("--model", type=str, default="ortholineartransformer")
+    parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
@@ -126,6 +126,7 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=None)
     parser.add_argument("--mlp_dim", type=int, default=None)
     parser.add_argument("--max_len", type=int, default=1000)
+    parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=21)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
@@ -149,6 +150,7 @@ if __name__ == "__main__":
         n_heads = emb_dim//8 if args.n_heads is None else args.n_heads
         mlp_dim = 2*emb_dim if args.mlp_dim is None else args.mlp_dim
         max_len = args.max_len
+        causal = args.causal
         vocab_size = args.vocab_size
         dropout = args.dropout
         
@@ -164,12 +166,9 @@ if __name__ == "__main__":
         val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
-        if args.model.lower() == "transformer":
-            model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout)
-        elif args.model.lower() == "lineartransformer":
-            model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout)
-        elif args.model.lower() == "ortholineartransformer":
-            model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         

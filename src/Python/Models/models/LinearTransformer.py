@@ -3,6 +3,8 @@ import torch.nn as nn
 from einops import rearrange
 from rotary_embedding_torch import RotaryEmbedding
 
+__all__ = ['LinearMultiheadAttention', 'LinearTransformer']
+
 class LinearMultiheadAttention(nn.Module):
     def __init__(self, dim, num_heads, bias=True):
         super().__init__()
@@ -47,10 +49,11 @@ class LinearMultiheadAttention(nn.Module):
         return self.out_proj(out)
 
 class LinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
+        self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
@@ -83,7 +86,7 @@ class LinearTransformer(nn.Module):
         x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
-            a_out = layer.attention(x, rope=self.rope, causal=True)
+            a_out = layer.attention(x, rope=self.rope, causal=self.causal)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x + layer.dropout2(ff_out)

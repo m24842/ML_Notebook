@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import math
 from rotary_embedding_torch import RotaryEmbedding
 
+__all__ = ['MultiheadAttention', 'Transformer']
+
 class MultiheadAttention(nn.Module):
     def __init__(self, dim, num_heads, dropout=0.0, bias=True, add_bias_kv=False, 
                  add_zero_attn=False, batch_first=False):
@@ -173,10 +175,11 @@ class MultiheadAttention(nn.Module):
         return attn_output, attn_output_weights
 
 class Transformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
+        self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
@@ -208,7 +211,8 @@ class Transformer(nn.Module):
         x = x.reshape(x.size(0), -1)
         seq_len = x.size(1)
         x = self.embedding(x)
-        mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
+        if self.causal: mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
+        else: mask = None
         for layer in self.layers:
             x = layer.norm1(x)
             a_out, _ = layer.attention(x, attn_mask=mask, rope=self.rope)
