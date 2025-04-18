@@ -9,7 +9,7 @@ import os
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from models import *
+from models.transformers import *
 
 OUTPUT_DIR = "src/Python/Benchmarks/IMDB/imdb_models"
 
@@ -143,8 +143,8 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         

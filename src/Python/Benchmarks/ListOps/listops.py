@@ -9,7 +9,7 @@ import time
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from models import *
+from models.transformers import *
 
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
