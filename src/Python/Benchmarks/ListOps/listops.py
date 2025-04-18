@@ -6,6 +6,7 @@ from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
 import os
 import time
+import logging
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -13,6 +14,8 @@ from models.transformers import *
 
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
+LOG_PATH = "src/Python/Benchmarks/IMDB/experiments.log"
+logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s')
 
 device = torch.device("mps")
 
@@ -42,8 +45,14 @@ def tokenize_listops(data):
     return tokenized, target
 
 class ListOpsDataset(Dataset):
-    def __init__(self, data, tokenizer, max_len=None):
-        self.max_len = 1000 if max_len is None else max_len
+    def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+        if warmup_epochs < 1:
+            self.min_len = max_len
+        else:
+            self.min_len = min_len
+        self.max_len = max_len
+        self.len = self.min_len
+        self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = data
         self.tokenizer = tokenizer
     
@@ -53,41 +62,45 @@ class ListOpsDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data.iloc[idx]
         tokenized, target = self.tokenizer(item)
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.max_len - tokenized.size(0)), value=0)
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
         return padded_tokenized, target
 
-# Get the number of parameters in the model
+    def step(self):
+        if self.len + self.step_size <= self.max_len:
+            self.len += self.step_size
+        else:
+            self.len = self.max_len
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-# Training loop
 def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     model.train()
     total_loss = 0
+    correct = 0
     iterable = tqdm(data_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
     for batch_idx, (data, target) in enumerate(iterable):
-        data = data.to(device).squeeze(1)
+        data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
+        correct += accuracy
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         scheduler.step()
         if batch_idx % 500 == 0 and batch_idx != 0:
+            checkpoint(model, optimizer, scheduler)
             test(model, val_loader, criterion, is_val=True)
             model.train()
-            torch.save(model.state_dict(), model_path)
-            torch.save(optimizer.state_dict(), optimizer_path)
-            torch.save(scheduler.state_dict(), scheduler_path)
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
-    return total_loss / len(data_loader)
+    train_set.step()
+    return total_loss / len(data_loader), 100 * correct / len(data_loader.dataset)
 
-# Testing loop
 @ torch.no_grad()
 def test(model, data_loader, criterion, is_val=False):
     model.eval()
@@ -115,9 +128,29 @@ def test(model, data_loader, criterion, is_val=False):
     
     return test_loss, 100 * correct / len(data_loader.dataset)
 
+def log_info(model_name, args, train_accuracies, test_accuracies):
+    logging.info(model_name)
+    logging.info(f"Total params: {count_parameters(model):,}")
+    logging.info('Hyperparams:\n' + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]))
+    logging.info("Train accuracies: " + ', '.join(str(round(acc, 2)) for acc in train_accuracies))
+    logging.info("Test accuracies: " + ', '.join(str(round(acc, 2)) for acc in test_accuracies))
+
+def checkpoint(model, optimizer, scheduler):
+    model_name = model.__class__.__name__
+    model_dir = f'{OUTPUT_DIR}/{model_name}'
+    model_path = f'{model_dir}/{model_name}.pt'
+    optimizer_path = f'{model_dir}/{model_name}_opt.pt'
+    scheduler_path = f'{model_dir}/{model_name}_sch.pt'
+    
+    if not os.path.exists(model_dir): os.makedirs(model_dir)
+    
+    torch.save(model.state_dict(), model_path)
+    torch.save(optimizer.state_dict(), optimizer_path)
+    torch.save(scheduler.state_dict(), scheduler_path)
+
 def arg_parse():
     parser = ArgumentParser()
-    parser.add_argument("--model", type=str, default="Transformer")
+    # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
@@ -125,12 +158,13 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=None)
     parser.add_argument("--mlp_dim", type=int, default=None)
+    parser.add_argument("--min_len", type=int, default=100)
     parser.add_argument("--max_len", type=int, default=1000)
     parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=21)
     parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--warmup_epochs", type=int, default=3)
-    parser.add_argument("--total_epochs", type=int, default=10)
+    parser.add_argument("--warmup_epochs", type=int, default=5)
+    parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=5e-3)
     parser.add_argument("--min_lr", type=float, default=1e-4)
     parser.add_argument("--weight_decay", type=float, default=1e-3)
@@ -149,6 +183,7 @@ if __name__ == "__main__":
         n_layers = args.n_layers
         n_heads = emb_dim//8 if args.n_heads is None else args.n_heads
         mlp_dim = 2*emb_dim if args.mlp_dim is None else args.mlp_dim
+        min_len = args.min_len
         max_len = args.max_len
         causal = args.causal
         vocab_size = args.vocab_size
@@ -158,9 +193,9 @@ if __name__ == "__main__":
         val_df = pd.read_csv(f"{DATA_DIR}/basic_val.tsv", sep="\t")
         test_df = pd.read_csv(f"{DATA_DIR}/basic_test.tsv", sep="\t")
         
-        train_set = ListOpsDataset(train_df, tokenize_listops, max_len=max_len)
-        val_set = ListOpsDataset(val_df, tokenize_listops, max_len=max_len)
-        test_set = ListOpsDataset(test_df, tokenize_listops, max_len=max_len)
+        train_set = ListOpsDataset(train_df, tokenize_listops, min_len, max_len, warmup_epochs=args.warmup_epochs)
+        val_set = ListOpsDataset(val_df, tokenize_listops, min_len, max_len)
+        test_set = ListOpsDataset(test_df, tokenize_listops, min_len, max_len)
         
         train_loader = DataLoader(train_set, batch_size=bsz, shuffle=True)
         val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
@@ -178,10 +213,11 @@ if __name__ == "__main__":
         total_steps = args.total_epochs * len(train_loader)
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
-        model_dir = f'{OUTPUT_DIR}/{model.__class__.__name__}'
-        model_path = f'{model_dir}/{model.__class__.__name__}.pt'
-        optimizer_path = f'{model_dir}/{model.__class__.__name__}_opt.pt'
-        scheduler_path = f'{model_dir}/{model.__class__.__name__}_sch.pt'
+        model_name = model.__class__.__name__
+        model_dir = f'{OUTPUT_DIR}/{model_name}'
+        model_path = f'{model_dir}/{model_name}.pt'
+        optimizer_path = f'{model_dir}/{model_name}_opt.pt'
+        scheduler_path = f'{model_dir}/{model_name}_sch.pt'
         
         if not os.path.exists(model_dir): os.makedirs(model_dir)
         
@@ -192,22 +228,30 @@ if __name__ == "__main__":
         except:
             pass
         
-        print(f'\033[1m{model.__class__.__name__}\033[0m')
+        # Allocate max input length
+        temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
+        torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
+        model = torch.compile(model, dynamic=True, backend="eager")
+        _ = model(temp)
+        
+        print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         
         train_losses = []
         test_losses = []
+        train_accuracies = []
         test_accuracies = []
         for epoch in range(1, args.total_epochs + 1):
-            train_loss = train(model, train_loader, optimizer, criterion, scheduler, epoch)
+            train_loss, train_accuracy = train(model, train_loader, optimizer, criterion, scheduler, epoch)
             test_loss, test_accuracy = test(model, test_loader, criterion)
             train_losses.append(train_loss)
             test_losses.append(test_loss)
+            train_accuracies.append(train_accuracy)
             test_accuracies.append(test_accuracy)
-            
-            torch.save(model.state_dict(), model_path)
-            torch.save(optimizer.state_dict(), optimizer_path)
-            torch.save(scheduler.state_dict(), scheduler_path)
+                        
+            checkpoint(model, optimizer, scheduler)
+        
+        log_info(model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 
@@ -221,6 +265,7 @@ if __name__ == "__main__":
 
         # Plot accuracies
         plt.subplot(2, 1, 2)
+        plt.plot(train_accuracies, label='Train Accuracy')
         plt.plot(test_accuracies, label='Test Accuracy')
         plt.ylim(0, 100)
         plt.title('Accuracies')
