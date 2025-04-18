@@ -9,11 +9,7 @@ import time
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import sys
-sys.path.append("src/Python/Models")
-from OrthoLinearTransformer import OrthoLinearTransformer
-from LinearTransformer import LinearTransformer
-from SoftmaxTransformer import Transformer
+from Models import *
 
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"

@@ -9,11 +9,7 @@ import os
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import sys
-sys.path.append("src/Python/Models")
-from OrthoLinearTransformer import OrthoLinearTransformer
-from LinearTransformer import LinearTransformer
-from SoftmaxTransformer import Transformer
+from Models import *
 
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
