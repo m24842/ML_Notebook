@@ -1,5 +1,6 @@
 commands.txt
 data/
+.vscode/
 .venv/
 assets/
 *.mp4
