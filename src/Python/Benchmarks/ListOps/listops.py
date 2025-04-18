@@ -15,7 +15,7 @@ from models.transformers import *
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
 LOG_PATH = "src/Python/Benchmarks/LISTOPS/experiments.log"
-logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
 device = torch.device("mps")
 
@@ -92,12 +92,12 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         scheduler.step()
+        if batch_idx % 100 == 0 and batch_idx != 0:
+            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
         if batch_idx % 500 == 0 and batch_idx != 0:
             checkpoint(model, optimizer, scheduler)
             test(model, val_loader, criterion, is_val=True)
             model.train()
-        if batch_idx % 100 == 0 and batch_idx != 0:
-            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
     train_set.step()
     return total_loss / len(data_loader), 100 * correct / len(data_loader.dataset)
 
@@ -128,22 +128,20 @@ def test(model, data_loader, criterion, is_val=False):
     
     return test_loss, 100 * correct / len(data_loader.dataset)
 
-def log_info(model_name, args, train_accuracies, test_accuracies):
-    logging.info(model_name)
-    logging.info(f"Total params: {count_parameters(model):,}")
-    logging.info('Hyperparams:\n' + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]))
-    logging.info("Train accuracies: " + ', '.join(str(round(acc, 2)) for acc in train_accuracies))
-    logging.info("Test accuracies: " + ', '.join(str(round(acc, 2)) for acc in test_accuracies))
+def log_info(model, model_name, args, train_accuracies, test_accuracies):
+    log_message = (
+        f"{model_name}\n"
+        + f"Total params: {count_parameters(model):,}\n"
+        + f"Hyperparams:\n"
+        + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
+        + f"Train accuracies:\n"
+        + f"\t{', '.join(str(round(acc, 2)) for acc in train_accuracies)}\n"
+        + f"Test accuracies:\n"
+        + f"\t{', '.join(str(round(acc, 2)) for acc in test_accuracies)}"
+    )
+    logging.info(log_message)
 
 def checkpoint(model, optimizer, scheduler):
-    model_name = model.__class__.__name__
-    model_dir = f'{OUTPUT_DIR}/{model_name}'
-    model_path = f'{model_dir}/{model_name}.pt'
-    optimizer_path = f'{model_dir}/{model_name}_opt.pt'
-    scheduler_path = f'{model_dir}/{model_name}_sch.pt'
-    
-    if not os.path.exists(model_dir): os.makedirs(model_dir)
-    
     torch.save(model.state_dict(), model_path)
     torch.save(optimizer.state_dict(), optimizer_path)
     torch.save(scheduler.state_dict(), scheduler_path)
@@ -156,11 +154,11 @@ def arg_parse():
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
     parser.add_argument("--n_layers", type=int, default=4)
-    parser.add_argument("--n_heads", type=int, default=None)
-    parser.add_argument("--mlp_dim", type=int, default=None)
+    parser.add_argument("--n_heads", type=int, default=16)
+    parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--min_len", type=int, default=100)
-    parser.add_argument("--max_len", type=int, default=1000)
-    parser.add_argument("--causal", type=bool, default=True)
+    parser.add_argument("--max_len", type=int, default=2000)
+    parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=21)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=5)
@@ -181,8 +179,8 @@ if __name__ == "__main__":
         emb_dim = args.emb_dim
         n_classes = args.n_classes
         n_layers = args.n_layers
-        n_heads = emb_dim//8 if args.n_heads is None else args.n_heads
-        mlp_dim = 2*emb_dim if args.mlp_dim is None else args.mlp_dim
+        n_heads = args.n_heads
+        mlp_dim = args.mlp_dim
         min_len = args.min_len
         max_len = args.max_len
         causal = args.causal
@@ -232,7 +230,7 @@ if __name__ == "__main__":
         temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
         torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
         model = torch.compile(model, dynamic=True, backend="eager")
-        _ = model(temp)
+        with torch.no_grad(): model(temp)
         
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
@@ -251,7 +249,7 @@ if __name__ == "__main__":
                         
             checkpoint(model, optimizer, scheduler)
         
-        log_info(model_name, args, train_accuracies, test_accuracies)
+        log_info(model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

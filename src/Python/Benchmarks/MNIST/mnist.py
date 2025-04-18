@@ -15,7 +15,7 @@ from models.transformers import *
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
 LOG_PATH = "src/Python/Benchmarks/MNIST/experiments.log"
-logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
 device = torch.device("mps")
 
@@ -64,12 +64,18 @@ def test(model, data_loader, criterion):
     print(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
     return test_loss, 100 * correct / len(data_loader.dataset)
 
-def log_info(model_name, args, train_accuracies, test_accuracies):
-    logging.info(model_name)
-    logging.info(f"Total params: {count_parameters(model):,}")
-    logging.info('Hyperparams:\n' + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]))
-    logging.info("Train accuracies: " + ', '.join(str(round(acc, 2)) for acc in train_accuracies))
-    logging.info("Test accuracies: " + ', '.join(str(round(acc, 2)) for acc in test_accuracies))
+def log_info(model, model_name, args, train_accuracies, test_accuracies):
+    log_message = (
+        f"{model_name}\n"
+        + f"Total params: {count_parameters(model):,}\n"
+        + f"Hyperparams:\n"
+        + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
+        + f"Train accuracies:\n"
+        + f"\t{', '.join(str(round(acc, 2)) for acc in train_accuracies)}\n"
+        + f"Test accuracies:\n"
+        + f"\t{', '.join(str(round(acc, 2)) for acc in test_accuracies)}"
+    )
+    logging.info(log_message)
 
 def checkpoint(model, optimizer, scheduler):
     model_name = model.__class__.__name__
@@ -92,8 +98,9 @@ def arg_parse():
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
     parser.add_argument("--n_layers", type=int, default=2)
-    parser.add_argument("--n_heads", type=int, default=None)
-    parser.add_argument("--mlp_dim", type=int, default=None)
+    parser.add_argument("--n_heads", type=int, default=16)
+    parser.add_argument("--mlp_dim", type=int, default=256)
+    parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=256)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
@@ -114,8 +121,9 @@ if __name__ == "__main__":
         emb_dim = args.emb_dim
         n_classes = args.n_classes
         n_layers = args.n_layers
-        n_heads = emb_dim//8 if args.n_heads is None else args.n_heads
-        mlp_dim = 2*emb_dim if args.mlp_dim is None else args.mlp_dim
+        n_heads = args.n_heads
+        mlp_dim = args.mlp_dim
+        causal = args.causal
         vocab_size = args.vocab_size
         dropout = args.dropout
         
@@ -135,13 +143,13 @@ if __name__ == "__main__":
         test_dataset = datasets.MNIST(root=DATA_DIR, train=False, download=True, transform=transform)
         # train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
         # test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
-        
+
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
-        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
+        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -181,7 +189,7 @@ if __name__ == "__main__":
             
             checkpoint(model, optimizer, scheduler)
             
-        log_info(model_name, args, train_accuracies, test_accuracies)
+        log_info(model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 
