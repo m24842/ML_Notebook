@@ -135,6 +135,7 @@ if __name__ == "__main__":
         # Load dataset
         transform = transforms.Compose([
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x * 255),
             transforms.Resize((dim1, dim2)),
             # transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(dim1, dim2)),
         ])
