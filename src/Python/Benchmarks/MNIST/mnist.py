@@ -101,13 +101,13 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=256)
+    parser.add_argument("--vocab_size", type=int, default=8)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
-    parser.add_argument("--total_epochs", type=int, default=10)
-    parser.add_argument("--lr", type=float, default=5e-3)
-    parser.add_argument("--min_lr", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-3)
+    parser.add_argument("--total_epochs", type=int, default=40)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--min_lr", type=float, default=5e-5)
+    parser.add_argument("--weight_decay", type=float, default=5e-3)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         # Load dataset
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x * 255),
+            transforms.Lambda(lambda x: x * (vocab_size-1)),
             transforms.Resize((dim1, dim2)),
             # transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(dim1, dim2)),
         ])
@@ -172,6 +172,7 @@ if __name__ == "__main__":
         except:
             pass
         
+        print('\033[1mMNIST Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         

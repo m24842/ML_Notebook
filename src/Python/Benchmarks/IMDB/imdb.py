@@ -73,7 +73,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
         if batch_idx % 500 == 0 and batch_idx != 0:
             checkpoint(model, optimizer, scheduler)
-            test(model, val_loader, criterion, is_val=True)
+            # test(model, val_loader, criterion, is_val=True)
             model.train()
     train_set.step()
     return total_loss / len(data_loader), 100 * correct / len(data_loader.dataset)
@@ -134,15 +134,15 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--min_len", type=int, default=128)
-    parser.add_argument("--max_len", type=int, default=1024)
+    parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=28996)
-    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--warmup_epochs", type=int, default=5)
-    parser.add_argument("--total_epochs", type=int, default=10)
-    parser.add_argument("--lr", type=float, default=5e-3)
-    parser.add_argument("--min_lr", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-3)
+    parser.add_argument("--total_epochs", type=int, default=40)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--min_lr", type=float, default=5e-5)
+    parser.add_argument("--weight_decay", type=float, default=5e-3)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -165,21 +165,21 @@ if __name__ == "__main__":
         dropout = args.dropout
         
         imbd = load_dataset('imdb')
-        train_data, val_data = imbd['train'].train_test_split(test_size=0.1, shuffle=True, seed=args.seed).values()
+        train_data = imbd['train']
         test_data = imbd['test']
         
         tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
         train_set = IMDBDataset(train_data, tokenizer, min_len, max_len, warmup_epochs=args.warmup_epochs)
-        val_set = IMDBDataset(val_data, tokenizer, min_len, max_len)
+        # val_set = IMDBDataset(val_data, tokenizer, min_len, max_len)
         test_set = IMDBDataset(test_data, tokenizer, min_len, max_len)
         
         train_loader = DataLoader(train_set, batch_size=bsz, shuffle=True)
-        val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
+        # val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         
@@ -210,6 +210,7 @@ if __name__ == "__main__":
         model = torch.compile(model, dynamic=True, backend="eager")
         with torch.no_grad(): model(temp)
         
+        print('\033[1mIMDB Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         
