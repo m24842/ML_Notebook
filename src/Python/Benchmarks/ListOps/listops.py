@@ -14,7 +14,7 @@ from models.transformers import *
 
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
-LOG_PATH = "src/Python/Benchmarks/IMDB/experiments.log"
+LOG_PATH = "src/Python/Benchmarks/LISTOPS/experiments.log"
 logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s')
 
 device = torch.device("mps")

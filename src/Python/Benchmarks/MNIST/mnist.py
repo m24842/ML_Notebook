@@ -14,7 +14,7 @@ from models.transformers import *
 
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
-LOG_PATH = "src/Python/Benchmarks/IMDB/experiments.log"
+LOG_PATH = "src/Python/Benchmarks/MNIST/experiments.log"
 logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s')
 
 device = torch.device("mps")
