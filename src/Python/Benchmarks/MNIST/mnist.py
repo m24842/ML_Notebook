@@ -119,12 +119,6 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
-        # model = FCNet(dim1*dim2).to(device)
-        # model = MultiLinearNet().to(device)
-        # model = MultiLinearConv2DNet().to(device)
-        # model = SelectionNet(dim1*dim2).to(device)
-        # model = EfficientHyperNet(dim1*dim2, 10).to(device)
-        # model = AssociativeNet(dim1*dim2, 128, 10).to(device)
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
         # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
         model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout).to(device)
