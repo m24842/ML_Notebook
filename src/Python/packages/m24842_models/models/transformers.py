@@ -210,7 +210,7 @@ class Transformer(nn.Module):
     def forward(self, x):
         x = x.reshape(x.size(0), -1)
         seq_len = x.size(1)
-        x = self.embedding(x)
+        x = self.embedding(x.long())
         if self.causal: mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
         else: mask = None
         for layer in self.layers:
@@ -301,7 +301,7 @@ class LinearTransformer(nn.Module):
         
     def forward(self, x):
         x = x.reshape(x.size(0), -1)
-        x = self.embedding(x)
+        x = self.embedding(x.long())
         for layer in self.layers:
             x = layer.norm1(x)
             a_out = layer.attention(x, rope=self.rope, causal=self.causal)
@@ -411,7 +411,7 @@ class OrthoLinearTransformer(nn.Module):
         
     def forward(self, x):
         x = x.reshape(x.size(0), -1)
-        x = self.embedding(x)
+        x = self.embedding(x.long())
         for layer in self.layers:
             x = layer.norm1(x)
             a_out = layer.attention(x, rope=self.rope, causal=self.causal)

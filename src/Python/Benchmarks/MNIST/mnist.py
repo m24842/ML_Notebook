@@ -130,7 +130,6 @@ if __name__ == "__main__":
         dim1 = 28
         dim2 = 28
         
-        torch.manual_seed(3333)
         random_permutation = torch.randperm(dim1*dim2).reshape(dim1, dim2)
         
         # Load dataset
