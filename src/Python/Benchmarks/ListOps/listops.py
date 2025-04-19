@@ -17,7 +17,7 @@ OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
 LOG_PATH = "src/Python/Benchmarks/LISTOPS/experiments.log"
 logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
-device = torch.device("mps")
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 def tokenize_listops(data):
     token_map = {
@@ -227,6 +227,7 @@ if __name__ == "__main__":
             pass
         
         # Allocate max input length
+        if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
         torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
         model = torch.compile(model, dynamic=True, backend="eager")

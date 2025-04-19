@@ -17,7 +17,7 @@ OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
 LOG_PATH = "src/Python/Benchmarks/MNIST/experiments.log"
 logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
-device = torch.device("mps")
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -147,9 +147,11 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
-        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal).to(device)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        
+        model = model.to(device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -171,6 +173,8 @@ if __name__ == "__main__":
             scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
         except:
             pass
+        
+        if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
         print('\033[1mMNIST Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
