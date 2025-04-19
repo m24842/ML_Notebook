@@ -153,7 +153,7 @@ def arg_parse():
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
-    parser.add_argument("--n_layers", type=int, default=4)
+    parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--min_len", type=int, default=1000)
@@ -163,8 +163,8 @@ def arg_parse():
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=5)
     parser.add_argument("--total_epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=1e-2)
-    parser.add_argument("--weight_decay", type=float, default=5e-2)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -198,9 +198,9 @@ if __name__ == "__main__":
         val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
-        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         

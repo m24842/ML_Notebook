@@ -133,7 +133,7 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--min_len", type=int, default=128)
+    parser.add_argument("--min_len", type=int, default=512)
     parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=28996)

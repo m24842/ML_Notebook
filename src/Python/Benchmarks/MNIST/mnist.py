@@ -34,7 +34,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
-        correct = accuracy
+        correct += accuracy
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -42,7 +42,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
             checkpoint(model, optimizer, scheduler)
-    return total_loss / len(data_loader), 100 * correct / len(data_loader.dataset)
+    return total_loss / len(data_loader), 100. * correct / len(data_loader.dataset)
 
 @ torch.no_grad()
 def test(model, data_loader, criterion):
@@ -56,8 +56,7 @@ def test(model, data_loader, criterion):
         target = target.to(device)
         output = model(data)
         test_loss += criterion(output, target).item()
-        pred = output.argmax(dim=1)
-        correct += pred.eq(target).sum().item()
+        correct += output.argmax(dim=-1).eq(target).sum().item()
 
     total_time = time.time() - start
     test_loss /= len(data_loader)
@@ -101,12 +100,12 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=8)
+    parser.add_argument("--vocab_size", type=int, default=16)
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=10)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight_decay", type=float, default=5e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -147,8 +146,8 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         
