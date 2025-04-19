@@ -363,8 +363,8 @@ class OrthoLinearAttention(nn.Module):
             k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
         beta = torch.exp(self.beta)
-        q = (beta * q).softmax(-1)
-        k = (beta * k).softmax(-1)
+        q = (beta * q).softmax(-1) * q.norm(dim=-1, keepdim=True)
+        k = (beta * k).softmax(-1) * k.norm(dim=-1, keepdim=True)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)

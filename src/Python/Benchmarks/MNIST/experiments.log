@@ -1,0 +1,42 @@
+04-19-2025 13:04 - OrthoLinearTransformer
+Total params: 268,546
+Hyperparams:
+	seed: 3333
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 16
+	mlp_dim: 256
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	46.17, 72.94, 76.97, 79.38, 82.12, 84.04, 85.30, 86.59, 87.53, 89.02, 90.72, 92.18, 93.31, 94.16, 94.83, 95.42, 95.93, 96.44, 96.71, 96.94
+Test accuracies:
+	68.80, 77.71, 76.71, 80.60, 81.78, 84.68, 84.94, 85.92, 87.88, 88.91, 90.09, 91.74, 92.28, 93.17, 93.24, 93.94, 93.99, 94.09, 94.15, 94.18
+04-19-2025 14:28 - LinearTransformer
+Total params: 268,544
+Hyperparams:
+	seed: 3333
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 16
+	mlp_dim: 256
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	49.68, 74.54, 77.51, 79.87, 81.38, 83.13, 84.27, 85.19, 86.08, 87.05, 87.91, 88.89, 89.71, 90.43, 91.31, 91.98, 92.76, 93.25, 93.68, 93.89
+Test accuracies:
+	71.98, 76.81, 76.42, 80.62, 82.24, 84.12, 84.67, 84.99, 85.67, 86.12, 86.11, 88.69, 88.29, 89.32, 89.50, 89.44, 89.93, 89.84, 89.84, 89.95
