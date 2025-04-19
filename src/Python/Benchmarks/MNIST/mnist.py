@@ -99,7 +99,6 @@ def arg_parse():
     parser.add_argument("--n_classes", type=int, default=10)
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=16)
-    parser.add_argument("--d_conv", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=8)
@@ -123,7 +122,6 @@ if __name__ == "__main__":
         n_classes = args.n_classes
         n_layers = args.n_layers
         n_heads = args.n_heads
-        d_conv = args.d_conv
         mlp_dim = args.mlp_dim
         causal = args.causal
         vocab_size = args.vocab_size
@@ -152,9 +150,6 @@ if __name__ == "__main__":
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = ConvTransformer(emb_dim, n_classes, d_conv, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = ConvLinearTransformer(emb_dim, n_classes, d_conv, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = ConvOrthoLinearTransformer(emb_dim, n_classes, d_conv, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         
