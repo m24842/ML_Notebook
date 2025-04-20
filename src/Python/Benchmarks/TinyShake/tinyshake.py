@@ -133,14 +133,14 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--min_len", type=int, default=128)
-    parser.add_argument("--max_len", type=int, default=512)
-    parser.add_argument("--causal", type=bool, default=False)
+    parser.add_argument("--max_len", type=int, default=1024)
+    parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=28996)
-    parser.add_argument("--dropout", type=float, default=0.3)
+    parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=5)
     parser.add_argument("--total_epochs", type=int, default=40)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight_decay", type=float, default=5e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -181,8 +181,8 @@ if __name__ == "__main__":
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        warmup_steps = args.warmup_epochs * len(train_data) // bsz
-        total_steps = args.total_epochs * len(train_data) // bsz
+        warmup_steps = args.warmup_epochs * len(train_loader)
+        total_steps = args.total_epochs * len(train_loader)
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
         model_name = model.__class__.__name__

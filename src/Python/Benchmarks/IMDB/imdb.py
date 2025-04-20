@@ -183,8 +183,8 @@ if __name__ == "__main__":
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        warmup_steps = args.warmup_epochs * len(train_data) // bsz
-        total_steps = args.total_epochs * len(train_data) // bsz
+        warmup_steps = args.warmup_epochs * len(train_loader)
+        total_steps = args.total_epochs * len(train_loader)
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
         model_name = model.__class__.__name__
