@@ -38,6 +38,7 @@ class IMDBDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         tokenized = torch.tensor(tokenizer(item['text'])['input_ids'], dtype=torch.long)
+        tokenized = torch.cat([torch.tensor([tokenizer.cls_token_id]), tokenized]) # Add CLS token
         target = torch.tensor(item['label'], dtype=torch.long)
         padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
         return padded_tokenized, target
@@ -60,7 +61,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
-        output = model(data)[:, -1]
+        output = model(data)[:, 0]
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
@@ -92,7 +93,7 @@ def test(model, data_loader, criterion, is_val=False):
     for data, target in iterable:
         data = data.to(device).squeeze(1)
         target = target.to(device)
-        output = model(data)[:, -1]
+        output = model(data)[:, 0]
         test_loss += criterion(output, target).item()
         correct += output.argmax(dim=-1).eq(target).sum().item()
 
@@ -140,7 +141,7 @@ def arg_parse():
     parser.add_argument("--warmup_epochs", type=int, default=5)
     parser.add_argument("--total_epochs", type=int, default=40)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight_decay", type=float, default=5e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -176,8 +177,8 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         
@@ -196,11 +197,15 @@ if __name__ == "__main__":
         if not os.path.exists(model_dir): os.makedirs(model_dir)
         
         try:
-            model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
+            state_dict = torch.load(model_path, weights_only=True, map_location=device)
+            if "_orig_mod." in list(state_dict.keys())[0]:
+                state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
+            model.load_state_dict(state_dict)
             optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
             scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
+            print(f'\033[92mResuming from checkpoint\033[0m')
         except:
-            pass
+            print(f'\033[91mStarting from scratch\033[0m')
         
         # Allocate max input length
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)

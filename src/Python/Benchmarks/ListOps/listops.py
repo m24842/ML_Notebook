@@ -13,28 +13,30 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 
 DATA_DIR = "data/listops-1000"
-OUTPUT_DIR = "src/Python/Benchmarks/LISTOPS/listops_models"
-LOG_PATH = "src/Python/Benchmarks/LISTOPS/experiments.log"
+OUTPUT_DIR = "src/Python/Benchmarks/ListOps/listops_models"
+LOG_PATH = "src/Python/Benchmarks/ListOps/experiments.log"
 logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 def tokenize_listops(data):
     token_map = {
-        "[MAX": 1,
-        "[MIN": 2,
-        "[MED": 3,
-        "[SUM_MOD": 4,
-        "[SM": 5,
-        "[AVG": 6,
-        "[MAJ": 7,
-        "]": 8,
-        "(": 9,
-        ")": 10,
-        **{str(i): i + 11 for i in range(10)}
+        "[CLS]": 0,
+        "[PAD]": 1,
+        "[MAX": 2,
+        "[MIN": 3,
+        "[MED": 4,
+        "[SUM_MOD": 5,
+        "[SM": 6,
+        "[AVG": 7,
+        "[MAJ": 8,
+        "]": 9,
+        "(": 10,
+        ")": 11,
+        **{str(i): i + 12 for i in range(10)}
     }
 
-    tokens = data["Source"].split()
+    tokens = ["[CLS]"] + data["Source"].split()
     try:
         tokenized = [token_map[token] for token in tokens]
     except KeyError as e:
@@ -62,7 +64,7 @@ class ListOpsDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data.iloc[idx]
         tokenized, target = self.tokenizer(item)
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=1)  # Pad with [PAD] token (1)
         return padded_tokenized, target
 
     def step(self):
@@ -83,7 +85,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
-        output = model(data)[:, -1]
+        output = model(data)[:, 0]
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
@@ -115,7 +117,7 @@ def test(model, data_loader, criterion, is_val=False):
     for data, target in iterable:
         data = data.to(device).squeeze(1)
         target = target.to(device)
-        output = model(data)[:, -1]
+        output = model(data)[:, 0]
         test_loss += criterion(output, target).item()
         correct += output.argmax(dim=-1).eq(target).sum().item()
 
@@ -158,10 +160,10 @@ def arg_parse():
     parser.add_argument("--min_len", type=int, default=1000)
     parser.add_argument("--max_len", type=int, default=2000)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=21)
+    parser.add_argument("--vocab_size", type=int, default=22)
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
-    parser.add_argument("--total_epochs", type=int, default=20)
+    parser.add_argument("--total_epochs", type=int, default=40)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
@@ -218,11 +220,15 @@ if __name__ == "__main__":
         if not os.path.exists(model_dir): os.makedirs(model_dir)
         
         try:
-            model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
+            state_dict = torch.load(model_path, weights_only=True, map_location=device)
+            if "_orig_mod." in list(state_dict.keys())[0]:
+                state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
+            model.load_state_dict(state_dict)
             optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
             scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
+            print(f'\033[92mResuming from checkpoint\033[0m')
         except:
-            pass
+            print(f'\033[91mStarting from scratch\033[0m')
         
         # Allocate max input length
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)

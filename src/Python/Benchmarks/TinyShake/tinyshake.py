@@ -33,7 +33,7 @@ class TinyShakeDataset(Dataset):
         self.tokenizer = tokenizer
     
     def __len__(self):
-        return 32000#len(self.data)
+        return len(self.data) // 8
     
     def __getitem__(self, idx):
         start_idx = torch.randint(0, len(self.data) - self.len - 1, (1,)).item()
@@ -126,14 +126,14 @@ def arg_parse():
     parser = ArgumentParser()
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--bsz", type=int, default=32)
+    parser.add_argument("--bsz", type=int, default=16)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=28996)
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--min_len", type=int, default=128)
-    parser.add_argument("--max_len", type=int, default=1024)
+    parser.add_argument("--max_len", type=int, default=512)
     parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=28996)
     parser.add_argument("--dropout", type=float, default=0.0)
@@ -194,11 +194,15 @@ if __name__ == "__main__":
         if not os.path.exists(model_dir): os.makedirs(model_dir)
         
         try:
-            model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
+            state_dict = torch.load(model_path, weights_only=True, map_location=device)
+            if "_orig_mod." in list(state_dict.keys())[0]:
+                state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
+            model.load_state_dict(state_dict)
             optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
             scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
+            print(f'\033[92mResuming from checkpoint\033[0m')
         except:
-            pass
+            print(f'\033[91mStarting from scratch\033[0m')
         
         # Allocate max input length
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
@@ -207,7 +211,7 @@ if __name__ == "__main__":
         model = torch.compile(model, dynamic=True, backend="eager")
         with torch.no_grad(): model(temp)
         
-        print('\033[1mIMDB Benchmark\033[0m')
+        print('\033[1mTiny Shakespeare Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         

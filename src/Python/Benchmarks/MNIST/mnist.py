@@ -173,8 +173,9 @@ if __name__ == "__main__":
             model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
             optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
             scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
+            print(f'\033[92mResuming from checkpoint\033[0m')
         except:
-            pass
+            print(f'\033[91mStarting from scratch\033[0m')
         
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
