@@ -60,7 +60,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
-        output = model(data)
+        output = model(data)[:, -1]
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
@@ -92,10 +92,9 @@ def test(model, data_loader, criterion, is_val=False):
     for data, target in iterable:
         data = data.to(device).squeeze(1)
         target = target.to(device)
-        output = model(data)
+        output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
-        pred = output.argmax(dim=1)
-        correct += pred.eq(target).sum().item()
+        correct += output.argmax(dim=-1).eq(target).sum().item()
 
     total_time = time.time() - start
     test_loss /= len(data_loader)

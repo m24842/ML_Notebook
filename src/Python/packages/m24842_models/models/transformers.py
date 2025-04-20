@@ -222,7 +222,7 @@ class Transformer(nn.Module):
             x = x + layer.dropout2(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
-        return x[:, -1]
+        return x
 
 class LinearMultiheadAttention(nn.Module):
     def __init__(self, dim, num_heads, bias=True):
@@ -311,7 +311,7 @@ class LinearTransformer(nn.Module):
             x = x + layer.dropout2(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
-        return x[:, -1]
+        return x
 
 class OrthoLinearAttention(nn.Module):
     """
@@ -421,4 +421,4 @@ class OrthoLinearTransformer(nn.Module):
             x = x + layer.dropout1(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
-        return x[:, -1]
+        return x

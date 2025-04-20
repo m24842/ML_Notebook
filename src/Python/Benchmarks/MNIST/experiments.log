@@ -40,3 +40,67 @@ Train accuracies:
 	49.68, 74.54, 77.51, 79.87, 81.38, 83.13, 84.27, 85.19, 86.08, 87.05, 87.91, 88.89, 89.71, 90.43, 91.31, 91.98, 92.76, 93.25, 93.68, 93.89
 Test accuracies:
 	71.98, 76.81, 76.42, 80.62, 82.24, 84.12, 84.67, 84.99, 85.67, 86.12, 86.11, 88.69, 88.29, 89.32, 89.50, 89.44, 89.93, 89.84, 89.84, 89.95
+04-19-2025 17:24 - LinearTransformer
+Total params: 268,544
+Hyperparams:
+	seed: 0
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 16
+	mlp_dim: 256
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	49.11, 75.15, 78.15, 80.89, 82.70, 84.16, 85.12, 85.97, 86.86, 87.64, 88.46, 89.77, 91.03, 92.02, 93.03, 93.81, 94.53, 95.06, 95.40, 95.56
+Test accuracies:
+	72.60, 73.90, 78.00, 81.39, 82.83, 82.94, 84.60, 86.39, 86.02, 87.73, 87.57, 89.43, 90.19, 90.90, 91.80, 92.02, 92.35, 92.32, 92.32, 92.44
+04-19-2025 17:28 - OrthoLinearTransformer
+Total params: 268,546
+Hyperparams:
+	seed: 0
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 16
+	mlp_dim: 256
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	46.44, 74.09, 77.79, 80.84, 82.67, 84.56, 85.82, 87.47, 89.47, 91.34, 93.02, 94.05, 94.78, 95.48, 96.05, 96.63, 97.13, 97.55, 97.81, 97.99
+Test accuracies:
+	72.50, 75.47, 79.69, 79.55, 83.96, 82.87, 86.47, 87.98, 88.78, 91.92, 92.96, 92.84, 93.67, 94.46, 94.78, 95.13, 94.91, 95.17, 95.28, 95.22
+04-19-2025 19:03 - OrthoLinearTransformer
+Total params: 268,546
+Hyperparams:
+	seed: 0
+	permuted: False
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 16
+	mlp_dim: 256
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	45.94, 73.38, 78.12, 80.75, 82.46, 84.18, 85.38, 87.53, 90.18, 91.49, 92.40, 93.28, 94.02, 94.73, 95.55, 96.16, 96.61, 97.08, 97.38, 97.57
+Test accuracies:
+	70.73, 76.79, 79.85, 81.01, 82.91, 84.08, 86.44, 87.65, 90.47, 91.51, 91.32, 92.89, 93.46, 93.49, 93.72, 94.02, 94.14, 94.33, 94.23, 94.25

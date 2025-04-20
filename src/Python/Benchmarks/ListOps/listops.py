@@ -83,7 +83,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
-        output = model(data)
+        output = model(data)[:, -1]
         loss = criterion(output, target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
@@ -115,10 +115,9 @@ def test(model, data_loader, criterion, is_val=False):
     for data, target in iterable:
         data = data.to(device).squeeze(1)
         target = target.to(device)
-        output = model(data)
+        output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
-        pred = output.argmax(dim=1)
-        correct += pred.eq(target).sum().item()
+        correct += output.argmax(dim=-1).eq(target).sum().item()
 
     total_time = time.time() - start
     test_loss /= len(data_loader)
@@ -151,17 +150,17 @@ def arg_parse():
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bsz", type=int, default=32)
-    parser.add_argument("--emb_dim", type=int, default=128)
+    parser.add_argument("--emb_dim", type=int, default=512)
     parser.add_argument("--n_classes", type=int, default=10)
-    parser.add_argument("--n_layers", type=int, default=2)
-    parser.add_argument("--n_heads", type=int, default=16)
-    parser.add_argument("--mlp_dim", type=int, default=256)
+    parser.add_argument("--n_layers", type=int, default=4)
+    parser.add_argument("--n_heads", type=int, default=64)
+    parser.add_argument("--mlp_dim", type=int, default=1024)
     parser.add_argument("--min_len", type=int, default=1000)
     parser.add_argument("--max_len", type=int, default=2000)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=21)
     parser.add_argument("--dropout", type=float, default=0.0)
-    parser.add_argument("--warmup_epochs", type=int, default=5)
+    parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.0)
@@ -198,9 +197,9 @@ if __name__ == "__main__":
         val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
-        model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
+        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
         
         model = model.to(device)
         
