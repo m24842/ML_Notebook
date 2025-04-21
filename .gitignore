@@ -2,6 +2,7 @@ commands.txt
 data/
 .vscode/
 .venv/
+__pycache__/
 pyrightconfig.json
 *.mp4
 *.pth
