@@ -253,8 +253,10 @@ class LinearMultiheadAttention(nn.Module):
             q = rope.rotate_queries_or_keys(q).reshape(bsz*self.num_heads, seq_len, self.head_dim).contiguous()
             k = rope.rotate_queries_or_keys(k).reshape(bsz*self.num_heads, seq_len, self.head_dim).contiguous()
         
-        q = torch.exp(q)
-        k = torch.exp(k)
+        # q = torch.exp(q)
+        # k = torch.exp(k)
+        q = F.elu(q) + 1
+        k = F.elu(k) + 1
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
