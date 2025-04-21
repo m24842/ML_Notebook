@@ -176,7 +176,7 @@ class MultiheadAttention(nn.Module):
         return attn_output, attn_output_weights
 
 class Transformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True, use_embedding=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -184,7 +184,9 @@ class Transformer(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
-        self.embedding = nn.Embedding(vocab_size, emb_dim)
+        self.use_embedding = use_embedding
+        if use_embedding: self.embedding = nn.Embedding(vocab_size, emb_dim)
+        else: self.embedding = nn.Linear(vocab_size, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
         self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads))
         self.layers = nn.ModuleList([
@@ -206,12 +208,13 @@ class Transformer(nn.Module):
         ])
         self.norm_f = nn.LayerNorm(emb_dim)
         
+        if use_embedding: nn.init.xavier_uniform_(self.embedding.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
     def forward(self, x):
-        x = x.reshape(x.size(0), -1)
         seq_len = x.size(1)
-        x = self.embedding(x.long())
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
         if self.causal: mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
         else: mask = None
         for layer in self.layers:
@@ -270,7 +273,7 @@ class LinearMultiheadAttention(nn.Module):
         return self.out_proj(out)
 
 class LinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True, use_embedding=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -278,7 +281,9 @@ class LinearTransformer(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
-        self.embedding = nn.Embedding(vocab_size, emb_dim)
+        self.use_embedding = use_embedding
+        if use_embedding: self.embedding = nn.Embedding(vocab_size, emb_dim)
+        else: self.embedding = nn.Linear(vocab_size, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
         self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads))
         self.layers = nn.ModuleList([
@@ -300,11 +305,12 @@ class LinearTransformer(nn.Module):
         ])
         self.norm_f = nn.LayerNorm(emb_dim)
         
+        if use_embedding: nn.init.xavier_uniform_(self.embedding.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
     def forward(self, x):
-        x = x.reshape(x.size(0), -1)
-        x = self.embedding(x.long())
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
             a_out = layer.attention(x, rope=self.rope, causal=self.causal)
@@ -365,8 +371,8 @@ class OrthoLinearAttention(nn.Module):
             k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
         beta = torch.exp(self.beta)
-        q = (beta * q).softmax(-1) * q.norm(dim=-1, keepdim=True)
-        k = (beta * k).softmax(-1) * k.norm(dim=-1, keepdim=True)
+        q = (beta * q).softmax(-1)# * q.norm(dim=-1, keepdim=True)
+        k = (beta * k).softmax(-1)# * k.norm(dim=-1, keepdim=True)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
@@ -380,7 +386,7 @@ class OrthoLinearAttention(nn.Module):
         return self.out_proj(out)
 
 class OrthoLinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, vocab_size=10, dropout=0.0, causal=True, use_embedding=True):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -388,7 +394,9 @@ class OrthoLinearTransformer(nn.Module):
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
-        self.embedding = nn.Embedding(vocab_size, emb_dim)
+        self.use_embedding = use_embedding
+        if use_embedding: self.embedding = nn.Embedding(vocab_size, emb_dim)
+        else: self.embedding = nn.Linear(vocab_size, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
         self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), cache_if_possible=False)
         self.layers = nn.ModuleList([
@@ -410,11 +418,12 @@ class OrthoLinearTransformer(nn.Module):
         ])
         self.norm_f = nn.LayerNorm(emb_dim)
         
+        if use_embedding: nn.init.xavier_uniform_(self.embedding.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
     def forward(self, x):
-        x = x.reshape(x.size(0), -1)
-        x = self.embedding(x.long())
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
             a_out = layer.attention(x, rope=self.rope, causal=self.causal)

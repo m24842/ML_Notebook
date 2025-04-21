@@ -27,7 +27,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     total_loss = 0
     correct = 0
     for batch_idx, (data, target) in enumerate(tqdm(data_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')):
-        data = data.to(device)
+        data = data.reshape(data.size(0), -1).to(device)
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)[:, -1]
@@ -52,7 +52,7 @@ def test(model, data_loader, criterion):
     correct = 0
     start = time.time()
     for data, target in tqdm(data_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m'):
-        data = data.to(device).squeeze(1)
+        data = data.reshape(data.size(0), -1).to(device)
         target = target.to(device)
         output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
