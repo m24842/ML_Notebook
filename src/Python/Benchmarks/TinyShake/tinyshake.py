@@ -136,7 +136,7 @@ def arg_parse():
     parser.add_argument("--max_len", type=int, default=512)
     parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=28996)
-    parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=5)
     parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)

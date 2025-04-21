@@ -100,13 +100,13 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--causal", type=bool, default=False)
+    parser.add_argument("--causal", type=bool, default=True)
     parser.add_argument("--vocab_size", type=int, default=16)
-    parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight_decay", type=float, default=0.1)
+    parser.add_argument("--lr", type=float, default=5e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
     return parser.parse_args()
 
 if __name__ == "__main__":
