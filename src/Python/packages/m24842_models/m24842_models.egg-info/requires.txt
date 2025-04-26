@@ -1,3 +1,4 @@
 torch
 einops
+opt_einsum
 rotary_embedding_torch

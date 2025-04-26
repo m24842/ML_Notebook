@@ -133,6 +133,7 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=16)
     parser.add_argument("--mlp_dim", type=int, default=256)
+    parser.add_argument("--mem_dim", type=int, default=128)
     parser.add_argument("--min_len", type=int, default=512)
     parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
@@ -157,6 +158,7 @@ if __name__ == "__main__":
         n_layers = args.n_layers
         n_heads = args.n_heads
         mlp_dim = args.mlp_dim
+        mem_dim = args.mem_dim
         min_len = args.min_len
         max_len = args.max_len
         causal = args.causal
@@ -176,11 +178,10 @@ if __name__ == "__main__":
         # val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
-        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal)
-        
-        model = model.to(device)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
+        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

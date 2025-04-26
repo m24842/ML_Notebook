@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m24842_models"
-version = "0.1.7"
+version = "0.1.8"
 description = ""
 requires-python = ">=3.8"
 dependencies = [
     "torch",
     "einops",
+    "opt_einsum",
     "rotary_embedding_torch",
 ]
