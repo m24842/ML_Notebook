@@ -105,8 +105,8 @@ def arg_parse():
     parser.add_argument("--vocab_size", type=int, default=16)
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
-    parser.add_argument("--total_epochs", type=int, default=10)
-    parser.add_argument("--lr", type=float, default=5e-3)
+    parser.add_argument("--total_epochs", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
