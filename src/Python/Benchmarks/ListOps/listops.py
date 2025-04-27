@@ -158,15 +158,15 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=1024)
     parser.add_argument("--mem_dim", type=int, default=256)
-    parser.add_argument("--min_len", type=int, default=1000)
+    parser.add_argument("--min_len", type=int, default=1024)
     parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=22)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=5e-4)
-    parser.add_argument("--weight_decay", type=float, default=0.1)
+    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--weight_decay", type=float, default=5e-3)
     return parser.parse_args()
 
 if __name__ == "__main__":

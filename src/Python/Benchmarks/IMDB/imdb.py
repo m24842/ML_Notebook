@@ -139,10 +139,10 @@ def arg_parse():
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=28996)
     parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--warmup_epochs", type=int, default=5)
-    parser.add_argument("--total_epochs", type=int, default=40)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--warmup_epochs", type=int, default=3)
+    parser.add_argument("--total_epochs", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--weight_decay", type=float, default=5e-3)
     return parser.parse_args()
 
 if __name__ == "__main__":

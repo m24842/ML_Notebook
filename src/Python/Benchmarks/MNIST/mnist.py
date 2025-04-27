@@ -92,7 +92,7 @@ def checkpoint(model, optimizer, scheduler):
 def arg_parse():
     parser = ArgumentParser()
     # parser.add_argument("--model", type=str, default="Transformer")
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--bsz", type=int, default=64)
     parser.add_argument("--emb_dim", type=int, default=128)

@@ -486,118 +486,45 @@ class CompressionAttention(nn.Module):
         _, bsz, d_model = x.shape
         src_len = x.shape[0]
         
-        ### Downward self attention ###
         q_d = self.q_down.unsqueeze(1).repeat(1, bsz, 1)  # (compressed_len, d_model)
         q_u = self.q_proj(x)  # (src_len, batch_size, d_model)
         k_d = self.k_proj(x)  # (src_len, batch_size, d_model)
         v_d = self.v_proj(x)  # (src_len, batch_size, d_model)
+        v_d_k = self.k_proj(v_d)  # (src_len, batch_size, d_model)
+        v_d_v = self.v_proj(v_d)  # (src_len, batch_size, d_model)
         
         # Reshape q_d, k_d, v_d for multi-head attention
-        q_d = q_d.contiguous().view(cmprs_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-        k_d = k_d.contiguous().view(src_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-        v_d = v_d.contiguous().view(src_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
+        q_d = rearrange(q_d, 'c b (h d) -> (b h) c d', h=self.n_heads).contiguous()
+        q_u = rearrange(q_u, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        k_d = rearrange(k_d, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        # v_d = rearrange(v_d, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v_d_k = rearrange(v_d_k, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v_d_v = rearrange(v_d_v, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         
         if rope:
             # q_d = rope.rotate_queries_or_keys(q_d.reshape(bsz, self.n_heads, cmprs_len, self.d_head)).reshape(bsz * self.n_heads, cmprs_len, self.d_head)
             k_d = rope.rotate_queries_or_keys(k_d.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads, src_len, self.d_head)
         
-        # Calculate attention scores
+        ### Downward self attention ###
         q_d = q_d / math.sqrt(self.d_head)
         down_attn_weights = torch.bmm(q_d, k_d.transpose(1, 2))  # (bsz * n_heads, cmprs_len, src_len)
         
         if causal:
-            q_u = rearrange(q_u, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
-            if rope:
-                q_u = rope.rotate_queries_or_keys(q_u.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads * src_len, self.d_head)
-            compressed_memory = torch.zeros((bsz * self.n_heads, cmprs_len, self.d_head), device=x.device)
-            for i in range(src_len):
-                mem_reshaped = rearrange(compressed_memory, '(b h) s d -> s b (h d)', h=self.n_heads)
-                compressed_k = self.k_proj(mem_reshaped)
-                compressed_k = compressed_k.contiguous().view(cmprs_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-                compressed_attn_weights = torch.bmm(q_d, compressed_k.transpose(1, 2))  # (bsz * n_heads, cmprs_len, cmprs_len)
-                compressed_attn_weights = torch.cat([compressed_attn_weights, down_attn_weights[:, :, i:i+1]], dim=-1)  # (bsz * n_heads, cmprs_len, cmprs_len+1)
-                compressed_attn_weights = F.softmax(compressed_attn_weights, dim=-1)
-                compressed_attn_weights = F.dropout(compressed_attn_weights, p=self.dropout, training=self.training)
-                compressed_v = torch.cat([compressed_memory, v_d[:, i:i+1, :]], dim=1)  # (bsz * n_heads, cmprs_len + 1, d_head)
-                compressed_memory = torch.bmm(compressed_attn_weights, compressed_v)  # (bsz * n_heads, cmprs_len, d_head)
-                
-                ### Upward self attention ###
-                k_u = self.k_proj(compressed_memory)  # (cmprs_len, batch_size, d_model)
-                v_u = self.v_proj(compressed_memory)  # (cmprs_len, batch_size, d_model)
-                
-                # Reshape q_u, k_u, v_u for multi-head attention
-                k_u = rearrange(k_u, 'c b (h d) -> (b h) c d', h=self.n_heads).contiguous()
-                v_u = rearrange(v_u, 'c b (h d) -> (b h) c d', h=self.n_heads).contiguous()
-                
-                if rope:
-                    q_u = rope.rotate_queries_or_keys(q_u.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads * src_len, self.d_head)
-                    k_u = rope.rotate_queries_or_keys(rearrange(k_u, '(b h s) c d -> (b s) h c d', b=bsz, h=self.n_heads, s=src_len))
-                    k_u = rearrange(k_u, '(b s) h c d -> (b h s) c d', b=bsz, h=self.n_heads, s=src_len).contiguous()
-                
-                # Calculate attention scores for compressed output
-                q_u = q_u / math.sqrt(self.d_head)
-                up_attn_weights = torch.bmm(q_u.unsqueeze(1), k_u.transpose(1, 2)).reshape(bsz*self.n_heads, src_len, cmprs_len)  # (bsz * n_heads, src_len, cmprs_len)
-                
-                # Convert attention weights to probabilities
-                up_attn_weights = F.softmax(up_attn_weights, dim=-1)
-                up_attn_weights = F.dropout(up_attn_weights, p=self.dropout, training=self.training)
-                
-                # Apply attention weights to values
-                up_attn_output = (up_attn_weights.unsqueeze(-1) * v_u).sum(2)  # (bsz * n_heads, src_len, d_head)
-            down_attn_output = rearrange(down_attn_output, '(b h) s c d -> s c b (h d)', h=self.n_heads)
+            ...
         else:
             # Convert attention weights to probabilities
             down_attn_weights = F.softmax(down_attn_weights, dim=-1)
             down_attn_weights = F.dropout(down_attn_weights, p=self.dropout, training=self.training)
-            
-            # Apply attention weights to values
-            down_attn_output = torch.bmm(down_attn_weights, v_d)  # (bsz * n_heads, cmprs_len, d_head)
-
-            # Reshape output
-            down_attn_output = down_attn_output.transpose(0, 1).contiguous().view(cmprs_len, bsz, d_model)
         
         ### Upward self attention ###
+        q_u = q_u / math.sqrt(self.d_head)
+        
         if causal:
-            q_u = self.q_proj(x)  # (src_len, batch_size, d_model)
-            k_u = self.k_proj(down_attn_output)  # (src_len, cmprs_len, batch_size, d_model)
-            v_u = self.v_proj(down_attn_output)  # (src_len, cmprs_len, batch_size, d_model)
-            
-            # Reshape q_u, k_u, v_u for multi-head attention
-            q_u = rearrange(q_u, 's b (h d) -> (b h s) d', h=self.n_heads).contiguous()
-            k_u = rearrange(k_u, 's c b (h d) -> (b h s) c d', h=self.n_heads).contiguous()
-            v_u = rearrange(v_u, 's c b (h d) -> (b h) s c d', h=self.n_heads).contiguous()
-            
-            if rope:
-                q_u = rope.rotate_queries_or_keys(q_u.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads * src_len, self.d_head)
-                k_u = rope.rotate_queries_or_keys(rearrange(k_u, '(b h s) c d -> (b s) h c d', b=bsz, h=self.n_heads, s=src_len))
-                k_u = rearrange(k_u, '(b s) h c d -> (b h s) c d', b=bsz, h=self.n_heads, s=src_len).contiguous()
-            
-            # Calculate attention scores for compressed output
-            q_u = q_u / math.sqrt(self.d_head)
-            up_attn_weights = torch.bmm(q_u.unsqueeze(1), k_u.transpose(1, 2)).reshape(bsz*self.n_heads, src_len, cmprs_len)  # (bsz * n_heads, src_len, cmprs_len)
-            
-            # Convert attention weights to probabilities
-            up_attn_weights = F.softmax(up_attn_weights, dim=-1)
-            up_attn_weights = F.dropout(up_attn_weights, p=self.dropout, training=self.training)
-            
-            # Apply attention weights to values
-            up_attn_output = (up_attn_weights.unsqueeze(-1) * v_u).sum(2)  # (bsz * n_heads, src_len, d_head)
+            ...
         else:
-            q_u = self.q_proj(x)  # (src_len, batch_size, d_model)
-            k_u = self.k_proj(down_attn_output)  # (src_len, batch_size, d_model)
-            v_u = self.v_proj(down_attn_output)  # (src_len, batch_size, d_model)
-            
-            # Reshape q_u, k_u, v_u for multi-head attention
-            q_u = q_u.contiguous().view(src_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-            k_u = k_u.contiguous().view(cmprs_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-            v_u = v_u.contiguous().view(cmprs_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
-            
-            if rope:
-                q_u = rope.rotate_queries_or_keys(q_u.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads, src_len, self.d_head)
-                k_u = rope.rotate_queries_or_keys(k_u.reshape(bsz, self.n_heads, cmprs_len, self.d_head)).reshape(bsz * self.n_heads, cmprs_len, self.d_head)
-            
             # Calculate attention scores for compressed output
-            q_u = q_u / math.sqrt(self.d_head)
+            k_u = torch.bmm(down_attn_weights, v_d_k)  # (bsz * n_heads, cmprs_len, d_head)
+            v_u = torch.bmm(down_attn_weights, v_d_v)  # (bsz * n_heads, cmprs_len, d_head)
             up_attn_weights = torch.bmm(q_u, k_u.transpose(1, 2))  # (bsz * n_heads, src_len, cmprs_len)
             
             # Convert attention weights to probabilities
