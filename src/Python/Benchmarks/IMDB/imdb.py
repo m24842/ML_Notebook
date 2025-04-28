@@ -13,12 +13,12 @@ from models.transformers import *
 from models.utils import *
 transformers.logging.set_verbosity_error()
 
-OUTPUT_DIR = "src/Python/Benchmarks/IMDB/imdb_models"
-LOG_PATH = "src/Python/Benchmarks/IMDB/experiments.log"
+OUTPUT_DIR = "src/Python/Benchmarks/IMDb/imdb_models"
+LOG_PATH = "src/Python/Benchmarks/IMDb/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
-class IMDBDataset(Dataset):
+class IMDbDataset(Dataset):
     def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
         if warmup_epochs < 1:
             self.min_len = max_len
@@ -147,9 +147,9 @@ if __name__ == "__main__":
         test_data = imbd['test']
         
         tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
-        train_set = IMDBDataset(train_data, tokenizer, min_len, max_len, warmup_epochs=args.warmup_epochs)
-        # val_set = IMDBDataset(val_data, tokenizer, min_len, max_len)
-        test_set = IMDBDataset(test_data, tokenizer, min_len, max_len)
+        train_set = IMDbDataset(train_data, tokenizer, min_len, max_len, warmup_epochs=args.warmup_epochs)
+        # val_set = IMDbDataset(val_data, tokenizer, min_len, max_len)
+        test_set = IMDbDataset(test_data, tokenizer, min_len, max_len)
         
         train_loader = DataLoader(train_set, batch_size=bsz, shuffle=True)
         # val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)
@@ -189,7 +189,7 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
-        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, "IMDb", model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

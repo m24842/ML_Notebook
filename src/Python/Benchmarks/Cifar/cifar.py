@@ -63,7 +63,7 @@ def arg_parse():
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
-    parser.add_argument("--bsz", type=int, default=64)
+    parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=256)
     parser.add_argument("--n_classes", type=int, default=10)
     parser.add_argument("--n_layers", type=int, default=2)
@@ -153,7 +153,7 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
-        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

@@ -186,7 +186,7 @@ if __name__ == "__main__":
             
             checkpoint(model, optimizer, scheduler)
         
-        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, "Tiny Shakespeare", model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

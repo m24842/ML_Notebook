@@ -69,7 +69,7 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--mem_dim", type=int, default=128)
+    parser.add_argument("--mem_dim", type=int, default=64)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0.0)
@@ -110,10 +110,10 @@ if __name__ == "__main__":
         ]
         if args.permuted: T.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(dim1, dim2)))
         transform = transforms.Compose(T)
-        train_dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
-        test_dataset = datasets.MNIST(root=DATA_DIR, train=False, download=True, transform=transform)
-        # train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
-        # test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
+        # train_dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
+        # test_dataset = datasets.MNIST(root=DATA_DIR, train=False, download=True, transform=transform)
+        train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
+        test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
         # train_dataset = datasets.EMNIST(root=DATA_DIR, train=True, download=True, transform=transform, split='byclass')
         # test_dataset = datasets.EMNIST(root=DATA_DIR, train=False, download=True, transform=transform, split='byclass')
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
-                
+        
         train_losses = []
         test_losses = []
         train_accuracies = []
@@ -155,7 +155,7 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
-        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

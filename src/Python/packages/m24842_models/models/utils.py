@@ -6,10 +6,10 @@ import torch.nn as nn
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def log_info(log_path, model, model_name, args, train_accuracies=None, test_accuracies=None):
+def log_info(log_path, benchmark, model, model_name, args, train_accuracies=None, test_accuracies=None):
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
     log_message = (
-        f"{model_name}\n"
+        (f"{benchmark} - {model_name}\n" if benchmark else f"{model_name}\n")
         + f"Total params: {count_parameters(model):,}\n"
         + f"Hyperparams:\n"
         + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
