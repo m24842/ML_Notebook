@@ -4,19 +4,17 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import transformers
-from transformers import get_cosine_schedule_with_warmup, AutoTokenizer, logging
+from transformers import get_cosine_schedule_with_warmup, AutoTokenizer
 from argparse import ArgumentParser
-import os
 import time
-import logging
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from models.transformers import *
+from models.utils import *
 transformers.logging.set_verbosity_error()
 
 OUTPUT_DIR = "src/Python/Benchmarks/TinyShake/tinyshake_models"
 LOG_PATH = "src/Python/Benchmarks/TinyShake/experiments.log"
-logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -48,9 +46,6 @@ class TinyShakeDataset(Dataset):
             self.len += self.step_size
         else:
             self.len = self.max_len
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     model.train()
@@ -103,24 +98,6 @@ def test(model, data_loader, criterion, is_val=False):
     else: tqdm.write(f'\033[93mVal Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)*data.size(1)} ({100. * correct / (len(data_loader.dataset)*data.size(1)):.0f}%)\033[0m')
     
     return test_loss, 100 * correct / len(data_loader.dataset)
-
-def log_info(model, model_name, args, train_accuracies, test_accuracies):
-    log_message = (
-        f"{model_name}\n"
-        + f"Total params: {count_parameters(model):,}\n"
-        + f"Hyperparams:\n"
-        + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
-        + f"Train accuracies:\n"
-        + f"\t{', '.join(str(round(acc, 2)) for acc in train_accuracies)}\n"
-        + f"Test accuracies:\n"
-        + f"\t{', '.join(str(round(acc, 2)) for acc in test_accuracies)}"
-    )
-    logging.info(log_message)
-
-def checkpoint(model, optimizer, scheduler):
-    torch.save(model.state_dict(), model_path)
-    torch.save(optimizer.state_dict(), optimizer_path)
-    torch.save(scheduler.state_dict(), scheduler_path)
 
 def arg_parse():
     parser = ArgumentParser()
@@ -187,30 +164,9 @@ if __name__ == "__main__":
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
         model_name = model.__class__.__name__
-        model_dir = f'{OUTPUT_DIR}/{model_name}'
-        model_path = f'{model_dir}/{model_name}.pt'
-        optimizer_path = f'{model_dir}/{model_name}_opt.pt'
-        scheduler_path = f'{model_dir}/{model_name}_sch.pt'
+        model, optimizer, scheduler = load_checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler, device=device)
         
-        if not os.path.exists(model_dir): os.makedirs(model_dir)
-        
-        try:
-            state_dict = torch.load(model_path, weights_only=True, map_location=device)
-            if "_orig_mod." in list(state_dict.keys())[0]:
-                state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
-            model.load_state_dict(state_dict)
-            optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
-            scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
-            print(f'\033[92mResuming from checkpoint\033[0m')
-        except:
-            print(f'\033[91mStarting from scratch\033[0m')
-        
-        # Allocate max input length
-        if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
-        temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
-        torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
-        model = torch.compile(model, dynamic=True, backend="eager")
-        with torch.no_grad(): model(temp)
+        model = allocate_dynamic_memory(model, bsz, min_len, max_len, device=device)
         
         print('\033[1mTiny Shakespeare Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
@@ -230,7 +186,7 @@ if __name__ == "__main__":
             
             checkpoint(model, optimizer, scheduler)
         
-        log_info(model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 

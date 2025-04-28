@@ -5,22 +5,17 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
-import os
 import time
-import logging
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from models.transformers import *
+from models.utils import *
 
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/Cifar/cifar_models"
 LOG_PATH = "src/Python/Benchmarks/Cifar/experiments.log"
-logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     model.train()
@@ -41,7 +36,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         scheduler.step()
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
-            checkpoint(model, optimizer, scheduler)
+            checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
     return total_loss / len(data_loader), 100. * correct / len(data_loader.dataset)
 
 @ torch.no_grad()
@@ -62,32 +57,6 @@ def test(model, data_loader, criterion):
     test_loss /= len(data_loader)
     print(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
     return test_loss, 100 * correct / len(data_loader.dataset)
-
-def log_info(model, model_name, args, train_accuracies, test_accuracies):
-    log_message = (
-        f"{model_name}\n"
-        + f"Total params: {count_parameters(model):,}\n"
-        + f"Hyperparams:\n"
-        + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
-        + f"Train accuracies:\n"
-        + f"\t{', '.join(f'{acc:.2f}' for acc in train_accuracies)}\n"
-        + f"Test accuracies:\n"
-        + f"\t{', '.join(f'{acc:.2f}' for acc in test_accuracies)}"
-    )
-    logging.info(log_message)
-
-def checkpoint(model, optimizer, scheduler):
-    model_name = model.__class__.__name__
-    model_dir = f'{OUTPUT_DIR}/{model_name}'
-    model_path = f'{model_dir}/{model_name}.pt'
-    optimizer_path = f'{model_dir}/{model_name}_opt.pt'
-    scheduler_path = f'{model_dir}/{model_name}_sch.pt'
-    
-    if not os.path.exists(model_dir): os.makedirs(model_dir)
-    
-    torch.save(model.state_dict(), model_path)
-    torch.save(optimizer.state_dict(), optimizer_path)
-    torch.save(scheduler.state_dict(), scheduler_path)
 
 def arg_parse():
     parser = ArgumentParser()
@@ -136,7 +105,7 @@ if __name__ == "__main__":
         # Load dataset
         T = [
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x * (vocab_size-1)),
+            transforms.Lambda(lambda x: x * max(1, vocab_size-1)),
             transforms.Resize((dim1, dim2))
         ]
         if args.permuted: T.append(transforms.Lambda(lambda x: x.view(3, -1)[:, random_permutation].view(3, dim1, dim2)))
@@ -161,20 +130,7 @@ if __name__ == "__main__":
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
         model_name = model.__class__.__name__
-        model_dir = f'{OUTPUT_DIR}/{model_name}'
-        model_path = f'{model_dir}/{model_name}.pt'
-        optimizer_path = f'{model_dir}/{model_name}_opt.pt'
-        scheduler_path = f'{model_dir}/{model_name}_sch.pt'
-        
-        if not os.path.exists(model_dir): os.makedirs(model_dir)
-
-        try:
-            model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
-            optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
-            scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
-            print(f'\033[92mResuming from checkpoint\033[0m')
-        except:
-            print(f'\033[91mStarting from scratch\033[0m')
+        model, optimizer, scheduler = load_checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler, device=device)
         
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
@@ -195,9 +151,9 @@ if __name__ == "__main__":
             train_accuracies.append(train_accuracy)
             test_accuracies.append(test_accuracy)
             
-            checkpoint(model, optimizer, scheduler)
+            checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
             
-        log_info(model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
 
