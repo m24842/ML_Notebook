@@ -122,7 +122,7 @@ if __name__ == "__main__":
         # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
         # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
         model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
-        
+
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(apply_weight_decay(model, args.weight_decay), lr=args.lr, weight_decay=args.weight_decay)
         warmup_steps = args.warmup_epochs * len(train_loader)

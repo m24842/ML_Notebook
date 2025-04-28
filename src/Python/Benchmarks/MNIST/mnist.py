@@ -140,7 +140,7 @@ if __name__ == "__main__":
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
-        
+                
         train_losses = []
         test_losses = []
         train_accuracies = []

@@ -13,10 +13,10 @@ def log_info(log_path, model, model_name, args, train_accuracies=None, test_accu
         + f"Total params: {count_parameters(model):,}\n"
         + f"Hyperparams:\n"
         + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
-        + f"Train accuracies:\n" if train_accuracies else ""
-        + f"\t{', '.join(str(round(acc, 2)) for acc in train_accuracies)}\n" if train_accuracies else ""
-        + f"Test accuracies:\n" if test_accuracies else ""
-        + f"\t{', '.join(str(round(acc, 2)) for acc in test_accuracies)}" if test_accuracies else ""
+        + (f"Train accuracies:\n" if train_accuracies else "")
+        + (f"\t{', '.join(str(round(acc, 2)) for acc in train_accuracies)}\n" if train_accuracies else "")
+        + (f"Test accuracies:\n" if test_accuracies else "")
+        + (f"\t{', '.join(str(round(acc, 2)) for acc in test_accuracies)}" if test_accuracies else "")
     )
     logging.info(log_message)
 
