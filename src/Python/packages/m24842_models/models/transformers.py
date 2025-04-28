@@ -343,6 +343,7 @@ class OrthoLinearAttention(nn.Module):
         self.d_head = d_model // n_heads
         
         self.beta = nn.Parameter(torch.zeros(1))
+        self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, d_model, bias=bias)
         self.k_proj = nn.Linear(d_model, d_model, bias=bias)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias)
@@ -459,6 +460,7 @@ class CompressionAttention(nn.Module):
         self.dropout = dropout
         
         self.q_down = nn.Parameter(torch.empty(compressed_len, d_model))
+        self.q_down._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, d_model, bias=bias)
         self.k_proj = nn.Linear(d_model, d_model, bias=bias)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias)

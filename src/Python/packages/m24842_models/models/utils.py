@@ -20,9 +20,9 @@ def log_info(log_path, benchmark, model, model_name, args, train_accuracies=None
     )
     logging.info(log_message)
 
-def apply_weight_decay(model, weight_decay):
+def apply_weight_decay(model, weight_decay, exclude=["bias", "norm"]):
     """
-    Disable weight decay for bias and norm parameters.
+    Disable weight decay for specified parameters.
     """
     decay_params = []
     no_decay_params = []
@@ -30,7 +30,7 @@ def apply_weight_decay(model, weight_decay):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if any(nd in name.lower() for nd in ["bias", "norm"]):
+        if getattr(param, '_no_weight_decay', False) or any(nd in name.lower() for nd in exclude):
             no_decay_params.append(param)
         else:
             decay_params.append(param)
