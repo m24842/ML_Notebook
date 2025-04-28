@@ -92,8 +92,8 @@ def checkpoint(model, optimizer, scheduler):
 def arg_parse():
     parser = ArgumentParser()
     # parser.add_argument("--model", type=str, default="Transformer")
-    parser.add_argument("--seed", type=int, default=3333)
-    parser.add_argument("--permuted", type=bool, default=False)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--permuted", type=bool, default=True)
     parser.add_argument("--bsz", type=int, default=64)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
@@ -152,9 +152,9 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
         # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        # model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
+        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
