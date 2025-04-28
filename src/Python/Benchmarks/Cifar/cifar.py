@@ -22,7 +22,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     total_loss = 0
     correct = 0
     for batch_idx, (data, target) in enumerate(tqdm(data_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')):
-        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten().to(device)
+        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten(1).unsqueeze(-1).to(device)
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)[:, -1]
@@ -47,7 +47,7 @@ def test(model, data_loader, criterion):
     correct = 0
     start = time.time()
     for data, target in tqdm(data_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m'):
-        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten().to(device)
+        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten(1).unsqueeze(-1).to(device)
         target = target.to(device)
         output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
@@ -75,8 +75,8 @@ def arg_parse():
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=5e-3)
-    parser.add_argument("--weight_decay", type=float, default=0.05)
+    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -152,7 +152,7 @@ if __name__ == "__main__":
             test_accuracies.append(test_accuracy)
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
-            
+        
         log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()

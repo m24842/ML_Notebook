@@ -154,7 +154,7 @@ if __name__ == "__main__":
             test_accuracies.append(test_accuracy)
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
-            
+        
         log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
         
         plt.figure()
