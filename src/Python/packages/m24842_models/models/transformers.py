@@ -500,6 +500,7 @@ class CompressionAttention(nn.Module):
         # v_d = rearrange(v_d, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         v_d_k = rearrange(v_d_k, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         v_d_v = rearrange(v_d_v, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v_d_kv = torch.cat([v_d_k, v_d_v], dim=-1)  # (bsz * n_heads, src_len, 2*d_head)
         
         if rope:
             # q_d = rope.rotate_queries_or_keys(q_d.reshape(bsz, self.n_heads, cmprs_len, self.d_head)).reshape(bsz * self.n_heads, cmprs_len, self.d_head)
@@ -523,8 +524,8 @@ class CompressionAttention(nn.Module):
             ...
         else:
             # Calculate attention scores for compressed output
-            k_u = torch.bmm(down_attn_weights, v_d_k)  # (bsz * n_heads, cmprs_len, d_head)
-            v_u = torch.bmm(down_attn_weights, v_d_v)  # (bsz * n_heads, cmprs_len, d_head)
+            kv_u = torch.bmm(down_attn_weights, v_d_kv)  # (bsz * n_heads, cmprs_len, 2*d_head)
+            k_u, v_u = kv_u.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, cmprs_len, d_head)
             up_attn_weights = torch.bmm(q_u, k_u.transpose(1, 2))  # (bsz * n_heads, src_len, cmprs_len)
             
             # Convert attention weights to probabilities

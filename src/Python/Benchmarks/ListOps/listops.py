@@ -166,7 +166,7 @@ def arg_parse():
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--weight_decay", type=float, default=5e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -202,9 +202,9 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_set, batch_size=bsz, shuffle=False)
         
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
+        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
         # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
+        # model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

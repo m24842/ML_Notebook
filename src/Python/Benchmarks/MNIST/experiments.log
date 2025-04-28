@@ -332,3 +332,49 @@ Train accuracies:
 	32.10, 67.14, 75.74, 79.85, 84.21, 89.39, 91.21, 92.31, 93.19, 94.26, 94.97, 95.55, 96.04, 96.47, 96.96, 97.32, 97.68, 97.98, 98.14, 98.28
 Test accuracies:
 	55.77, 72.70, 77.66, 83.08, 87.61, 90.48, 91.07, 91.10, 93.71, 94.49, 95.11, 95.52, 95.71, 96.03, 96.49, 96.42, 96.56, 96.81, 96.78, 96.83
+04-27-2025 22:12 - CompressionTransformer
+Total params: 301,312
+Hyperparams:
+	seed: 0
+	permuted: True
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 4
+	mlp_dim: 256
+	mem_dim: 128
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	36.26, 75.26, 83.11, 86.72, 88.91, 90.19, 91.38, 92.29, 93.00, 93.67, 94.49, 95.17, 95.56, 96.13, 96.48, 96.89, 97.31, 97.64, 97.86, 97.97
+Test accuracies:
+	65.17, 80.27, 85.87, 87.94, 88.09, 90.10, 92.25, 92.51, 91.62, 93.42, 94.45, 94.30, 94.36, 94.71, 94.86, 95.00, 95.13, 95.26, 95.20, 95.26
+04-27-2025 23:59 - LinearTransformer
+Total params: 268,544
+Hyperparams:
+	seed: 0
+	permuted: True
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 4
+	mlp_dim: 256
+	mem_dim: 128
+	causal: False
+	vocab_size: 16
+	dropout: 0.0
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.001
+	weight_decay: 0.0
+Train accuracies:
+	25.00, 36.38, 48.27, 60.71, 72.28, 79.06, 84.14, 87.07, 88.92, 90.55, 91.61, 92.68, 93.50, 94.35, 94.96, 95.55, 96.10, 96.46, 96.71, 96.87
+Test accuracies:
+	29.62, 40.88, 53.22, 71.28, 75.92, 82.46, 85.78, 88.95, 89.88, 90.89, 91.84, 92.89, 93.06, 93.16, 94.77, 94.63, 95.02, 95.15, 95.21, 95.35

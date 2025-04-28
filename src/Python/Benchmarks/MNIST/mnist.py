@@ -27,7 +27,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     total_loss = 0
     correct = 0
     for batch_idx, (data, target) in enumerate(tqdm(data_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')):
-        data = data.reshape(data.size(0), -1).to(device)
+        data = data.reshape(data.size(0), -1, 1).to(device)
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)[:, -1]
@@ -52,7 +52,7 @@ def test(model, data_loader, criterion):
     correct = 0
     start = time.time()
     for data, target in tqdm(data_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m'):
-        data = data.reshape(data.size(0), -1).to(device)
+        data = data.reshape(data.size(0), -1, 1).to(device)
         target = target.to(device)
         output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
@@ -93,7 +93,7 @@ def arg_parse():
     parser = ArgumentParser()
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--permuted", type=bool, default=True)
+    parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--bsz", type=int, default=64)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
@@ -102,7 +102,7 @@ def arg_parse():
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--mem_dim", type=int, default=128)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=16)
+    parser.add_argument("--vocab_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
@@ -151,10 +151,10 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
-        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
-        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
+        # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
+        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
+        # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
+        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
