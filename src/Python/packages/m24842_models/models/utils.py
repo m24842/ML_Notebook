@@ -59,7 +59,10 @@ def load_checkpoint(model_name, output_dir, model, optimizer=None, scheduler=Non
     scheduler_path = f'{model_dir}/{model_name}_sch.pt'
     
     try:
-        model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
+        state_dict = torch.load(model_path, weights_only=True, map_location=device)
+        if "_orig_mod." in list(state_dict.keys())[0]:
+            state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
+        model.load_state_dict(state_dict)
         if optimizer: optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
         if scheduler: scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
         print(f'\033[92mResuming from checkpoint\033[0m')

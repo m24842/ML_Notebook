@@ -513,9 +513,9 @@ class CompressionAttention(nn.Module):
         
         if causal:
             # Manually perform softmax with cumulative sum for causal attention
-            down_attn_weights = torch.exp(down_attn_weights)
-            down_attn_weights = F.dropout(down_attn_weights, p=self.dropout, training=self.training)
+            down_attn_weights = torch.exp(down_attn_weights - torch.max(down_attn_weights, dim=-1, keepdim=True).values)  # (bsz * n_heads, cmprs_len, src_len)
             down_attn_norm = torch.cumsum(down_attn_weights, dim=-1)  # (bsz * n_heads, cmprs_len, src_len)
+            down_attn_weights = F.dropout(down_attn_weights, p=self.dropout, training=self.training)
         else:
             # Convert attention weights to probabilities
             down_attn_weights = F.softmax(down_attn_weights, dim=-1)
