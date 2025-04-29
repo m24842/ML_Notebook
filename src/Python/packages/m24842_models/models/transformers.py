@@ -499,7 +499,6 @@ class CompressionAttention(nn.Module):
         q_d = rearrange(q_d, 'c b (h d) -> (b h) c d', h=self.n_heads).contiguous()
         q_u = rearrange(q_u, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         k_d = rearrange(k_d, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
-        # v_d = rearrange(v_d, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         v_d_k = rearrange(v_d_k, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         v_d_v = rearrange(v_d_v, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
         v_d_kv = torch.cat([v_d_k, v_d_v], dim=-1)  # (bsz * n_heads, src_len, 2*d_head)
@@ -513,7 +512,10 @@ class CompressionAttention(nn.Module):
         down_attn_weights = torch.bmm(q_d, k_d.transpose(1, 2))  # (bsz * n_heads, cmprs_len, src_len)
         
         if causal:
-            ...
+            # Manually perform softmax with cumulative sum for causal attention
+            down_attn_weights = torch.exp(down_attn_weights)
+            down_attn_weights = F.dropout(down_attn_weights, p=self.dropout, training=self.training)
+            down_attn_norm = torch.cumsum(down_attn_weights, dim=-1)  # (bsz * n_heads, cmprs_len, src_len)
         else:
             # Convert attention weights to probabilities
             down_attn_weights = F.softmax(down_attn_weights, dim=-1)
@@ -523,7 +525,17 @@ class CompressionAttention(nn.Module):
         q_u = q_u / math.sqrt(self.d_head)
         
         if causal:
-            ...
+            # Calculate attention scores for compressed output
+            kv_u = torch.cumsum((down_attn_weights.unsqueeze(-1) * v_d_kv.unsqueeze(1)), dim=2) / down_attn_norm.unsqueeze(-1)  # (bsz * n_heads, cmprs_len, 2*d_head)
+            k_u, v_u = kv_u.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, cmprs_len, src_len, d_head)
+            up_attn_weights = torch.einsum('zsd, zcsd -> zsc', q_u, k_u)  # (bsz * n_heads, src_len, cmprs_len)
+            
+            # Convert attention weights to probabilities
+            up_attn_weights = F.softmax(up_attn_weights, dim=-1)
+            up_attn_weights = F.dropout(up_attn_weights, p=self.dropout, training=self.training)
+            
+            # Apply attention weights to values
+            up_attn_output = torch.einsum('zsc, zcsd -> zsd', up_attn_weights, v_u)  # (bsz * n_heads, src_len, d_head)
         else:
             # Calculate attention scores for compressed output
             kv_u = torch.bmm(down_attn_weights, v_d_kv)  # (bsz * n_heads, cmprs_len, 2*d_head)

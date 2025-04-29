@@ -69,7 +69,7 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--mem_dim", type=int, default=1)
+    parser.add_argument("--mem_dim", type=int, default=4)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0.0)
