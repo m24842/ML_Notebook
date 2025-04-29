@@ -1,0 +1,23 @@
+04-29-2025 05:24 - CIFAR10 - CompressionTransformer
+Total params: 533,632
+Hyperparams:
+	seed: 0
+	permuted: False
+	bsz: 32
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 4
+	n_heads: 4
+	mlp_dim: 256
+	mem_dim: 4
+	causal: False
+	vocab_size: 1
+	dropout: 0.1
+	warmup_epochs: 3
+	total_epochs: 20
+	lr: 0.0003
+	weight_decay: 0.01
+Train accuracies:
+	10.01, 10.03, 11.96, 16.72, 22.56, 26.45, 29.82, 31.89, 33.80, 35.13, 36.68, 37.89, 38.65, 40.09, 40.73, 41.26, 41.76, 42.21, 42.47, 42.61
+Test accuracies:
+	8.10, 10.01, 14.47, 19.57, 24.46, 30.00, 30.10, 32.51, 33.69, 37.43, 38.17, 38.90, 39.47, 40.67, 41.44, 41.12, 42.04, 42.02, 42.21, 42.07
