@@ -3,6 +3,7 @@ data/
 .vscode/
 .venv/
 __pycache__/
+wandb/
 pyrightconfig.json
 *.mp4
 *.pth

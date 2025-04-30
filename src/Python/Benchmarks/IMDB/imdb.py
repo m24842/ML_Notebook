@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import transformers
-from transformers import get_cosine_schedule_with_warmup, AutoTokenizer
+from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
 import time
 from tqdm import tqdm
@@ -19,7 +19,7 @@ LOG_PATH = "src/Python/Benchmarks/IMDb/experiments.log"
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 class IMDbDataset(Dataset):
-    def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, data, min_len=1, max_len=1000, warmup_epochs=0):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -28,15 +28,13 @@ class IMDbDataset(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = data
-        self.tokenizer = tokenizer
     
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
         item = self.data[idx]
-        tokenized = torch.tensor(tokenizer(item['text'])['input_ids'], dtype=torch.long)
-        tokenized = torch.cat([torch.tensor([tokenizer.cls_token_id]), tokenized]) # Add CLS token
+        tokenized = torch.tensor([0] + ([1 + ord(c) for c in item['text']]), dtype=torch.long)
         target = torch.tensor(item['label'], dtype=torch.long)
         padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
         return padded_tokenized, target
@@ -110,11 +108,11 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--mem_dim", type=int, default=256)
-    parser.add_argument("--min_len", type=int, default=512)
-    parser.add_argument("--max_len", type=int, default=2048)
+    parser.add_argument("--mem_dim", type=int, default=4)
+    parser.add_argument("--min_len", type=int, default=2048)
+    parser.add_argument("--max_len", type=int, default=4096)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=28996)
+    parser.add_argument("--vocab_size", type=int, default=129)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
@@ -146,10 +144,9 @@ if __name__ == "__main__":
         train_data = imbd['train']
         test_data = imbd['test']
         
-        tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
-        train_set = IMDbDataset(train_data, tokenizer, min_len, max_len, warmup_epochs=args.warmup_epochs)
-        # val_set = IMDbDataset(val_data, tokenizer, min_len, max_len)
-        test_set = IMDbDataset(test_data, tokenizer, min_len, max_len)
+        train_set = IMDbDataset(train_data, min_len, max_len, warmup_epochs=args.warmup_epochs)
+        # val_set = IMDbDataset(val_data, min_len, max_len)
+        test_set = IMDbDataset(test_data, min_len, max_len)
         
         train_loader = DataLoader(train_set, batch_size=bsz, shuffle=True)
         # val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)

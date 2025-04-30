@@ -99,7 +99,7 @@ def arg_parse():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--img_dim", type=int, default=32)
-    parser.add_argument("--bsz", type=int, default=64)
+    parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=2)
     parser.add_argument("--n_layers", type=int, default=4)

@@ -5,6 +5,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
+import wandb
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -34,6 +35,11 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         scheduler.step()
+        wandb.log({
+            "train/acc": accuracy,
+            "train/loss": loss,
+            "lr": scheduler.get_last_lr()[0],
+        })
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
@@ -55,6 +61,10 @@ def test(model, data_loader, criterion):
 
     total_time = time.time() - start
     test_loss /= len(data_loader)
+    wandb.log({
+        "test/acc": 100 * correct / len(data_loader.dataset),
+        "test/loss": test_loss,
+    })
     print(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
     return test_loss, 100 * correct / len(data_loader.dataset)
 
@@ -140,6 +150,13 @@ if __name__ == "__main__":
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         
+        wandb.init(
+            entity=os.getenv("WANDB_ENTITY"),
+            project="Machine Learning",
+            name=f"{benchmark_name}-{model_name}",
+            config=args,
+        )
+        
         train_losses = []
         test_losses = []
         train_accuracies = []
@@ -155,6 +172,7 @@ if __name__ == "__main__":
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
         log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
+        wandb.finish()
         
         plt.figure()
 
