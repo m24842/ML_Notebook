@@ -12,7 +12,7 @@ from models.transformers import *
 from models.utils import *
 
 DATA_DIR = "data"
-OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
+OUTPUT_DIR = "src/Python/Benchmarks/MNIST/models"
 LOG_PATH = "src/Python/Benchmarks/MNIST/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")

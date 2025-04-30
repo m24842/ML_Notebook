@@ -12,7 +12,7 @@ from models.transformers import *
 from models.utils import *
 
 DATA_DIR = "data"
-OUTPUT_DIR = "src/Python/Benchmarks/Cifar/cifar_models"
+OUTPUT_DIR = "src/Python/Benchmarks/Cifar/models"
 LOG_PATH = "src/Python/Benchmarks/Cifar/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -65,11 +65,11 @@ def arg_parse():
     parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--img_dim", type=int, default=32)
     parser.add_argument("--bsz", type=int, default=32)
-    parser.add_argument("--emb_dim", type=int, default=256)
+    parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=4)
-    parser.add_argument("--mlp_dim", type=int, default=512)
+    parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--mem_dim", type=int, default=4)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)

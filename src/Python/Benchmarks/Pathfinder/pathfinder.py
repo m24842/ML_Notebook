@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
@@ -14,7 +14,7 @@ from models.transformers import *
 from models.utils import *
 
 DATA_DIR = "data"
-OUTPUT_DIR = "src/Python/Benchmarks/Pathfinder/pathfinder_models"
+OUTPUT_DIR = "src/Python/Benchmarks/Pathfinder/models"
 LOG_PATH = "src/Python/Benchmarks/Pathfinder/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -41,8 +41,13 @@ class PathfinderDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        img_path, label = self.data[idx]
-        image = Image.open(img_path).convert('RGB')
+        image = None
+        while image is None:
+            img_path, label = self.data[idx]
+            try:
+                image = Image.open(img_path).convert('RGB')
+            except:
+                idx = (idx + 1) % len(self.data)
         if self.transform:
             image = self.transform(image)
         return image, label
@@ -96,17 +101,17 @@ def arg_parse():
     parser.add_argument("--img_dim", type=int, default=32)
     parser.add_argument("--bsz", type=int, default=64)
     parser.add_argument("--emb_dim", type=int, default=128)
-    parser.add_argument("--n_classes", type=int, default=10)
-    parser.add_argument("--n_layers", type=int, default=2)
+    parser.add_argument("--n_classes", type=int, default=2)
+    parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--mem_dim", type=int, default=4)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)
-    parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight_decay", type=float, default=0.01)
     return parser.parse_args()
 
@@ -139,8 +144,8 @@ if __name__ == "__main__":
         ]
         if args.permuted: T.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
         transform = transforms.Compose(T)
-        train_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=True, split_idx=180, transform=transform)
-        test_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=False, split_idx=180, transform=transform)
+        train_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=True, split_idx=160, transform=transform)
+        test_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=False, split_idx=160, transform=transform)
 
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)

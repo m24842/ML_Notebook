@@ -67,11 +67,11 @@ class DFAFullyConnected(nn.Module):
             da = global_error * self.activation_derivative_output
         else:
             if self.activation_derivative_output is None:
-                da = contract('oe, be, bo -> bo', self.feedback, global_error, self.activation_derivative(self.linear_output), optimize='auto')
+                da = contract('oe, be, bo -> bo', self.feedback, global_error, self.activation_derivative(self.linear_output))
             else:
-                da = contract('oe, be, bo -> bo', self.feedback, global_error, self.activation_derivative_output, optimize='auto')
-
-        dW = contract('bo, bi -> oi', da, self.linear_input, optimize='auto')
+                da = contract('oe, be, bo -> bo', self.feedback, global_error, self.activation_derivative_output)
+        
+        dW = contract('bo, bi -> oi', da, self.linear_input)
         db = torch.sum(da, axis=0)
         
         self.linear.weight.grad = dW

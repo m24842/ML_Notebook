@@ -13,7 +13,7 @@ from models.transformers import *
 from models.utils import *
 transformers.logging.set_verbosity_error()
 
-OUTPUT_DIR = "src/Python/Benchmarks/IMDb/imdb_models"
+OUTPUT_DIR = "src/Python/Benchmarks/IMDb/models"
 LOG_PATH = "src/Python/Benchmarks/IMDb/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
