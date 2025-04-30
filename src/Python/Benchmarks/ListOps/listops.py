@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import time
 import pandas as pd
 from tqdm import tqdm
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
@@ -45,7 +46,7 @@ def tokenize_listops(data):
     return tokenized, target
 
 class ListOpsDataset(Dataset):
-    def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, balance=False):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -55,6 +56,21 @@ class ListOpsDataset(Dataset):
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = data
         self.tokenizer = tokenizer
+        
+        if balance: self._balance_data()
+    
+    def _balance_data(self):
+        grouped = defaultdict(list)
+        for idx, item in self.data.iterrows():
+            grouped[item["Target"]].append(item)
+
+        min_class_size = min(len(items) for items in grouped.values())
+
+        balanced_items = []
+        for items in grouped.values():
+            balanced_items.extend(items[:min_class_size])
+
+        self.data = pd.DataFrame(balanced_items)
     
     def __len__(self):
         return len(self.data)
@@ -139,7 +155,7 @@ def arg_parse():
     parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=22)
-    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -170,7 +186,7 @@ if __name__ == "__main__":
         val_df = pd.read_csv(f"{DATA_DIR}/basic_val.tsv", sep="\t")
         test_df = pd.read_csv(f"{DATA_DIR}/basic_test.tsv", sep="\t")
         
-        train_set = ListOpsDataset(train_df, tokenize_listops, min_len, max_len, warmup_epochs=args.warmup_epochs)
+        train_set = ListOpsDataset(train_df, tokenize_listops, min_len, max_len, warmup_epochs=args.warmup_epochs, balance=True)
         val_set = ListOpsDataset(val_df, tokenize_listops, min_len, max_len)
         test_set = ListOpsDataset(test_df, tokenize_listops, min_len, max_len)
         

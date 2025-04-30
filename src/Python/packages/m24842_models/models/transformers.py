@@ -243,11 +243,20 @@ class LinearMultiheadAttention(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model, bias=bias)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias)
         
+        self._reset_parameters()
+    
+    def _reset_parameters(self):
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
     
@@ -349,11 +358,20 @@ class OrthoLinearAttention(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model, bias=bias)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias)
         
+        self._reset_parameters()
+        
+    def _reset_parameters(self):
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
     
@@ -476,6 +494,12 @@ class CompressionAttention(nn.Module):
         nn.init.xavier_uniform_(self.v_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
     
