@@ -22,7 +22,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     total_loss = 0
     correct = 0
     for batch_idx, (data, target) in enumerate(tqdm(data_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')):
-        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten(1).unsqueeze(-1).to(device)
+        data = data.to(device)
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)[:, -1]
@@ -47,7 +47,7 @@ def test(model, data_loader, criterion):
     correct = 0
     start = time.time()
     for data, target in tqdm(data_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m'):
-        data = data.permute(0, 2, 3, 1).reshape(data.size(0), -1, 3).flatten(1).unsqueeze(-1).to(device)
+        data = data.to(device)
         target = target.to(device)
         output = model(data)[:, -1]
         test_loss += criterion(output, target).item()
@@ -63,6 +63,7 @@ def arg_parse():
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
+    parser.add_argument("--img_dim", type=int, default=32)
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=256)
     parser.add_argument("--n_classes", type=int, default=10)
@@ -86,6 +87,7 @@ if __name__ == "__main__":
         args = arg_parse()
         
         torch.manual_seed(args.seed)
+        img_dim = args.img_dim
         bsz = args.bsz
         emb_dim = args.emb_dim
         n_classes = args.n_classes
@@ -97,18 +99,15 @@ if __name__ == "__main__":
         vocab_size = args.vocab_size
         dropout = args.dropout
         
-        dim1 = 32
-        dim2 = 32
-        
-        random_permutation = torch.randperm(dim1*dim2).reshape(dim1, dim2)
+        random_permutation = torch.randperm(img_dim**2).reshape(img_dim, img_dim)
         
         # Load dataset
         T = [
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x * max(1, vocab_size-1)),
-            transforms.Resize((dim1, dim2))
+            transforms.Lambda(lambda x: x.view(-1, 1))
         ]
-        if args.permuted: T.append(transforms.Lambda(lambda x: x.view(3, -1)[:, random_permutation].view(3, dim1, dim2)))
+        if args.permuted: T.append(transforms.Lambda(lambda x: x.view(3, -1)[:, random_permutation].permute(0, 2, 1).view(-1, 1)))
         transform = transforms.Compose(T)
         train_dataset = datasets.CIFAR10(root=DATA_DIR, train=True, download=True, transform=transform)
         test_dataset = datasets.CIFAR10(root=DATA_DIR, train=False, download=True, transform=transform)

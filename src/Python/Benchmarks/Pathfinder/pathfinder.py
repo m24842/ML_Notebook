@@ -2,20 +2,50 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
+import os
 import time
 from tqdm import tqdm
+from PIL import Image
 import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
 DATA_DIR = "data"
-OUTPUT_DIR = "src/Python/Benchmarks/MNIST/mnist_models"
-LOG_PATH = "src/Python/Benchmarks/MNIST/experiments.log"
+OUTPUT_DIR = "src/Python/Benchmarks/Pathfinder/pathfinder_models"
+LOG_PATH = "src/Python/Benchmarks/Pathfinder/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+
+class PathfinderDataset(Dataset):
+    def __init__(self, path, subset="curv_baseline", train=True, split_idx=180, transform=None):
+        self.transform = transform
+        self.data = []
+        
+        min_idx = 0 if train else split_idx
+        max_idx = split_idx if train else 200
+        dataset_root = os.path.join(path, subset)
+        metadata_root = os.path.join(path, subset, 'metadata')
+        for i in range(min_idx, max_idx):
+            with open(os.path.join(metadata_root, f"{i}.npy"), 'r') as file:
+                for line in file:
+                    parts = line.strip().split()
+                    img_rel_path = parts[0:2]
+                    label = int(parts[3])
+                    img_path = os.path.join(dataset_root, *img_rel_path)
+                    self.data.append((img_path, label))
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        img_path, label = self.data[idx]
+        image = Image.open(img_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image, label
 
 def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     model.train()
@@ -63,7 +93,7 @@ def arg_parse():
     # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
-    parser.add_argument("--img_dim", type=int, default=28)
+    parser.add_argument("--img_dim", type=int, default=32)
     parser.add_argument("--bsz", type=int, default=64)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
@@ -109,12 +139,8 @@ if __name__ == "__main__":
         ]
         if args.permuted: T.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
         transform = transforms.Compose(T)
-        train_dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
-        test_dataset = datasets.MNIST(root=DATA_DIR, train=False, download=True, transform=transform)
-        # train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
-        # test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
-        # train_dataset = datasets.EMNIST(root=DATA_DIR, train=True, download=True, transform=transform, split='byclass')
-        # test_dataset = datasets.EMNIST(root=DATA_DIR, train=False, download=True, transform=transform, split='byclass')
+        train_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=True, split_idx=180, transform=transform)
+        test_dataset = PathfinderDataset(f"{DATA_DIR}/pathfinder{img_dim}", subset="curv_baseline", train=False, split_idx=180, transform=transform)
 
         train_loader = DataLoader(train_dataset, batch_size=bsz, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
@@ -135,7 +161,7 @@ if __name__ == "__main__":
         
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
-        benchmark_name = train_dataset.__class__.__name__
+        benchmark_name = f"Pathfinder-{img_dim}"
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
