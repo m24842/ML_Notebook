@@ -505,6 +505,7 @@ class CompressionAttention(nn.Module):
         
         if rope:
             # q_d = rope.rotate_queries_or_keys(q_d.reshape(bsz, self.n_heads, cmprs_len, self.d_head)).reshape(bsz * self.n_heads, cmprs_len, self.d_head)
+            q_u = rope.rotate_queries_or_keys(q_u.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads, src_len, self.d_head)
             k_d = rope.rotate_queries_or_keys(k_d.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads, src_len, self.d_head)
         
         ### Downward self attention ###

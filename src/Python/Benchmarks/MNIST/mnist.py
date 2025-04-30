@@ -70,7 +70,7 @@ def arg_parse():
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--mem_dim", type=int, default=4)
+    parser.add_argument("--mem_dim", type=int, default=128)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0.0)
@@ -98,16 +98,16 @@ if __name__ == "__main__":
         causal = args.causal
         vocab_size = args.vocab_size
         dropout = args.dropout
-        
-        random_permutation = torch.randperm(img_dim**2).reshape(img_dim, img_dim)
-        
+                
         # Load dataset
         T = [
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x * max(1, vocab_size-1)),
             transforms.Lambda(lambda x: x.view(-1, 1))
         ]
-        if args.permuted: T.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+        if args.permuted:
+            random_permutation = torch.randperm(img_dim**2)
+            T.append(transforms.Lambda(lambda x: x.view(3, -1)[:, random_permutation].permute(0, 2, 1).view(-1, 1)))
         transform = transforms.Compose(T)
         train_dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
         test_dataset = datasets.MNIST(root=DATA_DIR, train=False, download=True, transform=transform)
