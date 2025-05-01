@@ -5,7 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import transformers
 from transformers import get_cosine_schedule_with_warmup, AutoTokenizer
-from argparse import ArgumentParser
+import argparse
 import wandb
 import time
 from tqdm import tqdm
@@ -111,7 +111,7 @@ def test(model, data_loader, criterion, is_val=False):
     return test_loss, 100. * correct / (len(data_loader.dataset)*data.size(1))
 
 def arg_parse():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bsz", type=int, default=16)
     parser.add_argument("--emb_dim", type=int, default=128)
@@ -179,7 +179,9 @@ if __name__ == "__main__":
         model = allocate_dynamic_memory(model, bsz, min_len, max_len, device=device)
         
         benchmark_name = "Tiny Shakespeare"
+        args = vars(args)
         args["benchmark"] = benchmark_name
+        args = argparse.Namespace(**args)
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
@@ -188,7 +190,7 @@ if __name__ == "__main__":
             settings=wandb.Settings(silent=True),
             entity=ENTITY,
             project="Machine Learning",
-            name=f"{benchmark_name}-{model_name}",
+            name=f"{model_name}",
             config=args,
         )
         

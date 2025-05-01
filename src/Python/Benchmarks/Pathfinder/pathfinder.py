@@ -4,7 +4,7 @@ import torch.optim as optim
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 from transformers import get_cosine_schedule_with_warmup
-from argparse import ArgumentParser
+import argparse
 import wandb
 import os
 import time
@@ -105,7 +105,7 @@ def test(model, data_loader, criterion):
     return test_loss, 100 * correct / len(data_loader.dataset)
 
 def arg_parse():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--img_dim", type=int, default=32)
@@ -177,7 +177,9 @@ if __name__ == "__main__":
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
         benchmark_name = f"Pathfinder-{img_dim}"
+        args = vars(args)
         args["benchmark"] = benchmark_name
+        args = argparse.Namespace(**args)
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
@@ -186,7 +188,7 @@ if __name__ == "__main__":
             settings=wandb.Settings(silent=True),
             entity=ENTITY,
             project="Machine Learning",
-            name=f"{benchmark_name}-{model_name}",
+            name=f"{model_name}",
             config=args,
         )
         

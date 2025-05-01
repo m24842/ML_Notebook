@@ -4,7 +4,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from transformers import get_cosine_schedule_with_warmup
-from argparse import ArgumentParser
+import argparse
 import wandb
 import time
 from tqdm import tqdm
@@ -70,7 +70,7 @@ def test(model, data_loader, criterion):
     return test_loss, 100 * correct / len(data_loader.dataset)
 
 def arg_parse():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--permuted", type=bool, default=False)
     parser.add_argument("--img_dim", type=int, default=28)
@@ -130,9 +130,9 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_dataset, batch_size=bsz, shuffle=False)
 
         # model = Transformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
-        # model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
+        model = LinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
         # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
-        model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
+        # model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, use_embedding=False, device=device)
         
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(apply_weight_decay(model, args.weight_decay), lr=args.lr, weight_decay=args.weight_decay)
@@ -146,7 +146,9 @@ if __name__ == "__main__":
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
         benchmark_name = train_dataset.__class__.__name__
+        args = vars(args)
         args["benchmark"] = benchmark_name
+        args = argparse.Namespace(**args)
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
