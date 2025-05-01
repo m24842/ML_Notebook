@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
-RUNNING = True
 ENTITY = os.getenv("WANDB_API_KEY")
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/ListOps/models"
@@ -161,7 +160,6 @@ def test(model, data_loader, criterion, is_val=False):
 
 def arg_parse():
     parser = ArgumentParser()
-    # parser.add_argument("--model", type=str, default="Transformer")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
@@ -230,6 +228,7 @@ if __name__ == "__main__":
         model = allocate_dynamic_memory(model, bsz, min_len, max_len, device=device)
         
         benchmark_name = "ListOps"
+        args["benchmark"] = benchmark_name
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
@@ -256,8 +255,7 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
-        RUNNING = False
-        log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
+        log_info(LOG_PATH, model, model_name, args, train_accuracies, test_accuracies)
         wandb.finish()
         
         plt.figure()
@@ -281,5 +279,5 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
-        if RUNNING: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
+        if not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
         print("\033[?25h", end='', flush=True)
