@@ -177,6 +177,7 @@ if __name__ == "__main__":
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
         benchmark_name = f"Pathfinder-{img_dim}"
+        if args.permuted: benchmark_name = f"Permuted {benchmark_name}"
         args = vars(args)
         args["benchmark"] = benchmark_name
         args["model"] = model_name

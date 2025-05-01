@@ -145,6 +145,7 @@ if __name__ == "__main__":
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
         benchmark_name = train_dataset.__class__.__name__
+        if args.permuted: benchmark_name = f"Permuted {benchmark_name}"
         args = vars(args)
         args["benchmark"] = benchmark_name
         args["model"] = model_name
