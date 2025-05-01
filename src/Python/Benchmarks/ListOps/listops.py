@@ -13,31 +13,27 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
-ENTITY = os.getenv("WANDB_API_KEY")
+ENTITY = os.getenv("WANDB_ENTITY")
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/ListOps/models"
 LOG_PATH = "src/Python/Benchmarks/ListOps/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
-def tokenize_listops(data):
+def listops_tokenizer(data):
     token_map = {
-        "[CLS]": 0,
-        "[PAD]": 1,
+        "CLS": 0,
+        "PAD": 1,
         "[MAX": 2,
         "[MIN": 3,
         "[MED": 4,
-        "[SUM_MOD": 5,
-        "[SM": 6,
-        "[AVG": 7,
-        "[MAJ": 8,
-        "]": 9,
-        "(": 10,
-        ")": 11,
-        **{str(i): i + 12 for i in range(10)}
+        "[SM": 5,
+        "]": 6,
+        **{str(i): i + 7 for i in range(10)}
     }
 
-    tokens = ["[CLS]"] + data["Source"].split()
+    src = data["Source"].translate({ ord("("): None, ord(")"): None })
+    tokens = ["CLS"] + src.split()
     try:
         tokenized = [token_map[token] for token in tokens]
     except KeyError as e:
@@ -171,7 +167,7 @@ def arg_parse():
     parser.add_argument("--min_len", type=int, default=2048)
     parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
-    parser.add_argument("--vocab_size", type=int, default=22)
+    parser.add_argument("--vocab_size", type=int, default=17)
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--warmup_epochs", type=int, default=3)
     parser.add_argument("--total_epochs", type=int, default=20)
@@ -203,9 +199,9 @@ if __name__ == "__main__":
         val_df = pd.read_csv(f"{DATA_DIR}/basic_val.tsv", sep="\t")
         test_df = pd.read_csv(f"{DATA_DIR}/basic_test.tsv", sep="\t")
         
-        train_set = ListOpsDataset(train_df, tokenize_listops, min_len, max_len, warmup_epochs=args.warmup_epochs, balance=True)
-        val_set = ListOpsDataset(val_df, tokenize_listops, min_len, max_len)
-        test_set = ListOpsDataset(test_df, tokenize_listops, min_len, max_len)
+        train_set = ListOpsDataset(train_df, listops_tokenizer, min_len, max_len, warmup_epochs=args.warmup_epochs, balance=True)
+        val_set = ListOpsDataset(val_df, listops_tokenizer, min_len, max_len)
+        test_set = ListOpsDataset(test_df, listops_tokenizer, min_len, max_len)
         
         train_loader = DataLoader(train_set, batch_size=bsz, shuffle=True)
         val_loader = DataLoader(val_set, batch_size=bsz, shuffle=False)

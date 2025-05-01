@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
-ENTITY = os.getenv("WANDB_API_KEY")
+ENTITY = os.getenv("WANDB_ENTITY")
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/Cifar/models"
 LOG_PATH = "src/Python/Benchmarks/Cifar/experiments.log"

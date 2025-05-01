@@ -14,7 +14,7 @@ from models.transformers import *
 from models.utils import *
 transformers.logging.set_verbosity_error()
 
-ENTITY = os.getenv("WANDB_API_KEY")
+ENTITY = os.getenv("WANDB_ENTITY")
 OUTPUT_DIR = "src/Python/Benchmarks/TinyShake/models"
 LOG_PATH = "src/Python/Benchmarks/TinyShake/experiments.log"
 
