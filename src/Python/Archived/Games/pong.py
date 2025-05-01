@@ -139,8 +139,7 @@ class PongGame:
     def start(self):
         """Start the game loop in a new thread."""
         gameThread = Thread(target=self.gameLoop)
-        self.RUNNING = True
-ENTITY = os.getenv("WANDB_API_KEY")
+        self.running = True
         gameThread.start()
         return gameThread
     
