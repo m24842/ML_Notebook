@@ -20,8 +20,16 @@ LOG_PATH = "src/Python/Benchmarks/IMDb/experiments.log"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
+def imdb_tokenizer(text):
+    """
+    Tokenizes the input text for IMDb dataset.
+    0: CLS
+    1: PAD
+    """
+    return [0] + [2 + ord(c) for c in text]
+
 class IMDbDataset(Dataset):
-    def __init__(self, data, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, data, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -30,15 +38,16 @@ class IMDbDataset(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = data
+        self.tokenizer = tokenizer
     
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
         item = self.data[idx]
-        tokenized = torch.tensor([0] + ([1 + ord(c) for c in item['text']]), dtype=torch.long)
+        tokenized = torch.tensor(self.tokenizer(item['text']), dtype=torch.long)
         target = torch.tensor(item['label'], dtype=torch.long)
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=1)  # Pad with PAD token (1)
         return padded_tokenized, target
     
     def step(self):

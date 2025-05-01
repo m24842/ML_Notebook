@@ -40,7 +40,7 @@ class TinyShakeDataset(Dataset):
         end_idx = start_idx + self.len
         item = ' '.join(self.data[start_idx:end_idx])
         tokenized = torch.tensor(tokenizer(item)['input_ids'], dtype=torch.long)
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=0)
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=tokenizer.pad_token_id)
         return padded_tokenized[:-1], padded_tokenized[1:]
     
     def step(self):

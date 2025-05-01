@@ -76,7 +76,7 @@ class ListOpsDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data.iloc[idx]
         tokenized, target = self.tokenizer(item)
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=1)  # Pad with [PAD] token (1)
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=1)  # Pad with PAD token (1)
         return padded_tokenized, target
 
     def step(self):
