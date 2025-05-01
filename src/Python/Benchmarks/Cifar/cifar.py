@@ -5,12 +5,15 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
+import wandb
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
+RUNNING = True
+ENTITY = os.getenv("WANDB_API_KEY")
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/Cifar/models"
 LOG_PATH = "src/Python/Benchmarks/Cifar/experiments.log"
@@ -34,6 +37,11 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         scheduler.step()
+        wandb.log({
+            "train/acc": 100. * accuracy / len(data),
+            "train/loss": loss,
+            "misc/lr": scheduler.get_last_lr()[0],
+        })
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
@@ -55,6 +63,10 @@ def test(model, data_loader, criterion):
 
     total_time = time.time() - start
     test_loss /= len(data_loader)
+    wandb.log({
+        "test/acc": 100 * correct / len(data_loader.dataset),
+        "test/loss": test_loss,
+    })
     print(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
     return test_loss, 100 * correct / len(data_loader.dataset)
 
@@ -67,14 +79,14 @@ def arg_parse():
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
-    parser.add_argument("--n_layers", type=int, default=2)
+    parser.add_argument("--n_layers", type=int, default=6)
     parser.add_argument("--n_heads", type=int, default=4)
-    parser.add_argument("--mlp_dim", type=int, default=256)
-    parser.add_argument("--mem_dim", type=int, default=4)
+    parser.add_argument("--mlp_dim", type=int, default=128)
+    parser.add_argument("--mem_dim", type=int, default=16)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--warmup_epochs", type=int, default=3)
+    parser.add_argument("--warmup_epochs", type=int, default=0)
     parser.add_argument("--total_epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight_decay", type=float, default=0.01)
@@ -101,13 +113,14 @@ if __name__ == "__main__":
         
         # Load dataset
         T = [
+            transforms.Grayscale(num_output_channels=1),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x * max(1, vocab_size-1)),
             transforms.Lambda(lambda x: x.view(-1, 1))
         ]
         if args.permuted:
             random_permutation = torch.randperm(img_dim**2)
-            T.append(transforms.Lambda(lambda x: x.view(3, -1)[:, random_permutation].permute(0, 2, 1).view(-1, 1)))
+            T.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
         transform = transforms.Compose(T)
         train_dataset = datasets.CIFAR10(root=DATA_DIR, train=True, download=True, transform=transform)
         test_dataset = datasets.CIFAR10(root=DATA_DIR, train=False, download=True, transform=transform)
@@ -138,6 +151,14 @@ if __name__ == "__main__":
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         
+        wandb.init(
+            settings=wandb.Settings(silent=True),
+            entity=ENTITY,
+            project="Machine Learning",
+            name=f"{benchmark_name}-{model_name}",
+            config=args,
+        )
+        
         train_losses = []
         test_losses = []
         train_accuracies = []
@@ -152,7 +173,9 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
+        RUNNING = False
         log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
+        wandb.finish()
         
         plt.figure()
 
@@ -175,4 +198,5 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
+        if RUNNING: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
         print("\033[?25h", end='', flush=True)

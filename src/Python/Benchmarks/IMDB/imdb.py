@@ -6,6 +6,7 @@ from datasets import load_dataset
 import transformers
 from transformers import get_cosine_schedule_with_warmup
 from argparse import ArgumentParser
+import wandb
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -13,6 +14,8 @@ from models.transformers import *
 from models.utils import *
 transformers.logging.set_verbosity_error()
 
+RUNNING = True
+ENTITY = os.getenv("WANDB_API_KEY")
 OUTPUT_DIR = "src/Python/Benchmarks/IMDb/models"
 LOG_PATH = "src/Python/Benchmarks/IMDb/experiments.log"
 
@@ -63,6 +66,12 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         scheduler.step()
+        wandb.log({
+            "train/acc": 100. * accuracy / len(data),
+            "train/loss": loss,
+            "misc/lr": scheduler.get_last_lr()[0],
+            "misc/seq_len": train_set.len,
+        })
         if batch_idx % 100 == 0 and batch_idx != 0:
             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(data_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {100. * accuracy / len(data):.0f}%')
         if batch_idx % 500 == 0 and batch_idx != 0:
@@ -93,9 +102,19 @@ def test(model, data_loader, criterion, is_val=False):
     total_time = time.time() - start
     test_loss /= len(data_loader)
     
-    if not is_val: tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
-    else: tqdm.write(f'\033[93mVal Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%)\033[0m')
-    
+    if not is_val:
+        tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
+        wandb.log({
+            "test/acc": 100 * correct / len(data_loader.dataset),
+            "test/loss": test_loss,
+        })
+    else:
+        tqdm.write(f'\033[93mVal Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(data_loader.dataset)} ({100. * correct / len(data_loader.dataset):.0f}%)\033[0m')
+        wandb.log({
+            "val/acc": 100 * correct / len(data_loader.dataset),
+            "val/loss": test_loss,
+        })
+        
     return test_loss, 100 * correct / len(data_loader.dataset)
 
 def arg_parse():
@@ -109,8 +128,8 @@ def arg_parse():
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=256)
     parser.add_argument("--mem_dim", type=int, default=4)
-    parser.add_argument("--min_len", type=int, default=2048)
-    parser.add_argument("--max_len", type=int, default=4096)
+    parser.add_argument("--min_len", type=int, default=1024)
+    parser.add_argument("--max_len", type=int, default=2048)
     parser.add_argument("--causal", type=bool, default=False)
     parser.add_argument("--vocab_size", type=int, default=129)
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -168,9 +187,18 @@ if __name__ == "__main__":
         
         model = allocate_dynamic_memory(model, bsz, min_len, max_len, device=device)
         
-        print('\033[1mIMDB Benchmark\033[0m')
+        benchmark_name = "IMDb"
+        print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
+        
+        wandb.init(
+            settings=wandb.Settings(silent=True),
+            entity=ENTITY,
+            project="Machine Learning",
+            name=f"{benchmark_name}-{model_name}",
+            config=args,
+        )
         
         train_losses = []
         test_losses = []
@@ -186,7 +214,9 @@ if __name__ == "__main__":
             
             checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler)
         
-        log_info(LOG_PATH, "IMDb", model, model_name, args, train_accuracies, test_accuracies)
+        RUNNING = False
+        log_info(LOG_PATH, benchmark_name, model, model_name, args, train_accuracies, test_accuracies)
+        wandb.finish()
         
         plt.figure()
 
@@ -209,4 +239,5 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
-        print("\033[?25h", end="", flush=True)
+        if RUNNING: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
+        print("\033[?25h", end='', flush=True)
