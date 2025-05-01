@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m24842_models"
-version = "0.1.20"
+version = "0.1.21"
 description = ""
 requires-python = ">=3.8"
 dependencies = [
