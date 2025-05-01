@@ -49,7 +49,7 @@ class TinyShakeDataset(Dataset):
         else:
             self.len = self.max_len
 
-def train(model, data_loader, optimizer, criterion, scheduler, epoch):
+def train(model, data_loader, optimizer, loss_fn, scheduler, epoch):
     model.train()
     total_loss = 0
     correct = 0
@@ -59,7 +59,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
         target = target.to(device)
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output.transpose(1, 2), target)
+        loss = loss_fn(output.transpose(1, 2), target)
         total_loss += loss.item()
         accuracy = (output.argmax(dim=-1) == target).sum().item()
         correct += accuracy
@@ -82,7 +82,7 @@ def train(model, data_loader, optimizer, criterion, scheduler, epoch):
     return total_loss / len(data_loader), 100. * correct / (len(data_loader.dataset)*data.size(1))
 
 @ torch.no_grad()
-def test(model, data_loader, criterion, is_val=False):
+def test(model, data_loader, loss_fn, is_val=False):
     model.eval()
     test_loss = 0
     correct = 0
@@ -96,7 +96,7 @@ def test(model, data_loader, criterion, is_val=False):
         data = data.to(device).squeeze(1)
         target = target.to(device)
         output = model(data)
-        test_loss += criterion(output.transpose(1, 2), target).item()
+        test_loss += loss_fn(output.transpose(1, 2), target).item()
         correct += output.argmax(dim=-1).eq(target).sum().item()
 
     total_time = time.time() - start
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         # model = OrthoLinearTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, vocab_size, dropout, causal, device=device)
         model = CompressionTransformer(emb_dim, n_classes, n_layers, n_heads, mlp_dim, mem_dim, vocab_size, dropout, causal, device=device)
         
-        criterion = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(apply_weight_decay(model, args.weight_decay), lr=args.lr, weight_decay=args.weight_decay)
         warmup_steps = args.warmup_epochs * len(train_loader)
         total_steps = args.total_epochs * len(train_loader)
@@ -199,8 +199,8 @@ if __name__ == "__main__":
         train_accuracies = []
         test_accuracies = []
         for epoch in range(1, args.total_epochs + 1):
-            train_loss, train_accuracy = train(model, train_loader, optimizer, criterion, scheduler, epoch)
-            test_loss, test_accuracy = test(model, test_loader, criterion)
+            train_loss, train_accuracy = train(model, train_loader, optimizer, loss_fn, scheduler, epoch)
+            test_loss, test_accuracy = test(model, test_loader, loss_fn)
             train_losses.append(train_loss)
             test_losses.append(test_loss)
             train_accuracies.append(train_accuracy)
@@ -232,5 +232,5 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
-        if not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
+        if wandb.run and not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
         print("\033[?25h", end='', flush=True)

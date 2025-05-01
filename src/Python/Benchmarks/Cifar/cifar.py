@@ -77,7 +77,7 @@ def arg_parse():
     parser.add_argument("--bsz", type=int, default=32)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--n_classes", type=int, default=10)
-    parser.add_argument("--n_layers", type=int, default=6)
+    parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--mlp_dim", type=int, default=128)
     parser.add_argument("--mem_dim", type=int, default=16)
@@ -198,5 +198,5 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
-        if not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
+        if wandb.run and not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
         print("\033[?25h", end='', flush=True)
