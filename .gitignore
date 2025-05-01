@@ -4,6 +4,7 @@ data/
 .venv/
 __pycache__/
 wandb/
+.DS_Store
 pyrightconfig.json
 *.mp4
 *.pth

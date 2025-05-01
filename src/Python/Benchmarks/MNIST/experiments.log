@@ -659,3 +659,28 @@ Train accuracies:
 	32.39, 62.49, 70.29, 76.67, 83.20, 87.41, 88.66, 89.82, 90.36, 91.03, 91.68, 92.03, 92.72, 93.08, 93.38, 93.75, 94.08, 94.16, 94.39, 94.34
 Test accuracies:
 	60.46, 70.66, 74.00, 80.14, 84.79, 89.37, 90.03, 90.73, 92.89, 92.49, 93.48, 93.57, 94.13, 94.41, 94.45, 94.82, 94.79, 94.80, 94.99, 95.05
+05-01-2025 16:20 - CompressionTransformer
+Total params: 204,928
+Hyperparams:
+	seed: 0
+	permuted: False
+	img_dim: 28
+	bsz: 64
+	emb_dim: 128
+	n_classes: 10
+	n_layers: 2
+	n_heads: 4
+	mlp_dim: 128
+	mem_dim: 16
+	causal: False
+	vocab_size: 1
+	dropout: 0.1
+	warmup_epochs: 0
+	total_epochs: 10
+	lr: 0.001
+	weight_decay: 0.01
+	benchmark: MNIST
+Train accuracies:
+	63.68, 82.53, 86.03, 87.83, 89.61, 91.02, 92.05, 92.88, 93.26, 93.56
+Test accuracies:
+	84.02, 86.29, 89.48, 91.13, 93.02, 93.73, 93.90, 94.07, 94.41, 94.42

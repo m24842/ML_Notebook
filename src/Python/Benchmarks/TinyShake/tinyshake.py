@@ -181,6 +181,7 @@ if __name__ == "__main__":
         benchmark_name = "Tiny Shakespeare"
         args = vars(args)
         args["benchmark"] = benchmark_name
+        args["model"] = model_name
         args = argparse.Namespace(**args)
         print(f'\033[1m{benchmark_name} Benchmark\033[0m')
         print(f'\033[1m{model_name}\033[0m')
