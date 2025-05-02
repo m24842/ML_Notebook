@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
+WANDB_SETTINGS = wandb.Settings(silent=True)
 ENTITY = os.getenv("WANDB_ENTITY")
 DATA_DIR = "data/listops-1000"
 OUTPUT_DIR = "src/Python/Benchmarks/ListOps/models"

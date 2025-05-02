@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from models.transformers import *
 from models.utils import *
 
+WANDB_SETTINGS = wandb.Settings(silent=True)
 ENTITY = os.getenv("WANDB_ENTITY")
 DATA_DIR = "data"
 OUTPUT_DIR = "src/Python/Benchmarks/MNIST/models"
@@ -158,7 +159,7 @@ if __name__ == "__main__":
         print(f'\033[4mTotal params: {count_parameters(model):,}\033[0m\n')
         
         wandb.init(
-            settings=wandb.Settings(silent=True),
+            settings=WANDB_SETTINGS,
             mode="online" if online() else "offline",
             entity=ENTITY,
             project="Machine Learning",
