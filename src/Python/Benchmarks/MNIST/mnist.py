@@ -144,7 +144,7 @@ if __name__ == "__main__":
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         
         model_name = model.__class__.__name__
-        model, optimizer, scheduler = load_checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler, device=device)
+        # model, optimizer, scheduler = load_checkpoint(model_name, OUTPUT_DIR, model, optimizer, scheduler, device=device)
         
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
