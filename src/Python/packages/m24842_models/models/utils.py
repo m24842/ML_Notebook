@@ -1,7 +1,53 @@
 import os
+import sys
+import termios
 import logging
+import signal
+import requests
+import wandb
 import torch
 import torch.nn as nn
+
+class NoEcho:
+    _og_attrs = None
+
+    @classmethod
+    def disable_echo(cls):
+        fd = sys.stdin.fileno()
+        cls._og_attrs = termios.tcgetattr(fd)
+        new_attrs = termios.tcgetattr(fd)
+        new_attrs[3] = new_attrs[3] & ~termios.ECHO  # Disable ECHO
+        termios.tcsetattr(fd, termios.TCSADRAIN, new_attrs)
+
+    @classmethod
+    def enable_echo(cls):
+        if cls._og_attrs is not None:
+            fd = sys.stdin.fileno()
+            termios.tcsetattr(fd, termios.TCSADRAIN, cls._og_attrs)
+
+class NoKeyboardInterrupt:
+    def __enter__(self):
+        self._orig_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        signal.signal(signal.SIGINT, self._orig_handler)
+
+def online(timeout=3):
+    try:
+        _ = requests.get("https://www.google.com", timeout=timeout)
+        return True
+    except requests.RequestException:
+        return False
+
+def cleanup_wandb(entity, project):
+    with NoKeyboardInterrupt():
+        if wandb.run and not wandb.run._is_finished:
+            run_id = wandb.run.id
+            wandb.finish()
+            delete_run = input("Delete WandB run? (y/n): ").strip().lower()
+            if delete_run == "y": wandb.Api().run(f'{entity}/{project}/{run_id}').delete()
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

@@ -7,6 +7,7 @@ from transformers import get_cosine_schedule_with_warmup
 import argparse
 import wandb
 import time
+import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from models.transformers import *
@@ -93,6 +94,7 @@ def arg_parse():
 if __name__ == "__main__":
     try:
         print("\033[?25l\033c", end="", flush=True)
+        NoEcho.disable_echo()
         
         args = arg_parse()
         
@@ -156,6 +158,7 @@ if __name__ == "__main__":
         
         wandb.init(
             settings=wandb.Settings(silent=True),
+            mode="online" if online() else "offline",
             entity=ENTITY,
             project="Machine Learning",
             name=f"{model_name}",
@@ -200,5 +203,6 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
     finally:
-        if wandb.run and not wandb.run._is_finished: wandb.Api().run(f'{ENTITY}/Machine Learning/{wandb.run.id}').delete()
+        NoEcho.enable_echo()
+        cleanup_wandb(ENTITY, "Machine Learning")
         print("\033[?25h", end='', flush=True)
