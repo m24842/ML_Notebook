@@ -1,9 +1,0 @@
-pyproject.toml
-m24842_models.egg-info/PKG-INFO
-m24842_models.egg-info/SOURCES.txt
-m24842_models.egg-info/dependency_links.txt
-m24842_models.egg-info/requires.txt
-m24842_models.egg-info/top_level.txt
-models/__init__.py
-models/transformers.py
-models/utils.py
