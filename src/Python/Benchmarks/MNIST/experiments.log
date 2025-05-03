@@ -4,12 +4,12 @@ Hyperparams:
 	seed: 3333
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -25,12 +25,12 @@ Hyperparams:
 	seed: 3333
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -46,12 +46,12 @@ Hyperparams:
 	seed: 0
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -67,12 +67,12 @@ Hyperparams:
 	seed: 0
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -89,12 +89,12 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -111,12 +111,12 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 10
@@ -133,12 +133,12 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 10
@@ -155,13 +155,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 10
@@ -178,13 +178,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: True
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 10
@@ -201,13 +201,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -224,13 +224,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -247,13 +247,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -270,13 +270,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 16
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -293,13 +293,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -316,13 +316,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -339,13 +339,13 @@ Hyperparams:
 	permuted: True
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -362,13 +362,13 @@ Hyperparams:
 	permuted: True
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 16
+	input_dim: 16
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -385,13 +385,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -408,13 +408,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 64
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -431,13 +431,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -454,13 +454,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -477,13 +477,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 16
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -500,13 +500,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 4
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -523,13 +523,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 1
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -546,13 +546,13 @@ Hyperparams:
 	permuted: False
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 4
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -570,13 +570,13 @@ Hyperparams:
 	img_dim: 28
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 4
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -594,13 +594,13 @@ Hyperparams:
 	img_dim: 28
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 256
 	mem_dim: 128
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.0
 	warmup_epochs: 3
 	total_epochs: 20
@@ -618,13 +618,13 @@ Hyperparams:
 	img_dim: 28
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 128
 	mem_dim: 64
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.1
 	warmup_epochs: 3
 	total_epochs: 20
@@ -642,13 +642,13 @@ Hyperparams:
 	img_dim: 28
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 128
 	mem_dim: 64
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.1
 	warmup_epochs: 3
 	total_epochs: 20
@@ -667,13 +667,13 @@ Hyperparams:
 	img_dim: 28
 	bsz: 64
 	emb_dim: 128
-	n_classes: 10
+	output_dim: 10
 	n_layers: 2
 	n_heads: 4
 	mlp_dim: 128
 	mem_dim: 16
 	causal: False
-	vocab_size: 1
+	input_dim: 1
 	dropout: 0.1
 	warmup_epochs: 0
 	total_epochs: 10
