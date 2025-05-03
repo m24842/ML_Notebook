@@ -213,7 +213,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
                     model=model, optimizer=optimizer, scheduler=scheduler)
         
         # Final logging
-        if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, config=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
+        if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, configs=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
         wandb.finish()
     
     except KeyboardInterrupt as e: raise e
