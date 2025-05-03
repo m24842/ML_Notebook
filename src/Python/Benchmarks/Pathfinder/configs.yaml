@@ -11,7 +11,7 @@ global:
       project: Machine Learning
       metrics: [acc, loss, lr]
   
-  dataset:
+  dataset: # 200,000 train samples
     name: Pathfinder
     splits:
       train:
@@ -37,7 +37,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 10
+  T_max: 62500 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults

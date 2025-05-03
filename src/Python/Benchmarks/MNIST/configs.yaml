@@ -11,7 +11,7 @@ global:
       project: Machine Learning
       metrics: [acc, loss, lr]
   
-  dataset:
+  dataset: # 60,000 train samples
     name: SequentialMNIST
     splits:
       train:
@@ -33,7 +33,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 9380
+  T_max: 9380 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults

@@ -11,7 +11,7 @@ global:
       project: Machine Learning
       metrics: [acc, loss, lr]
   
-  dataset:
+  dataset: # 60,000 train samples
     name: SequentialCIFAR10
     splits:
       train:
@@ -33,7 +33,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 20
+  T_max: 37500 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults

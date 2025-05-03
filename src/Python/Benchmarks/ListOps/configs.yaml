@@ -11,7 +11,7 @@ global:
       project: Machine Learning
       metrics: [acc, loss, seq_len, lr]
   
-  dataset:
+  dataset: # 96,000 train samples
     name: ListOps
     splits:
       train:
@@ -39,7 +39,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 10
+  T_max: 30000 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
