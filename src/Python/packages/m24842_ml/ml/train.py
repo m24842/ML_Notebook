@@ -141,7 +141,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
           output_dir="", model_name=None,
           val_loader=None, test_loader=None,
           local_log_path=None,
-          wandb_logging=True, wandb_entity=None, wandb_project=None, wandb_api_key=None,
+          wandb_logging=True, wandb_entity=None, wandb_project=None,
           wandb_metrics=["acc", "loss"],
           grad_clip_norm=None,
           checkpoint_freq=500, val_freq=500, info_freq=100):
@@ -162,7 +162,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
             assert wandb_entity is not None, "WandB entity is required for logging."
             assert wandb_project is not None, "WandB project is required for logging."
             wandb.init(
-                settings=wandb.Settings(silent=True, api_key=wandb_api_key),
+                settings=wandb.Settings(silent=True),
                 mode="online" if online() else "offline",
                 entity=wandb_entity,
                 project=wandb_project,
@@ -230,9 +230,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         if wandb_logging: cleanup_wandb(wandb_entity, wandb_project)
         sys.stdout.write("\033[?25h")
 
-def train_from_config_file(yaml_path, loss_fn, acc_fn,
-                       device=torch.device("cpu"),
-                       wandb_api_key=None):
+def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu")):
     os.system('clear')
     
     with open(yaml_path, 'r') as f:
@@ -359,7 +357,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
                 output_dir=output_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
                 local_log_path=local_log_path,
-                wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project, wandb_api_key=wandb_api_key,
+                wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project,
                 wandb_metrics=wandb_metrics,
                 grad_clip_norm=grad_clip_norm,
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
