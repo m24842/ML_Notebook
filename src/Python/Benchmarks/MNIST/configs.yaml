@@ -144,62 +144,82 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 ### Experiments Configuration ###
 experiments:
   - <<: *CompressionTransformer_defaults
-    seed: 0
+    general:
+      seed: 0
   
   - <<: *CompressionTransformer_defaults
-    seed: 42
+    general:
+      seed: 42
   
   - <<: *CompressionTransformer_defaults
-    seed: 1111
+    general:
+      seed: 1111
   
   - <<: *CompressionTransformer_defaults
-    seed: 2222
+    general:
+      seed: 2222
   
   - <<: *CompressionTransformer_defaults
-    seed: 3333
+    general:
+      seed: 3333
   
   - <<: *Transformer_defaults
-    seed: 0
+    general:
+      seed: 0
   
   - <<: *Transformer_defaults
-    seed: 42
+    general:
+      seed: 42
   
   - <<: *Transformer_defaults
-    seed: 1111
+    general:
+      seed: 1111
   
   - <<: *Transformer_defaults
-    seed: 2222
+    general:
+      seed: 2222
   
   - <<: *Transformer_defaults
-    seed: 3333
+    general:
+      seed: 3333
   
   - <<: *OrthoLinearTransformer_defaults
-    seed: 0
+    general:
+      seed: 0
   
   - <<: *OrthoLinearTransformer_defaults
-    seed: 42
+    general:
+      seed: 42
   
   - <<: *OrthoLinearTransformer_defaults
-    seed: 1111
+    general:
+      seed: 1111
   
   - <<: *OrthoLinearTransformer_defaults
-    seed: 2222
+    general:
+      seed: 2222
   
   - <<: *OrthoLinearTransformer_defaults
-    seed: 3333
+    general:
+      seed: 3333
   
   - <<: *LinearTransformer_defaults
-    seed: 0
+    general:
+      seed: 0
   
   - <<: *LinearTransformer_defaults
-    seed: 42
+    general:
+      seed: 42
   
   - <<: *LinearTransformer_defaults
-    seed: 1111
+    general:
+      seed: 1111
   
   - <<: *LinearTransformer_defaults
-    seed: 2222
+    general:
+      seed: 2222
   
   - <<: *LinearTransformer_defaults
-    seed: 3333
+    general:
+      seed: 3333
   
