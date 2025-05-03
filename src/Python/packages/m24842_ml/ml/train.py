@@ -22,7 +22,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
     model.train()
-    total_loss = 0
+    train_loss = 0
     correct = 0
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
     for batch_idx, (data, target) in enumerate(iterable):
@@ -38,7 +38,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         
         # Loss
         loss = loss_fn(output, target)
-        total_loss += loss.item()
+        train_loss += loss.item()
         
         # Backward pass
         loss.backward()
@@ -116,9 +116,9 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
     tqdm.write("")
     iterable = tqdm(test_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m')
     for data, target in iterable:
-        data = data.to(device).squeeze(1)
+        data = data.to(device)
         target = target.to(device)
-        output = model(data)[:, 0]
+        output = model(data)
         test_loss += loss_fn(output, target).item()
         correct += acc_fn(output, target)
 
