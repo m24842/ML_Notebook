@@ -17,7 +17,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
                 output_dir="", model_name=None,
                 val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
-                grad_clip_norm=1.0,
+                grad_clip_norm=None,
                 checkpoint_freq=500, val_freq=500, info_freq=100):
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
@@ -143,7 +143,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
           local_log_path=None,
           wandb_logging=True, wandb_entity=None, wandb_project=None, wandb_api_key=None,
           wandb_metrics=["acc", "loss"],
-          grad_clip_norm=1.0,
+          grad_clip_norm=None,
           checkpoint_freq=500, val_freq=500, info_freq=100):
     try:
         sys.stdout.write("\033[?25l")
@@ -172,6 +172,11 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         
         # Use multiple GPUs if available
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
+        
+        # Allocate dynamic memory if applicable for dataset
+        if hasattr(train_loader.dataset, "seq_len_range"):
+            min_len, max_len = train_loader.dataset.seq_len_range()
+            model = allocate_dynamic_memory(model, train_loader.batch_size, min_len, max_len, device)
         
         # Metrics
         train_losses = []

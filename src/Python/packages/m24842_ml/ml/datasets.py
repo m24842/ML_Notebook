@@ -175,6 +175,9 @@ class ListOps(Dataset):
             self.len += self.step_size
         else:
             self.len = self.max_len
+    
+    def seq_len_range(self):
+        return self.min_len, self.max_len
 
 class IMDb(Dataset):
     def __init__(self, train, min_len=1, max_len=1000, warmup_epochs=0):
@@ -210,6 +213,9 @@ class IMDb(Dataset):
             self.len += self.step_size
         else:
             self.len = self.max_len
+    
+    def seq_len_range(self):
+        return self.min_len, self.max_len
 
 class TinyShakespeare(Dataset):
     def __init__(self, train, min_len=1, max_len=1000, warmup_epochs=0):
@@ -239,6 +245,9 @@ class TinyShakespeare(Dataset):
             self.len += self.step_size
         else:
             self.len = self.max_len
+    
+    def seq_len_range(self):
+        return self.min_len, self.max_len
 
 def initialize_dataset(name, *args, **kwargs):
     dataset_class = getattr(sys.modules[__name__], name, None)
