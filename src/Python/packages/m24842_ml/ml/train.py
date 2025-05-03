@@ -108,7 +108,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn, device=torch.device("cpu"),
 @ torch.no_grad()
 def test_epoch(model, test_loader, loss_fn, acc_fn,
          device=torch.device("cpu"),
-         wandb_logging=True, wandb_metrics=["train/acc", "train/loss"],):
+         wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
     test_loss = 0
     correct = 0
