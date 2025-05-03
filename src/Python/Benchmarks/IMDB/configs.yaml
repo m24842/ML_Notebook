@@ -9,7 +9,7 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, seq_len]
+      metrics: [acc, loss, seq_len, lr]
   
   dataset:
     name: IMDb

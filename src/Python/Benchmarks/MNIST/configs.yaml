@@ -9,7 +9,7 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss]
+      metrics: [acc, loss, lr]
   
   dataset:
     name: SequentialMNIST
