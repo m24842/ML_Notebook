@@ -277,7 +277,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
     successful_count = 0
     experiments = config.get("experiments")
     for i, experiment in enumerate(experiments):
-        print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m')
+        print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m\n')
         
         general_config = copy.deepcopy(experiment.get("general"))
         general_config = try_to_float(general_config)
@@ -371,10 +371,10 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
             if terminate == 'y': break
         except Exception as e:
             successful = False
-            print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error: {e}\033[0m')
+            print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error: {e}\033[0m\n')
         if successful:
             successful_count += 1
-            print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m')
+            print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m\n')
         
         del general_config, model_config, optimizer_config, scheduler_config, train_config
     
