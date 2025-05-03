@@ -37,7 +37,7 @@ scheduler_defaults: &scheduler_defaults
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
-  general:
+  general: &Transformer_general
     model_name: Transformer
     load_checkpoint: False
     seed: 0
@@ -45,7 +45,7 @@ Transformer_defaults: &Transformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
   
-  model:
+  model: &Transformer_model
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
@@ -63,7 +63,7 @@ Transformer_defaults: &Transformer_defaults
     <<: *scheduler_defaults
 
 CompressionTransformer_defaults: &CompressionTransformer_defaults
-  general:
+  general: &CompressionTransformer_general
     model_name: CompressionTransformer
     load_checkpoint: False
     seed: 0
@@ -71,7 +71,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
   
-  model:
+  model: &CompressionTransformer_model
     emb_dim: 128
     mlp_dim: 128
     mem_dim: 16
@@ -90,7 +90,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     <<: *scheduler_defaults
 
 LinearTransformer_defaults: &LinearTransformer_defaults
-  general:
+  general: &LinearTransformer_general
     model_name: LinearTransformer
     load_checkpoint: False
     seed: 0
@@ -98,7 +98,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
   
-  model:
+  model: &LinearTransformer_model
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
@@ -116,7 +116,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     <<: *scheduler_defaults
 
 OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
-  general:
+  general: &OrthoLinearTransformer_general
     model_name: OrthoLinearTransformer
     load_checkpoint: False
     seed: 0
@@ -124,7 +124,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
   
-  model:
+  model: &OrthoLinearTransformer_model
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
@@ -145,81 +145,101 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 experiments:
   - <<: *CompressionTransformer_defaults
     general:
+      <<: *CompressionTransformer_general
       seed: 0
   
   - <<: *CompressionTransformer_defaults
     general:
+      <<: *CompressionTransformer_general
       seed: 42
   
   - <<: *CompressionTransformer_defaults
     general:
+      <<: *CompressionTransformer_general
       seed: 1111
   
   - <<: *CompressionTransformer_defaults
     general:
+      <<: *CompressionTransformer_general
       seed: 2222
   
   - <<: *CompressionTransformer_defaults
     general:
+      <<: *CompressionTransformer_general
       seed: 3333
   
   - <<: *Transformer_defaults
     general:
+      <<: *Transformer_general
       seed: 0
   
   - <<: *Transformer_defaults
     general:
+      <<: *Transformer_general
       seed: 42
   
   - <<: *Transformer_defaults
     general:
+      <<: *Transformer_general
       seed: 1111
   
   - <<: *Transformer_defaults
     general:
+      <<: *Transformer_general
       seed: 2222
   
   - <<: *Transformer_defaults
     general:
+      <<: *Transformer_general
       seed: 3333
   
   - <<: *OrthoLinearTransformer_defaults
     general:
+      <<: *OrthoLinearTransformer_general
       seed: 0
   
   - <<: *OrthoLinearTransformer_defaults
     general:
+      <<: *OrthoLinearTransformer_general
       seed: 42
   
   - <<: *OrthoLinearTransformer_defaults
     general:
+      <<: *OrthoLinearTransformer_general
       seed: 1111
   
   - <<: *OrthoLinearTransformer_defaults
     general:
+      <<: *OrthoLinearTransformer_general
       seed: 2222
   
   - <<: *OrthoLinearTransformer_defaults
     general:
+      <<: *OrthoLinearTransformer_general
       seed: 3333
   
   - <<: *LinearTransformer_defaults
     general:
+      <<: *LinearTransformer_general
       seed: 0
   
   - <<: *LinearTransformer_defaults
     general:
+      <<: *LinearTransformer_general
       seed: 42
   
   - <<: *LinearTransformer_defaults
     general:
+      <<: *LinearTransformer_general
       seed: 1111
   
   - <<: *LinearTransformer_defaults
     general:
+      <<: *LinearTransformer_general
       seed: 2222
   
   - <<: *LinearTransformer_defaults
     general:
+      <<: *LinearTransformer_general
       seed: 3333
   
