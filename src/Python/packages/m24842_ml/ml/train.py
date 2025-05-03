@@ -331,12 +331,12 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         # Collect all training configurations for logging
         train_config = model_config
         train_config.update({
-            "benchmark_name": benchmark_name,
+            "benchmark": benchmark_name,
             "model": model_name,
             "seed": seed,
             "warmup_epochs": scheduler_config.get("warmup_epochs", 0),
-            "epochs": epochs,
-            "batch_size": batch_size,
+            "total_epochs": epochs,
+            "bsz": batch_size,
             "lr": optimizer_config.get("lr"),
             "weight_decay": weight_decay,
             "permuted": dataset_config.get("permuted"),
