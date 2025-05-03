@@ -1,0 +1,60 @@
+global:
+  benchmark_name: Pathfinder-32
+  output_dir: src/Python/Benchmarks/Pathfinder/models
+
+  logging:
+    info_freq: 100
+    local_log_path: src/Python/Benchmarks/Pathfinder/experiments.log
+    wandb:
+      entity: m24842
+      project: Machine Learning
+      metrics: [acc, loss]
+  
+  dataset:
+    name: Pathfinder
+    splits:
+      train:
+        root: data
+        dim: 32
+        train: True
+        subset: curv_baseline
+        permuted: False
+      test:
+        root: data
+        dim: 32
+        train: False
+        subset: curv_baseline
+        permuted: False
+  
+  checkpoint_freq: 500
+
+experiments:
+  - general:
+      model_name: CompressionTransformer
+      load_checkpoint: False
+      seed: 0
+      batch_size: 32
+      epochs: 10
+      grad_clip_norm: 1.0
+    
+    model:
+      emb_dim: 128
+      mlp_dim: 128
+      mem_dim: 16
+      n_heads: 4
+      n_layers: 4
+      input_dim: 1
+      output_dim: 10
+      dropout: 0.1
+      causal: False
+      use_embedding: False
+    
+    optimizer:
+      name: AdamW
+      lr: 3e-4
+      weight_decay: 0.01
+    
+    scheduler:
+      name: CosineAnnealingLR
+      T_max: 10
+      eta_min: 1e-6

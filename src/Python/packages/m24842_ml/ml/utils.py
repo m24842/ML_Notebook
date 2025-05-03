@@ -52,13 +52,13 @@ def cleanup_wandb(entity, project):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def log_info(log_path, model, model_name, args, train_accuracies=None, test_accuracies=None):
+def log_info(log_path, model, model_name, configs, train_accuracies=None, test_accuracies=None):
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
     log_message = (
         f"{model_name}\n"
         + f"Total params: {count_parameters(model):,}\n"
         + f"Hyperparams:\n"
-        + '\n'.join([f'\t{key}: {value}' for key, value in vars(args).items()]) + '\n'
+        + '\n'.join([f'\t{key}: {value}' for key, value in vars(configs).items()]) + '\n'
         + (f"Train accuracies:\n" if train_accuracies else "")
         + (f"\t{', '.join(f'{acc:.2f}' for acc in train_accuracies)}\n" if train_accuracies else "")
         + (f"Test accuracies:\n" if test_accuracies else "")
@@ -133,3 +133,13 @@ def allocate_dynamic_memory(model, bsz, min_len, max_len, device=torch.device('c
     model = torch.compile(model, dynamic=True, backend="eager")
     with torch.no_grad(): model(temp)
     return model
+
+def try_to_float(dictionary):
+    """
+    Convert string values to float if possible.
+    """
+    for key, value in dictionary.items():
+        if type(value) is str:
+            try: dictionary[key] = float(value)
+            except: pass
+    return dictionary
