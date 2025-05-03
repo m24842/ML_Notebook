@@ -60,7 +60,7 @@ def log_info(log_path, model, model_name, configs, train_accuracies=None, test_a
         f"{model_name}\n"
         + f"Total params: {count_parameters(model):,}\n"
         + f"Hyperparams:\n"
-        + '\n'.join([f'\t{key}: {value}' for key, value in vars(configs).items()]) + '\n'
+        + '\n'.join([f'\t{key}: {value}' for key, value in configs.items()]) + '\n'
         + (f"Train accuracies:\n" if train_accuracies else "")
         + (f"\t{', '.join(f'{acc:.2f}' for acc in train_accuracies)}\n" if train_accuracies else "")
         + (f"Test accuracies:\n" if test_accuracies else "")
