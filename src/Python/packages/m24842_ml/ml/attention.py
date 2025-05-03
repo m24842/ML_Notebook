@@ -424,4 +424,3 @@ class CompressionAttention(nn.Module):
         if self.batch_first:
             return s_attn_output.transpose(0, 1)
         return s_attn_output
-
