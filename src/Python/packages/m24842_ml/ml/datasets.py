@@ -218,7 +218,7 @@ class IMDb(Dataset):
         return self.min_len, self.max_len
 
 class TinyShakespeare(Dataset):
-    def __init__(self, train, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -227,7 +227,7 @@ class TinyShakespeare(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = load_dataset('tiny_shakespeare')['train' if train else 'test']['text'][0].split(' ')
-        self.tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
     
     def __len__(self):
         return len(self.data) // 8
