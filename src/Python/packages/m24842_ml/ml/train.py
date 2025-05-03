@@ -129,8 +129,8 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
     tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(test_loader.dataset)} ({test_acc:.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
     if wandb_logging:
         log_data = {}
-        if "test/acc" in wandb_metrics: log_data["test/acc"] = test_acc
-        if "test/loss" in wandb_metrics: log_data["test/loss"] = test_loss
+        if "acc" in wandb_metrics: log_data["test/acc"] = test_acc
+        if "loss" in wandb_metrics: log_data["test/loss"] = test_loss
         wandb.log(log_data)
         
     return test_loss, test_acc
