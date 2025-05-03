@@ -1,10 +1,11 @@
 import torch
 import torch.nn.functional as F
+from ml.utils import get_available_device
 from ml.train import train_from_config_file
 
 CONFIG_PATH = "src/Python/Benchmarks/MNIST/configs.yaml"
 
-device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+device = get_available_device()
 
 def loss_fn(output, target):
     return F.cross_entropy(output[:, -1], target)

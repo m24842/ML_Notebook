@@ -1,3 +1,4 @@
+### Global Configuration ###
 global:
   benchmark_name: MNIST
   output_dir: src/Python/Benchmarks/MNIST/models
@@ -24,33 +25,181 @@ global:
   
   checkpoint_freq: 500
 
-experiments:
-  - general:
+### Defaults ###
+optimizer_defaults: &optimizer_defaults
+  name: AdamW
+  lr: 1e-3
+  weight_decay: 0.01
+
+scheduler_defaults: &scheduler_defaults
+  name: CosineAnnealingLR
+  T_max: 10
+  eta_min: 1e-6
+
+Transformer_defaults: &Transformer_defaults
+  general:
+      model_name: Transformer
+      load_checkpoint: False
+      seed: 0
+      batch_size: 64
+      epochs: 10
+      grad_clip_norm: 1.0
+  
+  model:
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 2
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: False
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+CompressionTransformer_defaults: &CompressionTransformer_defaults
+  general:
       model_name: CompressionTransformer
       load_checkpoint: False
       seed: 0
       batch_size: 64
       epochs: 10
       grad_clip_norm: 1.0
-    
-    model:
-      emb_dim: 128
-      mlp_dim: 128
-      mem_dim: 16
-      n_heads: 4
-      n_layers: 2
-      input_dim: 1
-      output_dim: 10
-      dropout: 0.1
-      causal: False
-      use_embedding: False
-    
-    optimizer:
-      name: AdamW
-      lr: 1e-3
-      weight_decay: 0.01
-    
-    scheduler:
-      name: CosineAnnealingLR
-      T_max: 10
-      eta_min: 1e-6
+  
+  model:
+    emb_dim: 128
+    mlp_dim: 128
+    mem_dim: 16
+    n_heads: 4
+    n_layers: 2
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: False
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+LinearTransformer_defaults: &LinearTransformer_defaults
+  general:
+      model_name: LinearTransformer
+      load_checkpoint: False
+      seed: 0
+      batch_size: 64
+      epochs: 10
+      grad_clip_norm: 1.0
+  
+  model:
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 2
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: False
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
+  general:
+      model_name: OrthoLinearTransformer
+      load_checkpoint: False
+      seed: 0
+      batch_size: 64
+      epochs: 10
+      grad_clip_norm: 1.0
+  
+  model:
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 2
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: False
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+### Experiments Configuration ###
+experiments:
+  - <<: *CompressionTransformer_defaults
+    seed: 0
+  
+  - <<: *CompressionTransformer_defaults
+    seed: 42
+  
+  - <<: *CompressionTransformer_defaults
+    seed: 1111
+  
+  - <<: *CompressionTransformer_defaults
+    seed: 2222
+  
+  - <<: *CompressionTransformer_defaults
+    seed: 3333
+  
+  - <<: *Transformer_defaults
+    seed: 0
+  
+  - <<: *Transformer_defaults
+    seed: 42
+  
+  - <<: *Transformer_defaults
+    seed: 1111
+  
+  - <<: *Transformer_defaults
+    seed: 2222
+  
+  - <<: *Transformer_defaults
+    seed: 3333
+  
+  - <<: *OrthoLinearTransformer_defaults
+    seed: 0
+  
+  - <<: *OrthoLinearTransformer_defaults
+    seed: 42
+  
+  - <<: *OrthoLinearTransformer_defaults
+    seed: 1111
+  
+  - <<: *OrthoLinearTransformer_defaults
+    seed: 2222
+  
+  - <<: *OrthoLinearTransformer_defaults
+    seed: 3333
+  
+  - <<: *LinearTransformer_defaults
+    seed: 0
+  
+  - <<: *LinearTransformer_defaults
+    seed: 42
+  
+  - <<: *LinearTransformer_defaults
+    seed: 1111
+  
+  - <<: *LinearTransformer_defaults
+    seed: 2222
+  
+  - <<: *LinearTransformer_defaults
+    seed: 3333
+  

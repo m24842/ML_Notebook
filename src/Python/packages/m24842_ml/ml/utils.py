@@ -66,6 +66,9 @@ def log_info(log_path, model, model_name, configs, train_accuracies=None, test_a
     )
     logging.info(log_message)
 
+def get_available_device():
+    return get_available_device()
+
 def apply_weight_decay(model, weight_decay, exclude=["bias", "norm"]):
     """
     Disable weight decay for specified parameters.

@@ -216,6 +216,9 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         wandb.finish()
     
     except KeyboardInterrupt: pass
+    except Exception as e:
+        if wandb_logging: wandb.finish()
+        raise e
     finally:
         NoEcho.enable_echo()
         if wandb_logging: cleanup_wandb(wandb_entity, wandb_project)
@@ -265,6 +268,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
     checkpoint_freq = global_config.get("checkpoint_freq", 500)
     
     # Run all experiments
+    successful_count = 0
     experiments = config.get("experiments")
     for i, experiment in enumerate(experiments):
         print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m')
@@ -339,17 +343,27 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         })
         
         # Train the model
-        train(
-            epochs=epochs, benchmark_name=benchmark_name, model_name=model_name,
-            model=model, optimizer=optimizer, scheduler=scheduler,
-            loss_fn=loss_fn, acc_fn=acc_fn,
-            train_config=train_config,
-            output_dir=output_dir,
-            train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
-            local_log_path=local_log_path,
-            wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project, wandb_api_key=wandb_api_key,
-            wandb_metrics=wandb_metrics,
-            grad_clip_norm=grad_clip_norm,
-            checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
-            device=device,
-        )
+        successful = True
+        try:
+            train(
+                epochs=epochs, benchmark_name=benchmark_name, model_name=model_name,
+                model=model, optimizer=optimizer, scheduler=scheduler,
+                loss_fn=loss_fn, acc_fn=acc_fn,
+                train_config=train_config,
+                output_dir=output_dir,
+                train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
+                local_log_path=local_log_path,
+                wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project, wandb_api_key=wandb_api_key,
+                wandb_metrics=wandb_metrics,
+                grad_clip_norm=grad_clip_norm,
+                checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
+                device=device,
+            )
+        except Exception as e:
+            successful = False
+            print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error: {e}\033[0m')
+        if successful:
+            successful_count += 1
+            print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m')
+    
+    print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')
