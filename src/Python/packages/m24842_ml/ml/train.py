@@ -343,7 +343,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
             "bsz": batch_size,
             "lr": optimizer_config.get("lr"),
             "weight_decay": weight_decay,
-            "permuted": dataset_config.get("permuted"),
+            "permuted": dataset_splits["train"].get("permuted"),
         })
         
         # Train the model
