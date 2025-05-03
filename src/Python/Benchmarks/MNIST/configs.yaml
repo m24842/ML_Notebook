@@ -33,7 +33,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 10
+  T_max: 9380
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
