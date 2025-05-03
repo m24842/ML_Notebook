@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import yaml
+import copy
 import torch
 import wandb
 from tqdm import tqdm
@@ -215,7 +216,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, config=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
         wandb.finish()
     
-    except KeyboardInterrupt: pass
+    except KeyboardInterrupt as e: raise e
     except Exception as e:
         if wandb_logging: wandb.finish()
         raise e
@@ -273,7 +274,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
     for i, experiment in enumerate(experiments):
         print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m')
         
-        general_config = experiment.get("general")
+        general_config = copy.deepcopy(experiment.get("general"))
         general_config = try_to_float(general_config)
         
         # Set seed
@@ -291,7 +292,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         
         model_name = general_config.get("model_name")
-        model_config = experiment.get("model")
+        model_config = copy.deepcopy(experiment.get("model"))
         model_config = try_to_float(model_config)
         model_args = model_config.copy()
         model_args["device"] = device
@@ -303,7 +304,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         def initialize_optimizer(name, *args, **kwargs):
             optimizer_class = getattr(sys.modules["torch.optim"], name, None)
             return optimizer_class(*args, **kwargs)
-        optimizer_config = experiment.get("optimizer")
+        optimizer_config = copy.deepcopy(experiment.get("optimizer"))
         optimizer_name = optimizer_config.pop("name")
         optimizer_config = try_to_float(optimizer_config)
         weight_decay = float(optimizer_config.get("weight_decay", 0.0))
@@ -312,7 +313,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         
         # Initialize scheduler if specified
         scheduler = None
-        scheduler_config = experiment.get("scheduler", {})
+        scheduler_config = copy.deepcopy(experiment.get("scheduler", {}))
         if scheduler_config:
             scheduler_name = scheduler_config.pop("name")
             scheduler_config = try_to_float(scheduler_config)
@@ -329,7 +330,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
         else: print(f'\033[91mStarting from scratch\033[0m')
         
         # Collect all training configurations for logging
-        train_config = model_config
+        train_config = model_config.copy()
         train_config.update({
             "benchmark": benchmark_name,
             "model": model_name,
@@ -359,11 +360,17 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn,
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
                 device=device,
             )
+        except KeyboardInterrupt:
+            successful = False
+            terminate = input('Terminate all experiments? (y/n): ').strip().lower()
+            if terminate == 'y': break
         except Exception as e:
             successful = False
             print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error: {e}\033[0m')
         if successful:
             successful_count += 1
             print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m')
+        
+        del general_config, model_config, optimizer_config, scheduler_config, train_config
     
     print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')
