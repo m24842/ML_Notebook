@@ -13,6 +13,7 @@ class NoEcho:
 
     @classmethod
     def disable_echo(cls):
+        if not sys.stdin.isatty(): return
         fd = sys.stdin.fileno()
         cls._og_attrs = termios.tcgetattr(fd)
         new_attrs = termios.tcgetattr(fd)
@@ -21,9 +22,10 @@ class NoEcho:
 
     @classmethod
     def enable_echo(cls):
-        if cls._og_attrs is not None:
-            fd = sys.stdin.fileno()
-            termios.tcsetattr(fd, termios.TCSADRAIN, cls._og_attrs)
+        if cls._og_attrs is None: return
+        if not sys.stdin.isatty(): return
+        fd = sys.stdin.fileno()
+        termios.tcsetattr(fd, termios.TCSADRAIN, cls._og_attrs)
 
 class NoKeyboardInterrupt:
     def __enter__(self):
