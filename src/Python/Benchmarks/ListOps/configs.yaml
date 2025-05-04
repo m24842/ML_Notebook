@@ -18,8 +18,8 @@ global:
         root: data
         split: train
         min_len: 1024
-        max_len: 2048
-        warmup_epochs: 1
+        max_len: 1024
+        warmup_epochs: 0
       val:
         root: data
         split: val
@@ -56,7 +56,7 @@ Transformer_defaults: &Transformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 17
     output_dim: 10
     dropout: 0.1
     causal: False
@@ -83,7 +83,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     mem_dim: 16
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 17
     output_dim: 10
     dropout: 0.1
     causal: False
@@ -109,7 +109,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 17
     output_dim: 10
     dropout: 0.1
     causal: False
@@ -135,7 +135,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 17
     output_dim: 10
     dropout: 0.1
     causal: False
