@@ -1,0 +1,51 @@
+05-04-2025 23:32 - CompressionTransformer
+Total params: 410,256
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: CompressionTransformer
+	seed: 3333
+	warmup_epochs: 0
+	total_epochs: 10
+	bsz: 32
+	lr: 0.0003
+	weight_decay: 0.01
+	permuted: None
+Train accuracies:
+	23.48, 35.56, 36.05, 36.15, 36.70, 37.14, 37.57, 37.92, 38.12, 38.40
+Test accuracies:
+	33.30, 33.35, 32.90, 30.35, 30.00, 29.45, 29.00, 27.50, 28.30, 28.55
+05-05-2025 05:21 - Transformer
+Total params: 402,064
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: Transformer
+	seed: 0
+	warmup_epochs: 0
+	total_epochs: 10
+	bsz: 32
+	lr: 0.0003
+	weight_decay: 0.01
+	permuted: None
+Train accuracies:
+	33.63, 36.38, 37.17, 37.87, 38.30, 38.51, 38.97, 39.24, 39.50, 39.56
+Test accuracies:
+	20.45, 19.00, 22.80, 24.05, 19.90, 20.15, 17.75, 14.85, 12.70, 12.10

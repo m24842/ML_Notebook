@@ -38,7 +38,6 @@ scheduler_defaults: &scheduler_defaults
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
-    model_name: Transformer
     load_checkpoint: False
     seed: 0
     batch_size: 32
@@ -46,6 +45,7 @@ Transformer_defaults: &Transformer_defaults
     grad_clip_norm: 1.0
   
   model: &Transformer_model
+    name: Transformer
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
@@ -64,7 +64,6 @@ Transformer_defaults: &Transformer_defaults
 
 CompressionTransformer_defaults: &CompressionTransformer_defaults
   general: &CompressionTransformer_general
-    model_name: CompressionTransformer
     load_checkpoint: False
     seed: 0
     batch_size: 32
@@ -72,6 +71,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     grad_clip_norm: 1.0
   
   model: &CompressionTransformer_model
+    name: CompressionTransformer
     emb_dim: 128
     mlp_dim: 128
     mem_dim: 16
@@ -91,7 +91,6 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
 
 LinearTransformer_defaults: &LinearTransformer_defaults
   general: &LinearTransformer_general
-    model_name: LinearTransformer
     load_checkpoint: False
     seed: 0
     batch_size: 32
@@ -99,6 +98,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     grad_clip_norm: 1.0
   
   model: &LinearTransformer_model
+    name: LinearTransformer
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
@@ -117,7 +117,6 @@ LinearTransformer_defaults: &LinearTransformer_defaults
 
 OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   general: &OrthoLinearTransformer_general
-    model_name: OrthoLinearTransformer
     load_checkpoint: False
     seed: 0
     batch_size: 32
@@ -125,6 +124,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     grad_clip_norm: 1.0
   
   model: &OrthoLinearTransformer_model
+    name: OrthoLinearTransformer
     emb_dim: 128
     mlp_dim: 128
     n_heads: 4
