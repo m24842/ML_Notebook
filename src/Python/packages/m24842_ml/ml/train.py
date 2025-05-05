@@ -283,6 +283,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         yaml_path (str): Path to YAML configuration file.
         loss_fn (Callable): A function to compute model loss. Takes model output and target as inputs.
         acc_fn (Callable): A function to compute model accuracy. Takes model output and target as inputs.
+        device (torch.device, optional): Device to run the training on. Defaults to cpu.
     """
     os.system('clear')
     
@@ -336,6 +337,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         # Set seed
         seed = general_config.get("seed", 0)
         torch.manual_seed(seed)
+        if device == torch.device("cuda"):
+            torch.cuda.manual_seed_all(seed)
         
         # Initialize dataloaders
         batch_size = general_config.get("batch_size", 32)
