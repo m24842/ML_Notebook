@@ -8,7 +8,7 @@ CONFIG_PATH = "src/Python/Benchmarks/TinyShakespeare/configs.yaml"
 device = get_available_device()
 
 def loss_fn(output, target):
-    return F.cross_entropy(output.transpose(1, 2), target)
+    return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
 
 def acc_fn(output, target):
     return (output.argmax(dim=-1) == target).sum().item()

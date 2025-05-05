@@ -9,7 +9,7 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, seq_len, lr]
+      metrics: [acc, loss, perplexity, seq_len, lr]
   
   dataset: # 19,160 train samples
     name: TinyShakespeare
