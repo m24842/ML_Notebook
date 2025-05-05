@@ -74,3 +74,28 @@ Train accuracies:
 	32.67, 36.11, 37.05, 37.78, 38.46, 38.75, 39.20, 39.59, 39.72, 39.88
 Test accuracies:
 	32.45, 20.75, 20.85, 18.55, 20.95, 20.40, 20.55, 18.15, 18.55, 18.40
+05-05-2025 17:29 - Transformer
+Total params: 402,064
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: Transformer
+	seed: 1111
+	warmup_epochs: 0
+	total_epochs: 10
+	bsz: 32
+	lr: 0.0003
+	weight_decay: 0.01
+	permuted: None
+Train accuracies:
+	30.48, 36.15, 37.10, 37.85, 38.33, 38.90, 39.09, 39.36, 39.67, 39.90
+Test accuracies:
+	29.20, 28.90, 30.80, 33.05, 34.70, 34.35, 34.65, 34.50, 34.75, 34.25

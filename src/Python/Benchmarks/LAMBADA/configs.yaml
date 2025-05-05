@@ -1,18 +1,18 @@
 ### Global Configuration ###
 global:
-  benchmark_name: Tiny Shakespeare
-  output_dir: src/Python/Benchmarks/TinyShakespeare/models
+  benchmark_name: LAMBADA
+  output_dir: src/Python/Benchmarks/LAMBADA/models
 
   logging:
     info_freq: 100
-    local_log_path: src/Python/Benchmarks/TinyShakespeare/experiments.log
+    local_log_path: src/Python/Benchmarks/LAMBADA/experiments.log
     wandb:
       entity: m24842
       project: Machine Learning
       metrics: [acc, loss, ppl, seq_len, lr]
   
-  dataset: # 19,160 train samples
-    name: TinyShakespeare
+  dataset: # 4,869 train samples
+    name: LAMBADA
     splits:
       train:
         train: True
@@ -35,7 +35,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 383200 # ceil(train_samples / batch_size) * epochs
+  T_max: 3050 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults

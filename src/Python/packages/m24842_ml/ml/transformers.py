@@ -12,7 +12,7 @@ from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
 
 class Transformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -30,14 +30,14 @@ class Transformer(nn.Module):
                 dict(
                     norm1 = nn.LayerNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
-                    attention = MultiheadAttention(emb_dim, self.n_heads, bias=True, batch_first=True),
+                    attention = MultiheadAttention(emb_dim, self.n_heads, bias=attention_bias, batch_first=True),
                     norm2 = nn.LayerNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=True),
+                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
                         nn.ReLU(),
                         nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=True)
+                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias)
                     )
                 )
             ) for _ in range(self.n_layers)
@@ -66,7 +66,7 @@ class Transformer(nn.Module):
         return x
 
 class LinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -84,14 +84,14 @@ class LinearTransformer(nn.Module):
                 dict(
                     norm1 = nn.LayerNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
-                    attention = LinearAttention(emb_dim, self.n_heads, bias=True),
+                    attention = LinearAttention(emb_dim, self.n_heads, bias=attention_bias),
                     norm2 = nn.LayerNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=True),
+                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
                         nn.ReLU(),
                         nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=True)
+                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias)
                     )
                 )
             ) for _ in range(self.n_layers)
@@ -117,7 +117,7 @@ class LinearTransformer(nn.Module):
         return x
 
 class OrthoLinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -135,14 +135,14 @@ class OrthoLinearTransformer(nn.Module):
                 dict(
                     norm1 = nn.LayerNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
-                    attention = OrthoLinearAttention(emb_dim, self.n_heads, bias=True),
+                    attention = OrthoLinearAttention(emb_dim, self.n_heads, bias=attention_bias),
                     norm2 = nn.LayerNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=True),
+                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
                         nn.ReLU(),
                         nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=True)
+                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias)
                     )
                 )
             ) for _ in range(self.n_layers)
@@ -168,7 +168,7 @@ class OrthoLinearTransformer(nn.Module):
         return x
 
 class CompressionTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16, input_dim=1, dropout=0.0, causal=True, use_embedding=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -187,14 +187,14 @@ class CompressionTransformer(nn.Module):
                 dict(
                     norm1 = nn.LayerNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
-                    attention = CompressionAttention(emb_dim, self.n_heads, self.mlp_dim, compressed_len=self.compressed_len, dropout=dropout, batch_first=True),
+                    attention = CompressionAttention(emb_dim, self.n_heads, self.mlp_dim, compressed_len=self.compressed_len, dropout=dropout, bias=attention_bias, batch_first=True),
                     norm2 = nn.LayerNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=True),
+                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
                         nn.ReLU(),
                         nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=True)
+                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias)
                     )
                 )
             ) for _ in range(self.n_layers)
