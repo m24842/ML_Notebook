@@ -114,6 +114,9 @@ class Pathfinder(Dataset):
 
 class ListOps(Dataset):
     def __init__(self, root, split, min_len=1, max_len=1000, warmup_epochs=0, balance=False):
+        """
+        splits: ["train", "val", "test"]
+        """
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -251,7 +254,10 @@ class TinyShakespeare(Dataset):
         return self.min_len, self.max_len
 
 class LAMBADA(Dataset):
-    def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+        """
+        splits: ["train", "validation", "test"]
+        """
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -259,7 +265,7 @@ class LAMBADA(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('lambada')['train' if train else 'test']
+        self.data = load_dataset('lambada', split=split)
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
     
     def __len__(self):
@@ -270,14 +276,48 @@ class LAMBADA(Dataset):
         item = self.data[idx]['text'].strip().split()
         context = self.tokenizer(' '.join(item[:-1]), add_special_tokens=False)['input_ids']
         label = self.tokenizer(" " + item[-1], add_special_tokens=False)['input_ids']
-        full_context = torch.tensor(context + label, dtype=torch.long)
-        full_label = torch.tensor([-100] * len(context) + label, dtype=torch.long)
+        full_context = torch.tensor(context + label[:-1], dtype=torch.long)
+        full_label = torch.tensor([-100] * len(context[1:]) + label, dtype=torch.long)
         full_context = full_context[-self.len:]
         full_label = full_label[-self.len:]
         pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
         padded_context = torch.nn.functional.pad(full_context, (0, self.len - full_context.size(0)), value=pad_token_id)
         padded_label = torch.nn.functional.pad(full_label, (0, self.len - full_label.size(0)), value=-100)
         return padded_context, padded_label
+    
+    def step(self):
+        if self.len + self.step_size <= self.max_len:
+            self.len += self.step_size
+        else:
+            self.len = self.max_len
+    
+    def seq_len_range(self):
+        return self.min_len, self.max_len
+
+class ThePile(Dataset):
+    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+        """
+        splits: ["train", "validation", "test"]
+        """
+        if warmup_epochs < 1:
+            self.min_len = max_len
+        else:
+            self.min_len = min_len
+        self.max_len = max_len
+        self.len = self.min_len
+        self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
+        self.data = load_dataset('monology/pile-uncopyrighted', split=split)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        item = self.data[idx]['text']
+        tokenized = torch.tensor(self.tokenizer(item, add_special_tokens=False)['input_ids'], dtype=torch.long)
+        pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=pad_token_id)
+        return padded_tokenized[:-1], padded_tokenized[1:]
     
     def step(self):
         if self.len + self.step_size <= self.max_len:
