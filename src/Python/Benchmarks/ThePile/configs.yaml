@@ -15,13 +15,17 @@ global:
     name: ThePile
     splits:
       train:
-        train: True
+        split: train[:1%]
         tokenizer: EleutherAI/gpt-neox-20b
         min_len: 1024
         max_len: 2048
         warmup_epochs: 3
+      val:
+        split: validation[:1%]
+        tokenizer: EleutherAI/gpt-neox-20b
+        max_len: 2048
       test:
-        train: False
+        split: test[:1%]
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 2048
   

@@ -209,10 +209,10 @@ experiments:
   #     <<: *OrthoLinearTransformer_general
   #     seed: 42
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 1111
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 1111
   
   - <<: *OrthoLinearTransformer_defaults
     general:
@@ -234,10 +234,10 @@ experiments:
   #     <<: *LinearTransformer_general
   #     seed: 42
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 1111
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 1111
   
   - <<: *LinearTransformer_defaults
     general:

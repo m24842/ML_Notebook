@@ -306,7 +306,7 @@ class ThePile(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('monology/pile-uncopyrighted', split=split)
+        self.data = load_dataset('monology/pile-uncopyrighted', split=split, streaming=split=="train")
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
     
     def __len__(self):
