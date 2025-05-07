@@ -24,7 +24,7 @@ class Transformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads))
+        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -78,7 +78,7 @@ class LinearTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads))
+        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -129,7 +129,7 @@ class OrthoLinearTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), cache_if_possible=False)
+        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -181,7 +181,7 @@ class CompressionTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), cache_if_possible=False)
+        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
