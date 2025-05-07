@@ -255,3 +255,30 @@ Train accuracies:
 	16.37, 17.17, 24.99, 32.85, 35.72, 35.93, 35.97, 36.23, 36.22, 36.29
 Test accuracies:
 	17.80, 17.35, 18.35, 17.25, 17.30, 17.25, 17.25, 17.25, 17.25, 17.25
+05-06-2025 22:35 - LinearTransformer
+Total params: 402,048
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: LinearTransformer
+	seed: 3333
+	bsz: 32
+	accumulation_steps: 0
+	lr: 0.0003
+	warmup_epochs: 0
+	total_epochs: 10
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: None
+Train accuracies:
+	16.43, 16.80, 18.82, 23.94, 32.42, 33.20, 35.61, 35.95, 36.05, 36.06
+Test accuracies:
+	17.80, 17.25, 18.95, 17.95, 29.25, 21.60, 5.75, 8.15, 8.75, 7.45

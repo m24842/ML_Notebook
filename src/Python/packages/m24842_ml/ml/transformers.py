@@ -12,7 +12,12 @@ from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
 
 class Transformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1, mlp_dim=None,
+                 dropout=0.0, causal=True, use_embedding=True,
+                 mlp_bias=True, attention_bias=True,
+                 use_positional_encoding=True, use_xpos=False,
+                 device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -24,7 +29,8 @@ class Transformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+        if use_positional_encoding: self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=use_xpos, cache_if_possible=False)
+        else: self.rope = None
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -66,7 +72,12 @@ class Transformer(nn.Module):
         return x
 
 class LinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1, mlp_dim=None,
+                 dropout=0.0, causal=True, use_embedding=True,
+                 mlp_bias=True, attention_bias=True,
+                 use_positional_encoding=True, use_xpos=False,
+                 device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -78,7 +89,8 @@ class LinearTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+        if use_positional_encoding: self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=use_xpos, cache_if_possible=False)
+        else: self.rope = None
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -117,7 +129,12 @@ class LinearTransformer(nn.Module):
         return x
 
 class OrthoLinearTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1, mlp_dim=None,
+                 dropout=0.0, causal=True, use_embedding=True,
+                 mlp_bias=True, attention_bias=True,
+                 use_positional_encoding=True, use_xpos=False,
+                 device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -129,7 +146,8 @@ class OrthoLinearTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+        if use_positional_encoding: self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=use_xpos, cache_if_possible=False)
+        else: self.rope = None
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
@@ -168,7 +186,12 @@ class OrthoLinearTransformer(nn.Module):
         return x
 
 class CompressionTransformer(nn.Module):
-    def __init__(self, emb_dim, output_dim, n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16, input_dim=1, dropout=0.0, causal=True, use_embedding=True, mlp_bias=True, attention_bias=True, device=torch.device('cpu')):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16,
+                 dropout=0.0, causal=True, use_embedding=True,
+                 mlp_bias=True, attention_bias=True,
+                 use_positional_encoding=True, use_xpos=False,
+                 device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
         self.output_dim = output_dim
@@ -181,7 +204,8 @@ class CompressionTransformer(nn.Module):
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim)
         else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False)
-        self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+        if use_positional_encoding: self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=use_xpos, cache_if_possible=False)
+        else: self.rope = None
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
