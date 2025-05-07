@@ -174,3 +174,84 @@ Train accuracies:
 	16.48, 34.79, 36.10, 36.92, 37.29, 37.84, 38.16, 38.53, 38.68, 38.85
 Test accuracies:
 	17.80, 37.50, 34.25, 37.40, 33.05, 36.00, 37.70, 36.40, 37.75, 37.90
+05-06-2025 12:41 - OrthoLinearTransformer
+Total params: 402,064
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: OrthoLinearTransformer
+	seed: 2222
+	bsz: 32
+	accumulation_steps: 0
+	lr: 0.0003
+	warmup_epochs: 0
+	total_epochs: 10
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: None
+Train accuracies:
+	26.68, 36.08, 36.15, 36.88, 37.36, 37.82, 37.99, 38.36, 38.45, 38.59
+Test accuracies:
+	7.15, 15.45, 16.60, 16.70, 16.35, 16.75, 16.65, 16.65, 16.70, 16.75
+05-06-2025 16:08 - OrthoLinearTransformer
+Total params: 402,064
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: OrthoLinearTransformer
+	seed: 3333
+	bsz: 32
+	accumulation_steps: 0
+	lr: 0.0003
+	warmup_epochs: 0
+	total_epochs: 10
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: None
+Train accuracies:
+	20.97, 35.57, 36.34, 36.58, 37.47, 37.88, 38.27, 38.48, 38.67, 38.83
+Test accuracies:
+	36.65, 23.30, 23.25, 10.50, 20.65, 15.70, 14.25, 12.60, 12.35, 12.20
+05-06-2025 19:21 - LinearTransformer
+Total params: 402,048
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	n_heads: 4
+	n_layers: 4
+	input_dim: 17
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: True
+	benchmark: ListOps
+	model: LinearTransformer
+	seed: 2222
+	bsz: 32
+	accumulation_steps: 0
+	lr: 0.0003
+	warmup_epochs: 0
+	total_epochs: 10
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: None
+Train accuracies:
+	16.37, 17.17, 24.99, 32.85, 35.72, 35.93, 35.97, 36.23, 36.22, 36.29
+Test accuracies:
+	17.80, 17.35, 18.35, 17.25, 17.30, 17.25, 17.25, 17.25, 17.25, 17.25
