@@ -4,13 +4,11 @@ import torch.nn.functional as F
 import torch.linalg as LA
 import torch.autograd as AG
 import math
-import sys
 from einops import rearrange
 import opt_einsum
-from typing import Optional
 from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
-from .rnns import *
+from ..common import *
 
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,

@@ -1,5 +1,5 @@
-import .transformers
-import .rnns
+from .transformers import transformers
+from .rnns import rnns
 
 def initialize_model(name, *args, **kwargs):
     modules = [

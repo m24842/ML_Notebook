@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from .common import *
+from ..common import *
 
 class Mamba2Block(nn.Module):
     def __init__(self, d_model, n_layers=24, d_state=128, d_conv=4,
