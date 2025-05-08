@@ -1,0 +1,253 @@
+### Global Configuration ###
+global:
+  benchmark_name: IMDb
+  output_dir: src/Benchmarks/IMDb/models
+
+  logging:
+    info_freq: 100
+    local_log_path: src/Benchmarks/IMDb/experiments.log
+    wandb:
+      entity: m24842
+      project: Machine Learning
+      metrics: [acc, loss, seq_len, lr]
+  
+  dataset: # 25,000 train samples
+    name: IMDb
+    splits:
+      train:
+        train: True
+        min_len: 1024
+        max_len: 2048
+        warmup_epochs: 3
+      test:
+        train: False
+        max_len: 2048
+  
+  checkpoint_freq: 500
+
+### Defaults ###
+optimizer_defaults: &optimizer_defaults
+  name: AdamW
+  lr: 3e-4
+  weight_decay: 0.01
+
+scheduler_defaults: &scheduler_defaults
+  name: CosineAnnealingLR
+  T_max: 7820 # ceil(train_samples / batch_size) * epochs
+  eta_min: 1e-6
+
+Transformer_defaults: &Transformer_defaults
+  general: &Transformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 32
+    epochs: 10
+    grad_clip_norm: 1.0
+  
+  model: &Transformer_model
+    name: Transformer
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 4
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: True
+    use_positional_encoding: True
+    use_xpos: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+CompressionTransformer_defaults: &CompressionTransformer_defaults
+  general: &CompressionTransformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 32
+    epochs: 10
+    grad_clip_norm: 1.0
+  
+  model: &CompressionTransformer_model
+    name: CompressionTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    mem_dim: 16
+    n_heads: 4
+    n_layers: 4
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: True
+    use_positional_encoding: True
+    use_xpos: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+LinearTransformer_defaults: &LinearTransformer_defaults
+  general: &LinearTransformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 32
+    epochs: 10
+    grad_clip_norm: 1.0
+  
+  model: &LinearTransformer_model
+    name: LinearTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 4
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: True
+    use_positional_encoding: True
+    use_xpos: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
+  general: &OrthoLinearTransformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 32
+    epochs: 10
+    grad_clip_norm: 1.0
+  
+  model: &OrthoLinearTransformer_model
+    name: OrthoLinearTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 4
+    input_dim: 1
+    output_dim: 10
+    dropout: 0.1
+    causal: False
+    use_embedding: True
+    use_positional_encoding: True
+    use_xpos: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+### Experiments Configuration ###
+experiments:
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 0
+  
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 42
+  
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 1111
+  
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 2222
+  
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 3333
+  
+  - <<: *Transformer_defaults
+    general:
+      <<: *Transformer_general
+      seed: 0
+  
+  - <<: *Transformer_defaults
+    general:
+      <<: *Transformer_general
+      seed: 42
+  
+  - <<: *Transformer_defaults
+    general:
+      <<: *Transformer_general
+      seed: 1111
+  
+  - <<: *Transformer_defaults
+    general:
+      <<: *Transformer_general
+      seed: 2222
+  
+  - <<: *Transformer_defaults
+    general:
+      <<: *Transformer_general
+      seed: 3333
+  
+  - <<: *OrthoLinearTransformer_defaults
+    general:
+      <<: *OrthoLinearTransformer_general
+      seed: 0
+  
+  - <<: *OrthoLinearTransformer_defaults
+    general:
+      <<: *OrthoLinearTransformer_general
+      seed: 42
+  
+  - <<: *OrthoLinearTransformer_defaults
+    general:
+      <<: *OrthoLinearTransformer_general
+      seed: 1111
+  
+  - <<: *OrthoLinearTransformer_defaults
+    general:
+      <<: *OrthoLinearTransformer_general
+      seed: 2222
+  
+  - <<: *OrthoLinearTransformer_defaults
+    general:
+      <<: *OrthoLinearTransformer_general
+      seed: 3333
+  
+  - <<: *LinearTransformer_defaults
+    general:
+      <<: *LinearTransformer_general
+      seed: 0
+  
+  - <<: *LinearTransformer_defaults
+    general:
+      <<: *LinearTransformer_general
+      seed: 42
+  
+  - <<: *LinearTransformer_defaults
+    general:
+      <<: *LinearTransformer_general
+      seed: 1111
+  
+  - <<: *LinearTransformer_defaults
+    general:
+      <<: *LinearTransformer_general
+      seed: 2222
+  
+  - <<: *LinearTransformer_defaults
+    general:
+      <<: *LinearTransformer_general
+      seed: 3333
+  
