@@ -259,16 +259,6 @@ class Mamba2(nn.Module):
         self.n_heads = n_heads
         self.bidirectional = bidirectional
         self.device = device
-        
-        self.config = Mamba2Config(
-            d_model=emb_dim,
-            n_layer=n_layers,
-            d_state=emb_dim,
-            d_conv=4,
-            expand=2,
-            headdim=emb_dim // n_heads,
-            chunk_size=chunk_size,
-        )
 
         self.backbone = nn.ModuleDict(
             dict(
@@ -277,8 +267,8 @@ class Mamba2(nn.Module):
                     [
                         nn.ModuleDict(
                             dict(
-                                mixer_f=Mamba2Block(self.config, device=device),
-                                mixer_b=Mamba2Block(self.config, device=device) if bidirectional else None,
+                                mixer_f=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device),
+                                mixer_b=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device) if bidirectional else None,
                                 norm=RMSNorm(emb_dim, device=device),
                             )
                         )

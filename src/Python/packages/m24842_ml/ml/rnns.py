@@ -5,11 +5,11 @@ from einops import rearrange, repeat
 from .common import *
 
 class Mamba2Block(nn.Module):
-    def __init__(self, d_model, n_layer=24, d_state=128, d_conv=4,
+    def __init__(self, d_model, n_layers=24, d_state=128, d_conv=4,
                  expand=2, n_heads=4, chunk_size=64, device=None):
         super().__init__()
         self.d_model = d_model
-        self.n_layer = n_layer
+        self.n_layers = n_layers
         self.d_state = d_state
         self.d_conv = d_conv
         self.expand = expand

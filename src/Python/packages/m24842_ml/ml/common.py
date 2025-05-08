@@ -16,3 +16,4 @@ class RMSNorm(nn.Module):
         if z is not None:
             x = x * F.silu(z)
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
+
