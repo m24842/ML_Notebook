@@ -9,7 +9,7 @@ import traceback
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from .utils import *
-from .transformers import initialize_model
+from .models import initialize_model
 from .schedulers import initialize_scheduler
 from .datasets import initialize_dataset
 
@@ -45,9 +45,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         # Backward pass and gradient accumulation if applicable
         loss = loss / (accumulation_steps + 1)
         loss.backward()
-        # for name, p in model.named_parameters():
-        #     if p.grad is not None:
-        #         print(f"{name:30s} grad mean {p.grad.abs().max().item():.4e}")
+        
         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
             optimizer.step()

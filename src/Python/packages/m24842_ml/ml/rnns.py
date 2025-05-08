@@ -203,3 +203,58 @@ class Mamba2Block(nn.Module):
 
         return Y, final_state
 
+class Mamba2(nn.Module):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1,
+                 use_embedding=True, bidirectional=False,
+                 chunk_size=16, device=torch.device('cpu')):
+        super().__init__()
+        self.emb_dim = emb_dim
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.bidirectional = bidirectional
+        self.device = device
+
+        self.backbone = nn.ModuleDict(
+            dict(
+                embedding=nn.Embedding(input_dim, emb_dim, device=device) if use_embedding else nn.Linear(input_dim, emb_dim, bias=False, device=device),
+                layers=nn.ModuleList(
+                    [
+                        nn.ModuleDict(
+                            dict(
+                                mixer_f=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device),
+                                mixer_b=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device) if bidirectional else None,
+                                norm=RMSNorm(emb_dim, device=device),
+                            )
+                        )
+                        for _ in range(n_layers)
+                    ]
+                ),
+                norm_f=RMSNorm(emb_dim, device=device),
+            )
+        )
+        self.out_proj = nn.Linear(
+            emb_dim, output_dim, bias=False, device=device
+        )
+        
+        self.to(device)
+
+    def forward(self, x):
+        seqlen = x.shape[1]
+
+        x = ((self.input_dim-1)*x).long().squeeze(-1)
+        x = self.backbone.embedding(x)
+        for i, layer in enumerate(self.backbone.layers):
+            y_f = layer.mixer_f(layer.norm(x))
+            if self.bidirectional:
+                y_b = layer.mixer_b(layer.norm(x.flip(1)))
+                x = y_f + y_b + x
+            else:
+                x = y_f + x
+
+        x = self.backbone.norm_f(x)
+        logits = self.out_proj(x)
+        return logits[:, :seqlen]
+
