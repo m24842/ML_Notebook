@@ -5,6 +5,7 @@ import yaml
 import copy
 import torch
 import wandb
+import traceback
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from .utils import *
@@ -33,7 +34,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         output = model(data)
         
         # Accuracy
-        accuracy = acc_fn(output, target)
+        accuracy = acc_fn(output.clone().detach(), target.clone().detach())
         correct += accuracy
         
         # Loss
@@ -44,6 +45,9 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         # Backward pass and gradient accumulation if applicable
         loss = loss / (accumulation_steps + 1)
         loss.backward()
+        # for name, p in model.named_parameters():
+        #     if p.grad is not None:
+        #         print(f"{name:30s} grad mean {p.grad.abs().max().item():.4e}")
         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
             optimizer.step()
@@ -388,7 +392,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         if load_from_checkpoint:
             model, optimizer, scheduler = load_checkpoint(
                 model_name=model_name, output_dir=output_dir,
-                model=model, device=device
+                model=model, optimizer=optimizer, scheduler=scheduler,
+                device=device
             )
         else: print(f'\033[91mStarting from scratch\033[0m')
         
@@ -431,7 +436,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
             if terminate == 'y': break
         except Exception as e:
             successful = False
-            print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error: {e}\033[0m\n')
+            traceback_str = traceback.format_exc()
+            print(f'\033[91mExperiment [{i + 1}/{len(experiments)}] failed with error:\n{traceback_str}\033[0m\n')
         if successful:
             successful_count += 1
             print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m\n')

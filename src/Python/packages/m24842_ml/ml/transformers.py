@@ -10,6 +10,7 @@ import opt_einsum
 from typing import Optional
 from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
+from .rnns import *
 
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
@@ -191,8 +192,10 @@ class CompressionTransformer(nn.Module):
                  dropout=0.0, causal=True, use_embedding=True,
                  mlp_bias=True, attention_bias=True,
                  use_positional_encoding=True, use_xpos=False,
+                 sequential=False, chunk_size=16,
                  device=torch.device('cpu')):
         super().__init__()
+        self.sequential = sequential
         self.emb_dim = emb_dim
         self.output_dim = output_dim
         self.causal = causal
@@ -211,7 +214,7 @@ class CompressionTransformer(nn.Module):
                 dict(
                     norm1 = nn.LayerNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
-                    attention = CompressionAttention(emb_dim, self.n_heads, self.mlp_dim, compressed_len=self.compressed_len, dropout=dropout, bias=attention_bias, batch_first=True),
+                    attention = CompressionAttention(emb_dim, self.n_heads, self.mlp_dim, compressed_len=self.compressed_len, dropout=dropout, bias=attention_bias, batch_first=True, chunk_size=chunk_size),
                     norm2 = nn.LayerNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
@@ -235,13 +238,78 @@ class CompressionTransformer(nn.Module):
         else: x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
-            a_out = layer.attention(x, rope=self.rope, causal=self.causal)
+            a_out = layer.attention(x, rope=self.rope, causal=self.causal, sequential=self.sequential)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x = x + layer.dropout2(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x
+
+class Mamba2(nn.Module):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1,
+                 use_embedding=True, bidirectional=False,
+                 chunk_size=16, device=torch.device('cpu')):
+        super().__init__()
+        self.emb_dim = emb_dim
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.bidirectional = bidirectional
+        self.device = device
+        
+        self.config = Mamba2Config(
+            d_model=emb_dim,
+            n_layer=n_layers,
+            d_state=emb_dim,
+            d_conv=4,
+            expand=2,
+            headdim=emb_dim // n_heads,
+            chunk_size=chunk_size,
+        )
+
+        self.backbone = nn.ModuleDict(
+            dict(
+                embedding=nn.Embedding(input_dim, emb_dim, device=device) if use_embedding else nn.Linear(input_dim, emb_dim, bias=False, device=device),
+                layers=nn.ModuleList(
+                    [
+                        nn.ModuleDict(
+                            dict(
+                                mixer_f=Mamba2Block(self.config, device=device),
+                                mixer_b=Mamba2Block(self.config, device=device) if bidirectional else None,
+                                norm=RMSNorm(emb_dim, device=device),
+                            )
+                        )
+                        for _ in range(n_layers)
+                    ]
+                ),
+                norm_f=RMSNorm(emb_dim, device=device),
+            )
+        )
+        self.out_proj = nn.Linear(
+            emb_dim, output_dim, bias=False, device=device
+        )
+        
+        self.to(device)
+
+    def forward(self, x):
+        seqlen = x.shape[1]
+
+        x = ((self.input_dim-1)*x).long().squeeze(-1)
+        x = self.backbone.embedding(x)
+        for i, layer in enumerate(self.backbone.layers):
+            y_f = layer.mixer_f(layer.norm(x))
+            if self.bidirectional:
+                y_b = layer.mixer_b(layer.norm(x.flip(1)))
+                x = y_f + y_b + x
+            else:
+                x = y_f + x
+
+        x = self.backbone.norm_f(x)
+        logits = self.out_proj(x)
+        return logits[:, :seqlen]
 
 def initialize_model(name, *args, **kwargs):
     model_class = getattr(sys.modules[__name__], name, None)
