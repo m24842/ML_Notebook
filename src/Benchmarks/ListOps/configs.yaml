@@ -1,7 +1,7 @@
 ### Global Configuration ###
 global:
   benchmark_name: ListOps
-  output_dir: src/Benchmarks/ListOps/models
+  output_dir: src/Benchmarks/ListOps/checkpoints
 
   logging:
     info_freq: 100

@@ -1,7 +1,7 @@
 ### Global Configuration ###
 global:
   benchmark_name: CIFAR10
-  output_dir: src/Benchmarks/CIFAR/models
+  output_dir: src/Benchmarks/CIFAR/checkpoints
 
   logging:
     info_freq: 100

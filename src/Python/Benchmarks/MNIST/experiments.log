@@ -1,0 +1,26 @@
+05-08-2025 20:38 - Mamba2
+Total params: 543,456
+Hyperparams:
+	emb_dim: 128
+	n_heads: 4
+	n_layers: 2
+	input_dim: 16
+	output_dim: 10
+	chunk_size: 28
+	use_embedding: True
+	bidirectional: True
+	benchmark: MNIST
+	model: Mamba2
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	warmup_epochs: 0
+	total_epochs: 10
+	weight_decay: 0.0
+	grad_clip_norm: 1.0
+	permuted: False
+Train accuracies:
+	65.54, 86.86, 91.90, 93.95, 95.25, 96.43, 97.35, 98.17, 98.72, 99.01
+Test accuracies:
+	79.52, 91.35, 92.24, 94.55, 95.18, 95.24, 95.88, 95.79, 95.98, 96.10

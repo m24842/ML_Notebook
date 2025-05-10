@@ -1,7 +1,7 @@
 ### Global Configuration ###
 global:
   benchmark_name: Pathfinder-32
-  output_dir: src/Benchmarks/Pathfinder/models
+  output_dir: src/Benchmarks/Pathfinder/checkpoints
 
   logging:
     info_freq: 100

@@ -1,7 +1,7 @@
 ### Global Configuration ###
 global:
   benchmark_name: IMDb
-  output_dir: src/Benchmarks/IMDb/models
+  output_dir: src/Benchmarks/IMDb/checkpoints
 
   logging:
     info_freq: 100
