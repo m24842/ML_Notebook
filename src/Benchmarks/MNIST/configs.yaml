@@ -55,8 +55,8 @@ Transformer_defaults: &Transformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults
@@ -84,8 +84,8 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults
@@ -112,8 +112,8 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults
@@ -140,8 +140,8 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults
@@ -151,43 +151,10 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 0
-  #     # load_checkpoint: True
-  #   model:
-  #     <<: *CompressionTransformer_model
-  #     use_positional_encoding: True
-  #     causal: True
-  #     sequential: True
-  #     chunk_size: 28
-
-  - general:
-      load_checkpoint: False
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
       seed: 0
-      batch_size: 64
-      epochs: 10
-      grad_clip_norm: 1.0
-  
-    model:
-      name: Mamba2
-      emb_dim: 128
-      n_heads: 4
-      n_layers: 2
-      input_dim: 16
-      output_dim: 10
-      chunk_size: 28
-      use_embedding: True
-      bidirectional: True
-    
-    optimizer:
-      name: AdamW
-      lr: 1e-3
-      weight_decay: 0.0
-    
-    scheduler:
-      <<: *scheduler_defaults
   
   # - <<: *CompressionTransformer_defaults
   #   general:

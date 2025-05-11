@@ -55,8 +55,8 @@ Transformer_defaults: &Transformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 1024
   
   optimizer:
     <<: *optimizer_defaults
@@ -84,8 +84,8 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 1024
   
   optimizer:
     <<: *optimizer_defaults
@@ -112,8 +112,8 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 1024
   
   optimizer:
     <<: *optimizer_defaults
@@ -140,8 +140,8 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     dropout: 0.1
     causal: False
     use_embedding: False
-    use_positional_encoding: True
-    use_xpos: False
+    pos_encoding: abs
+    pos_encoding_max_len: 1024
   
   optimizer:
     <<: *optimizer_defaults
