@@ -52,7 +52,9 @@ class PCLayer(nn.Module):
 class PCModel(nn.Module):
     def __init__(self, layers, max_its=1, min_energy=1e-1, energy_lr=1e-3, energy_optimizer_class=optim.SGD, energy_grad_clip_norm=None, device=torch.device('cpu')):
         super().__init__()
-        self.layers = layers
+        assert isinstance(layers, (list, nn.ModuleList)), "Layers must be a list or torch.nn.ModuleList"
+        for layer in layers: assert isinstance(layer, PCLayer), "All layers must be of type PCLayer"
+        self.layers = nn.ModuleList(layers) if type(layers) is list else layers
         self.cached_x_shape = None
         self.cached_y_shape = None
         self.max_its = max_its
@@ -200,10 +202,10 @@ class PCModel(nn.Module):
 # test_loader = DataLoader(test_set, batch_size=64, shuffle=False)
 
 # model = PCModel(
-#     layers=nn.ModuleList([
+#     layers=[
 #         PCLayer(nn.Sequential(nn.Linear(784, 128, bias=False), nn.ReLU()), nn.Sequential(nn.Linear(128, 784, bias=False), nn.ReLU()), device=device),
-#         PCLayer(nn.Linear(128, 10, bias=False), nn.Linear(10, 128, bias=False), f_loss_fn=F.cross_entropy, b_loss_fn=F.mse_loss, device=device)
-#     ]),
+#         PCLayer(nn.Linear(128, 10, bias=False), nn.Linear(10, 128, bias=False), f_loss_fn=F.cross_entropy, b_loss_fn=F.mse_loss, device=device),
+#     ],
 #     max_its=2,
 #     min_energy=1e-3,
 #     energy_lr=1e-0,
