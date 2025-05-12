@@ -122,8 +122,13 @@ class MultiheadAttention(nn.Module):
         v = v.contiguous().view(src_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
         
         if rope:
-            q = rope.rotate_queries_or_keys(q.reshape(bsz, self.n_heads, tgt_len, self.d_head)).reshape(bsz * self.n_heads, tgt_len, self.d_head)
-            k = rope.rotate_queries_or_keys(k.reshape(bsz, self.n_heads, src_len, self.d_head)).reshape(bsz * self.n_heads, src_len, self.d_head)
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q.reshape(bsz, self.n_heads, tgt_len, self.d_head), k.reshape(bsz, self.n_heads, src_len, self.d_head))
+            else:
+                q = rope.rotate_queries_or_keys(q)
+                k = rope.rotate_queries_or_keys(k)
+        q = q.reshape(bsz * self.n_heads, tgt_len, self.d_head).contiguous()
+        k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         # Calculate attention scores
         q = q / (math.sqrt(self.d_head) * torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1))
@@ -209,8 +214,13 @@ class LinearAttention(nn.Module):
         v = rearrange(self.v_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
         
         if rope:
-            q = rope.rotate_queries_or_keys(q).reshape(bsz*self.n_heads, seq_len, self.d_head).contiguous()
-            k = rope.rotate_queries_or_keys(k).reshape(bsz*self.n_heads, seq_len, self.d_head).contiguous()
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q, k)
+            else:
+                q = rope.rotate_queries_or_keys(q)
+                k = rope.rotate_queries_or_keys(k)
+        q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+        k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
         # q = torch.exp(q)
         # k = torch.exp(k)
@@ -279,11 +289,13 @@ class OrthoLinearAttention(nn.Module):
         v = rearrange(self.v_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
         
         if rope:
-            q = rope.rotate_queries_or_keys(q).reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-            k = rope.rotate_queries_or_keys(k).reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-        else:
-            q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-            k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q, k)
+            else:
+                q = rope.rotate_queries_or_keys(q)
+                k = rope.rotate_queries_or_keys(k)
+        q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+        k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         q = (beta * q).softmax(-1)# * q.norm(dim=-1, keepdim=True)
