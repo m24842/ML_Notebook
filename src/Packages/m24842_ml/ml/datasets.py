@@ -274,6 +274,7 @@ class LAMBADA(Dataset):
     def __getitem__(self, idx):
         # ignore token id = -100
         item = self.data[idx]['text'].strip().split()
+        if not item: return self.__getitem__((idx + 1) % len(self.data))
         context = self.tokenizer(' '.join(item[:-1]), add_special_tokens=False)['input_ids']
         label = self.tokenizer(" " + item[-1], add_special_tokens=False)['input_ids']
         full_context = torch.tensor(context + label[:-1], dtype=torch.long)

@@ -30,7 +30,7 @@ global:
 ### Defaults ###
 optimizer_defaults: &optimizer_defaults
   name: AdamW
-  lr: 3e-4
+  lr: 1e-3
   weight_decay: 0.01
 
 scheduler_defaults: &scheduler_defaults
@@ -43,6 +43,7 @@ Transformer_defaults: &Transformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
+    accumulation_steps: 3
     epochs: 20
     grad_clip_norm: 1.0
   
@@ -70,6 +71,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
+    accumulation_steps: 3
     epochs: 20
     grad_clip_norm: 1.0
   
@@ -98,6 +100,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
+    accumulation_steps: 3
     epochs: 20
     grad_clip_norm: 1.0
   
@@ -125,6 +128,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
+    accumulation_steps: 3
     epochs: 20
     grad_clip_norm: 1.0
   
