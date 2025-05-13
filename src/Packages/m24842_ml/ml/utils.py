@@ -132,7 +132,6 @@ def allocate_dynamic_memory(model, bsz, min_len, max_len, device=torch.device('c
     """
     Allocate dynamic memory on the specified device.
     """
-    if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
     temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
     torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
     model = torch.compile(model, dynamic=True, backend="eager")
