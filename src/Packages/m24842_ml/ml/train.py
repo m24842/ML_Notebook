@@ -8,6 +8,7 @@ import wandb
 import traceback
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torch.nn.parallel import DistributedDataParallel as DDP
 from .utils import *
 from .models import initialize_model
 from .schedulers import initialize_scheduler
@@ -181,7 +182,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
             )
         
         # Use multiple GPUs if available
-        if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
+        if torch.cuda.device_count() > 1: model = DDP(model)
         
         # Allocate dynamic memory if applicable for dataset
         if hasattr(train_loader.dataset, "seq_len_range"):
