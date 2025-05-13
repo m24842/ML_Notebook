@@ -151,10 +151,10 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 0
+  - <<: *CompressionTransformer_defaults
+    general:
+      <<: *CompressionTransformer_general
+      seed: 0
   
   # - <<: *CompressionTransformer_defaults
   #   general:

@@ -12,11 +12,8 @@ class CosineAnnealingLRWithWarmup():
             last_epoch=last_epoch
         )
 
-    def step(self):
-        self.scheduler.step()
-
-    def get_last_lr(self):
-        return self.scheduler.get_last_lr()
+    def __getattr__(self, name):
+        return getattr(self.scheduler, name)
 
 def initialize_scheduler(name, *args, **kwargs):
     scheduler_class = getattr(sys.modules[__name__], name, None)
