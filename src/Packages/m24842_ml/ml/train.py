@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import math
 import yaml
 import copy
 import torch
@@ -57,7 +58,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             log_data = {}
             if "acc" in wandb_metrics: log_data["train/acc"] = 100. * accuracy / len(data)
             if "loss" in wandb_metrics: log_data["train/loss"] = batch_loss
-            if "ppl" in wandb_metrics: log_data["train/ppl"] = torch.exp(batch_loss)
+            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(batch_loss)
             if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
             if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
             wandb.log(log_data)
@@ -109,7 +110,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn,
         log_data = {}
         if "acc" in wandb_metrics: log_data["val/acc"] = val_acc
         if "loss" in wandb_metrics: log_data["val/loss"] = val_loss
-        if "ppl" in wandb_metrics: log_data["val/ppl"] = torch.exp(val_loss)
+        if "ppl" in wandb_metrics: log_data["val/ppl"] = math.exp(val_loss)
         wandb.log(log_data)
     
     return val_loss, val_acc
@@ -140,7 +141,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
         log_data = {}
         if "acc" in wandb_metrics: log_data["test/acc"] = test_acc
         if "loss" in wandb_metrics: log_data["test/loss"] = test_loss
-        if "ppl" in wandb_metrics: log_data["test/ppl"] = torch.exp(test_loss)
+        if "ppl" in wandb_metrics: log_data["test/ppl"] = math.exp(test_loss)
         wandb.log(log_data)
         
     return test_loss, test_acc
