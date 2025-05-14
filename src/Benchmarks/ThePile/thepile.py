@@ -11,7 +11,7 @@ def loss_fn(output, target):
     return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
 
 def acc_fn(output, target):
-    return (output.argmax(dim=-1) == target).sum().item()
+    return 100 * (output.argmax(dim=-1) == target).sum().item() / target.numel()
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device)

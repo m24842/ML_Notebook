@@ -12,7 +12,7 @@ def loss_fn(output, target):
 
 def acc_fn(output, target):
     mask = target != -100
-    return ((output.argmax(dim=-1) == target) & mask).sum().item() / mask.sum().item()
+    return 100 * ((output.argmax(dim=-1) == target) & mask).sum().item() / mask.sum().item()
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device)

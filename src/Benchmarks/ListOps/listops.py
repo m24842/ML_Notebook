@@ -12,7 +12,7 @@ def loss_fn(output, target):
 
 def acc_fn(output, target):
     pred = output[:, 0].argmax(dim=1)
-    return (pred == target).sum().item()
+    return 100 * (pred == target).sum().item() / len(target)
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device)

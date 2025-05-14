@@ -59,17 +59,17 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             accumulated_batch_loss /= (accumulation_steps + 1)
             if wandb_logging:
                 log_data = {}
-                if "acc" in wandb_metrics: log_data["train/acc"] = 100. * accuracy / len(data)
+                if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
                 if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
                 if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
                 if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
                 if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
                 wandb.log(log_data)
             accumulated_batch_loss = 0
-                
+        
         # Post info
         if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
-            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {100. * accuracy / len(data):.0f}%')
+            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
         
         # Checkpoint
         if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
@@ -113,7 +113,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn,
               wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
     val_loss = 0
-    correct = 0
+    val_acc = 0
     start = time.time()
     iterable = val_loader
     for data, target in iterable:
@@ -121,13 +121,13 @@ def val_epoch(model, val_loader, loss_fn, acc_fn,
         target = target.to(device)
         output = model(data)
         val_loss += loss_fn(output, target).item()
-        correct += acc_fn(output, target)
+        val_acc += acc_fn(output, target)
 
     total_time = time.time() - start
     val_loss /= len(val_loader)
-    val_acc = 100. * correct / len(val_loader.dataset)
+    val_acc /= len(val_loader)
     
-    tqdm.write(f'\033[93mVal Epoch: Loss: {val_loss:.4f}, Acc: {correct}/{len(val_loader.dataset)} ({val_acc:.0f}%), Elapsed: {total_time:.3f}s\033[0m')
+    tqdm.write(f'\033[93mVal Epoch: Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%, Elapsed: {total_time:.3f}s\033[0m')
     if wandb_logging:
         log_data = {}
         if "acc" in wandb_metrics: log_data["val/acc"] = val_acc
@@ -143,7 +143,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
                wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
     test_loss = 0
-    correct = 0
+    test_acc = 0
     start = time.time()
     tqdm.write("")
     iterable = tqdm(test_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m')
@@ -152,13 +152,13 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
         target = target.to(device)
         output = model(data)
         test_loss += loss_fn(output, target).item()
-        correct += acc_fn(output, target)
+        test_acc += acc_fn(output, target)
 
     total_time = time.time() - start
     test_loss /= len(test_loader)
-    test_acc = 100. * correct / len(test_loader.dataset)
+    test_acc /= len(test_loader)
     
-    tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {correct}/{len(test_loader.dataset)} ({test_acc:.0f}%), Elapsed: {total_time:.3f}s\033[0m\n')
+    tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {test_acc:.2f}%, Elapsed: {total_time:.3f}s\033[0m\n')
     if wandb_logging:
         log_data = {}
         if "acc" in wandb_metrics: log_data["test/acc"] = test_acc
