@@ -8,10 +8,10 @@ CONFIG_PATH = "src/Benchmarks/WikiText/configs.yaml"
 device = get_available_device()
 
 def loss_fn(output, target):
-    return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
+    return F.cross_entropy(output.transpose(1, 2), target, ignore_index=-100)
 
 def acc_fn(output, target):
-    mask = target != 0
+    mask = target != -100
     return ((output.argmax(dim=-1) == target) & mask).sum().item() / mask.sum().item()
 
 if __name__ == "__main__":
