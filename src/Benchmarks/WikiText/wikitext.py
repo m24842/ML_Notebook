@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from ml.utils import get_available_device
 from ml.train import train_from_config_file
 
-CONFIG_PATH = "src/Benchmarks/TinyShakespeare/configs.yaml"
+CONFIG_PATH = "src/Benchmarks/WikiText/configs.yaml"
 
 device = get_available_device()
 

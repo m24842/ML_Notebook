@@ -1,27 +1,34 @@
 ### Global Configuration ###
 global:
-  benchmark_name: Tiny Shakespeare
-  output_dir: src/Benchmarks/TinyShakespeare/checkpoints
+  benchmark_name: WikiText 2
+  output_dir: src/Benchmarks/WikiText/checkpoints
 
   logging:
     info_freq: 100
-    local_log_path: src/Benchmarks/TinyShakespeare/experiments.log
+    local_log_path: src/Benchmarks/WikiText/experiments.log
     wandb:
       entity: m24842
       project: Machine Learning
       metrics: [acc, loss, ppl, seq_len, lr]
   
-  dataset: # 304,141 train tokens
-    name: TinyShakespeare
+  dataset: # 2,433,931 train tokens
+    name: WikiText
     splits:
       train:
-        train: True
+        version: wikitext-2-raw-v1
+        split: train
         tokenizer: EleutherAI/gpt-neox-20b
         min_len: 1024
         max_len: 2048
-        warmup_epochs: 40
+        warmup_epochs: 10
+      val:
+        version: wikitext-2-raw-v1
+        split: validation
+        tokenizer: EleutherAI/gpt-neox-20b
+        max_len: 2048
       test:
-        train: False
+        version: wikitext-2-raw-v1
+        split: test
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 2048
   
@@ -35,8 +42,8 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
-  num_warmup_steps: 200
-  num_training_steps: 1000
+  num_warmup_steps: 380
+  num_training_steps: 1900
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -44,7 +51,7 @@ Transformer_defaults: &Transformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &Transformer_model
@@ -72,7 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &CompressionTransformer_model
@@ -101,7 +108,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &LinearTransformer_model
@@ -129,7 +136,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &OrthoLinearTransformer_model

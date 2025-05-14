@@ -229,27 +229,34 @@ class TinyShakespeare(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('tiny_shakespeare')['train' if train else 'test']['text'][0].split(' ')
+
+        # Load and tokenize entire dataset
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-    
+        split = 'train' if train else 'test'
+        text = load_dataset('tiny_shakespeare')[split]['text'][0]
+
+        # Tokenize the full corpus
+        tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
+        self.tokenized = torch.tensor(tokens, dtype=torch.long)
+
     def __len__(self):
-        return len(self.data) // 8
-    
+        return len(self.tokenized) // self.min_len
+
     def __getitem__(self, idx):
-        start_idx = torch.randint(0, len(self.data) - self.len - 1, (1,)).item()
-        end_idx = start_idx + self.len
-        item = ' '.join(self.data[start_idx:end_idx])
-        tokenized = torch.tensor(self.tokenizer(item, add_special_tokens=False)['input_ids'], dtype=torch.long)
-        pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=pad_token_id)
-        return padded_tokenized[:-1], padded_tokenized[1:]
-    
+        start_idx = torch.randint(0, len(self.tokenized) - self.len - 1, (1,)).item()
+        end_idx = start_idx + self.len + 1
+
+        seq = self.tokenized[start_idx:end_idx]
+        x = seq[:-1]
+        y = seq[1:]
+        return x, y
+
     def step(self):
         if self.len + self.step_size <= self.max_len:
             self.len += self.step_size
         else:
             self.len = self.max_len
-    
+
     def seq_len_range(self):
         return self.min_len, self.max_len
 
@@ -326,6 +333,56 @@ class ThePile(Dataset):
         else:
             self.len = self.max_len
     
+    def seq_len_range(self):
+        return self.min_len, self.max_len
+
+class WikiText(Dataset):
+    def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0):
+        """
+        Args:
+            version: one of ['wikitext-2-raw-v1', 'wikitext-103-raw-v1']
+            split: 'train', 'validation', or 'test'
+            tokenizer: any pretrained tokenizer name
+        """
+        if warmup_epochs < 1:
+            self.min_len = max_len
+        else:
+            self.min_len = min_len
+        self.max_len = max_len
+        self.len = self.min_len
+        self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+
+        self.data = load_dataset("wikitext", version, split=split)['text']
+        self.data = [line for line in self.data if line.strip()]  # Remove empty lines
+
+        # Tokenize full corpus
+        full_text = " ".join(self.data)
+        self.tokenized = torch.tensor(self.tokenizer(full_text, add_special_tokens=False)['input_ids'], dtype=torch.long)
+
+    def __len__(self):
+        return len(self.tokenized) // self.min_len
+
+    def __getitem__(self, idx):
+        start_idx = torch.randint(0, len(self.tokenized) - self.len - 1, (1,)).item()
+        end_idx = start_idx + self.len + 1
+
+        chunk = self.tokenized[start_idx:end_idx]
+        x = chunk[:-1]
+        y = chunk[1:]
+        if x.size(0) < self.len:
+            x = torch.nn.functional.pad(x, (0, self.len - x.size(0)), value=self.pad_token_id)
+            y = torch.nn.functional.pad(y, (0, self.len - y.size(0)), value=-100)
+        return x, y
+
+    def step(self):
+        if self.len + self.step_size <= self.max_len:
+            self.len += self.step_size
+        else:
+            self.len = self.max_len
+
     def seq_len_range(self):
         return self.min_len, self.max_len
 
