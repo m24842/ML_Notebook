@@ -13,7 +13,7 @@ from ..common import *
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device=torch.device('cpu')):
@@ -62,7 +62,8 @@ class Transformer(nn.Module):
         self.norm_f = nn.LayerNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
-        nn.init.xavier_uniform_(self.out_proj.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
         
@@ -88,7 +89,7 @@ class Transformer(nn.Module):
 class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device=torch.device('cpu')):
@@ -137,7 +138,8 @@ class LinearTransformer(nn.Module):
         self.norm_f = nn.LayerNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
-        nn.init.xavier_uniform_(self.out_proj.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
         
@@ -161,7 +163,7 @@ class LinearTransformer(nn.Module):
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device=torch.device('cpu')):
@@ -210,7 +212,8 @@ class OrthoLinearTransformer(nn.Module):
         self.norm_f = nn.LayerNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
-        nn.init.xavier_uniform_(self.out_proj.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
         
@@ -234,7 +237,7 @@ class OrthoLinearTransformer(nn.Module):
 class CompressionTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  sequential=False, chunk_size=16,
@@ -286,7 +289,8 @@ class CompressionTransformer(nn.Module):
         self.norm_f = nn.LayerNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
-        nn.init.xavier_uniform_(self.out_proj.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
         

@@ -206,7 +206,8 @@ class Mamba2Block(nn.Module):
 class Mamba2(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1,
-                 use_embedding=True, bidirectional=False,
+                 use_embedding=True, weight_tying=False,
+                 bidirectional=False,
                  chunk_size=16, device=torch.device('cpu')):
         super().__init__()
         self.emb_dim = emb_dim
@@ -235,9 +236,11 @@ class Mamba2(nn.Module):
                 norm_f=RMSNorm(emb_dim, device=device),
             )
         )
-        self.out_proj = nn.Linear(
-            emb_dim, output_dim, bias=False, device=device
-        )
+        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
+        
+        nn.init.xavier_uniform_(self.backbone.embedding.weight)
+        if weight_tying: self.out_proj.weight = self.backbone.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
 
