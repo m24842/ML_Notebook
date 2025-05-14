@@ -25,8 +25,9 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
     if model_name is None: model_name = model.__class__.__name__
     model.train()
     train_loss = 0
-    correct = 0
+    train_acc = 0
     accumulated_batch_loss = 0
+    accumulated_batch_acc = 0
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
     optimizer.zero_grad()
     for batch_idx, (data, target) in enumerate(iterable):
@@ -37,7 +38,8 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         
         # Accuracy
         accuracy = acc_fn(output.clone().detach(), target.clone().detach())
-        correct += accuracy
+        accumulated_batch_acc += accuracy
+        train_acc += accuracy
         
         # Loss
         loss = loss_fn(output, target)
@@ -57,15 +59,17 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         
             # WandB logging
             accumulated_batch_loss /= (accumulation_steps + 1)
+            accumulated_batch_acc /= (accumulation_steps + 1)
             if wandb_logging:
                 log_data = {}
-                if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
+                if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
                 if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
                 if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
                 if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
                 if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
                 wandb.log(log_data)
             accumulated_batch_loss = 0
+            accumulated_batch_acc = 0
         
         # Post info
         if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
@@ -89,9 +93,10 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         
         # WandB logging
         accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
+        accumulated_batch_acc /= (batch_idx % (accumulation_steps + 1)) + 1
         if wandb_logging:
             log_data = {}
-            if "acc" in wandb_metrics: log_data["train/acc"] = 100. * accuracy / len(data)
+            if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
             if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
             if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
             if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
@@ -103,7 +108,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         train_loader.dataset.step()
     
     train_loss /= len(train_loader)
-    train_acc = 100. * correct / len(train_loader.dataset)
+    train_acc /= len(train_loader)
     
     return train_loss, train_acc
 
