@@ -181,6 +181,9 @@ class ListOps(Dataset):
     
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 class IMDb(Dataset):
     def __init__(self, train, min_len=1, max_len=1000, warmup_epochs=0):
@@ -219,6 +222,9 @@ class IMDb(Dataset):
     
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 class TinyShakespeare(Dataset):
     def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
@@ -259,6 +265,9 @@ class TinyShakespeare(Dataset):
 
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 class LAMBADA(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
@@ -301,6 +310,9 @@ class LAMBADA(Dataset):
     
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 class ThePile(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
@@ -335,6 +347,9 @@ class ThePile(Dataset):
     
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 class WikiText(Dataset):
     def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0):
@@ -385,6 +400,9 @@ class WikiText(Dataset):
 
     def seq_len_range(self):
         return self.min_len, self.max_len
+    
+    def reset(self):
+        self.len = self.min_len
 
 def initialize_dataset(name, *args, **kwargs):
     dataset_class = getattr(sys.modules[__name__], name, None)

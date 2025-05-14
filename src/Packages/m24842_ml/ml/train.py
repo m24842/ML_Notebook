@@ -80,9 +80,27 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging)
             model.train()
     
+    # Account for last accumulated batch
+    if (batch_idx + 1) % (accumulation_steps + 1) != 0:
+        if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
+        optimizer.step()
+        optimizer.zero_grad()
+        if scheduler: scheduler.step()
+        
+        # WandB logging
+        accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
+        if wandb_logging:
+            log_data = {}
+            if "acc" in wandb_metrics: log_data["train/acc"] = 100. * accuracy / len(data)
+            if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
+            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
+            if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+            if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+            wandb.log(log_data)
+    
     # Step sequence length if applicable
-    try: train_loader.dataset.step()
-    except: pass
+    if hasattr(train_loader.dataset, "step"):
+        train_loader.dataset.step()
     
     train_loss /= len(train_loader)
     train_acc = 100. * correct / len(train_loader.dataset)
@@ -341,6 +359,11 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
     for i, experiment in enumerate(experiments):
         print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m\n')
         
+        # Reset dataset sequence lengths if applicable
+        if hasattr(train_dataset, "reset"): train_dataset.reset()
+        if hasattr(val_dataset, "reset"): val_dataset.reset()
+        if hasattr(test_dataset, "reset"): test_dataset.reset()
+        
         general_config = copy.deepcopy(experiment.get("general"))
         general_config = try_to_float(general_config)
         
@@ -414,6 +437,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
             "weight_decay": weight_decay,
             "grad_clip_norm": grad_clip_norm,
             "permuted": dataset_splits["train"].get("permuted"),
+            "min_len": train_loader.dataset.min_len if hasattr(train_loader.dataset, "min_len") else None,
+            "max_len": train_loader.dataset.max_len if hasattr(train_loader.dataset, "max_len") else None,
         })
         
         # Train the model
