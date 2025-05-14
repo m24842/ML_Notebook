@@ -194,7 +194,7 @@ class IMDb(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('imdb')['train' if train else 'test']
+        self.data = load_dataset('imdb', split='train' if train else 'test')
         
     def tokenizer(self, text):
         """
@@ -237,9 +237,9 @@ class TinyShakespeare(Dataset):
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
 
         # Load and tokenize entire dataset
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         split = 'train' if train else 'test'
-        text = load_dataset('tiny_shakespeare')[split]['text'][0]
+        text = load_dataset('tiny_shakespeare', split=split)['text'][0]
 
         # Tokenize the full corpus
         tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
@@ -282,7 +282,7 @@ class LAMBADA(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = load_dataset('lambada', split=split)
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
     
     def __len__(self):
         return len(self.data)
@@ -327,7 +327,7 @@ class ThePile(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         self.data = load_dataset('monology/pile-uncopyrighted', split=split, streaming=split=="train")
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
     
     def __len__(self):
         return len(self.data)
@@ -352,7 +352,7 @@ class ThePile(Dataset):
         self.len = self.min_len
 
 class WikiText(Dataset):
-    def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0):
+    def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0, num_proc=4):
         """
         Args:
             version: one of ['wikitext-2-raw-v1', 'wikitext-103-raw-v1']
@@ -367,15 +367,14 @@ class WikiText(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
         
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         self.pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
 
-        self.data = load_dataset("wikitext", version, split=split)['text']
-        self.data = [line for line in self.data if line.strip()]  # Remove empty lines
+        self.data = load_dataset("wikitext", version, split=split)
 
         # Tokenize full corpus
-        full_text = " ".join(self.data)
-        self.tokenized = torch.tensor(self.tokenizer(full_text, add_special_tokens=False)['input_ids'], dtype=torch.long)
+        tokenized_samples = self.data.map(lambda x: self.tokenizer(x['text'], add_special_tokens=False), batched=True, num_proc=num_proc)['input_ids']
+        self.tokenized = torch.tensor([token for sample in tokenized_samples for token in sample], dtype=torch.long)
 
     def __len__(self):
         return len(self.tokenized) // self.min_len

@@ -77,7 +77,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         
         # Validation
         if val_freq and batch_idx % val_freq == 0 and batch_idx != 0:
-            if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging)
+            if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
             model.train()
     
     # Account for last accumulated batch
