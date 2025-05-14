@@ -239,7 +239,7 @@ class TinyShakespeare(Dataset):
         start_idx = torch.randint(0, len(self.data) - self.len - 1, (1,)).item()
         end_idx = start_idx + self.len
         item = ' '.join(self.data[start_idx:end_idx])
-        tokenized = torch.tensor(self.tokenizer(item)['input_ids'], dtype=torch.long)
+        tokenized = torch.tensor(self.tokenizer(item, add_special_tokens=False)['input_ids'], dtype=torch.long)
         pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
         padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=pad_token_id)
         return padded_tokenized[:-1], padded_tokenized[1:]
