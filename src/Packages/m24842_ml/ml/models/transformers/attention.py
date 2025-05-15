@@ -331,7 +331,7 @@ class CompressionAttention(nn.Module):
         self.dropout = dropout
         
         self.q_c = nn.Parameter(torch.empty(compressed_len, d_model))
-        self.q_c._no_weight_decay = True
+        # self.q_c._no_weight_decay = True
         self.beta = nn.Parameter(torch.zeros(self.n_heads))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, d_model, bias=bias)
