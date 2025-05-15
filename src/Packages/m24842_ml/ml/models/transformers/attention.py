@@ -59,7 +59,7 @@ class MultiheadAttention(nn.Module):
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
-            
+        
     def forward(self, x, key_padding_mask=None, need_weights=True, 
                 attn_mask=None, average_attn_weights=True, rope=None):
         """

@@ -155,8 +155,7 @@ experiments:
     general:
       <<: *CompressionTransformer_general
       seed: 0
-      accumulation_steps: 4
-  
+
   # - <<: *CompressionTransformer_defaults
   #   general:
   #     <<: *CompressionTransformer_general

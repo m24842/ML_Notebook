@@ -1,6 +1,6 @@
 ### Global Configuration ###
 global:
-  benchmark_name: WikiText 103
+  benchmark_name: WikiText 2
   output_dir: src/Benchmarks/WikiText/checkpoints
 
   logging:
@@ -43,7 +43,7 @@ optimizer_defaults: &optimizer_defaults
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   num_warmup_steps: 0
-  num_training_steps: 289840
+  num_training_steps: 14900
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -51,7 +51,7 @@ Transformer_defaults: &Transformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 0
-    epochs: 10
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &Transformer_model
@@ -79,7 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 0
-    epochs: 10
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &CompressionTransformer_model
@@ -108,7 +108,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 0
-    epochs: 10
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &LinearTransformer_model
@@ -136,7 +136,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 0
-    epochs: 10
+    epochs: 50
     grad_clip_norm: 1.0
   
   model: &OrthoLinearTransformer_model

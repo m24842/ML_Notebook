@@ -249,12 +249,15 @@ class TinyShakespeare(Dataset):
         return len(self.tokenized) // self.min_len
 
     def __getitem__(self, idx):
-        start_idx = torch.randint(0, len(self.tokenized) - self.len - 1, (1,)).item()
+        start_idx = idx * self.min_len
         end_idx = start_idx + self.len + 1
 
         seq = self.tokenized[start_idx:end_idx]
         x = seq[:-1]
         y = seq[1:]
+        if x.size(0) < self.len:
+            x = torch.nn.functional.pad(x, (0, self.len - x.size(0)), value=self.pad_token_id)
+            y = torch.nn.functional.pad(y, (0, self.len - y.size(0)), value=-100)
         return x, y
 
     def step(self):
@@ -380,7 +383,7 @@ class WikiText(Dataset):
         return len(self.tokenized) // self.min_len
 
     def __getitem__(self, idx):
-        start_idx = torch.randint(0, len(self.tokenized) - self.len - 1, (1,)).item()
+        start_idx = idx * self.min_len
         end_idx = start_idx + self.len + 1
 
         chunk = self.tokenized[start_idx:end_idx]
