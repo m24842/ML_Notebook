@@ -321,7 +321,7 @@ class LAMBADA(Dataset):
         self.len = self.min_len
 
 class ThePile(Dataset):
-    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None, shard_size=1_000_000):
+    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None, shard_size=10_000_000):
         """
         splits: ["train", "val", "test"]
         """
@@ -373,8 +373,6 @@ class ThePile(Dataset):
                 def tokenize(ex):
                     out = self.tokenizer(
                         ex["text"],
-                        truncation=True,
-                        max_length=self.max_len,
                         return_attention_mask=False,
                     )
                     return {"input_ids": out["input_ids"]}
@@ -414,12 +412,12 @@ class ThePile(Dataset):
         return self.cumsum[-1]
 
     def __getitem__(self, idx):
-        # find shard
+        # Find shard
         shard_idx = bisect.bisect_right(self.cumsum, idx)
         start = 0 if shard_idx == 0 else self.cumsum[shard_idx - 1]
         inner_idx = idx - start
 
-        # lazily load shard if needed
+        # Lazily load shard if needed
         if shard_idx != self._last_shard_idx:
             self._last_shard_ds = load_from_disk(self.shard_paths[shard_idx], in_memory=False)
             self._last_shard_idx = shard_idx
@@ -428,7 +426,6 @@ class ThePile(Dataset):
         x = input_ids[:-1]
         y = input_ids[1:]
 
-        # pad if too short
         pad_len = (self.len - 1) - x.size(0)
         if pad_len > 0:
             x = torch.nn.functional.pad(x, (0, pad_len), value=self.pad_token_id)
