@@ -318,10 +318,13 @@ class LAMBADA(Dataset):
         self.len = self.min_len
 
 class ThePile(Dataset):
-    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4):
+    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None):
         """
+        Validation and test splits must be downloaded and extracted manually from monology/pile-uncopyrighted
+        and placed in a directory named 'ThePile' in the data root directory.
+        
         Args:
-            split: one of ["train", "validation", "test"]
+            split: one of ["train", "val", "test"]
             tokenizer: tokenizer name or path
             min_len: minimum token sequence length
             max_len: maximum token sequence length
@@ -336,13 +339,12 @@ class ThePile(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
 
-        # Load full dataset into memory (or use cached disk version)
-        self.data = load_dataset(
-            'monology/pile-uncopyrighted',
-            split=split,
-            streaming=False,
-            num_proc=num_proc
-        )
+        if split == 'train':
+            self.data = load_dataset('monology/pile-uncopyrighted', split='train', streaming=False, num_proc=num_proc)
+        elif split == 'val':
+            self.data = load_dataset('json', data_files=f'{root}/ThePile/val.jsonl', split='train')
+        else:
+            self.data = load_dataset('json', data_files=f'{root}/ThePile/test.jsonl', split='train')
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
