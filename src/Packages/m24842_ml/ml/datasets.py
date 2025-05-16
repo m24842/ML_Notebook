@@ -8,7 +8,7 @@ import random
 import pandas as pd
 from collections import defaultdict
 from transformers import AutoTokenizer
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk, Dataset as HFDataset
 
 class SequentialMNIST(datasets.MNIST):
     def __init__(self, root, train, download=True, permuted=False):
@@ -320,8 +320,7 @@ class LAMBADA(Dataset):
 class ThePile(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None):
         """
-        Validation and test splits must be downloaded and extracted manually from monology/pile-uncopyrighted
-        and placed in a directory named 'ThePile' in the data root directory.
+        Efficient Pile loader with optional pre-tokenization.
         
         Args:
             split: one of ["train", "val", "test"]
@@ -329,7 +328,8 @@ class ThePile(Dataset):
             min_len: minimum token sequence length
             max_len: maximum token sequence length
             warmup_epochs: controls length warmup
-            num_proc: number of processes for HuggingFace `load_dataset` (non-streaming only)
+            num_proc: number of processes for HuggingFace `map`
+            root: base path to manually downloaded data
         """
         if warmup_epochs < 1:
             self.min_len = max_len
@@ -339,33 +339,52 @@ class ThePile(Dataset):
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
 
-        if split == 'train':
-            self.data = load_dataset('monology/pile-uncopyrighted', split='train', streaming=False, num_proc=num_proc)
-        elif split == 'val':
-            self.data = load_dataset('json', data_files=f'{root}/ThePile/val.jsonl', split='train')
-        else:
-            self.data = load_dataset('json', data_files=f'{root}/ThePile/test.jsonl', split='train')
-
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+
+        # Path for cached pretokenized dataset
+        cache_path = os.path.join(f"{root}/ThePile/", f"{split}_cache")
+
+        if os.path.exists(cache_path):
+            self.data = load_from_disk(cache_path)
+        else:
+            if split == 'train':
+                raw = load_dataset('monology/pile-uncopyrighted', split='train', streaming=False)
+            elif split == 'val':
+                raw = load_dataset('json', data_files=f'{root}/ThePile/val.jsonl', split='train')
+            else:
+                raw = load_dataset('json', data_files=f'{root}/ThePile/test.jsonl', split='train')
+
+            def tokenize(example):
+                out = self.tokenizer(
+                    example["text"],
+                    return_attention_mask=False
+                )
+                return {"input_ids": out["input_ids"]}
+
+            tokenized = raw.map(tokenize, batched=True, num_proc=num_proc)
+            tokenized.set_format(type="torch", columns=["input_ids"])
+            if cache_dir:
+                tokenized.save_to_disk(cache_path)
+            self.data = tokenized
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        text = self.data[idx]['text']
-        tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
-        tokens = torch.tensor(tokens[:self.len], dtype=torch.long)  # Truncate if needed
+        input_ids = self.data[idx]["input_ids"][:self.len]
+        x = input_ids[:-1]
+        y = input_ids[1:]
 
-        # Pad if shorter than current sequence length
-        if tokens.size(0) < self.len:
-            tokens = torch.nn.functional.pad(tokens, (0, self.len - tokens.size(0)), value=self.pad_token_id)
+        if len(x) < self.len - 1:
+            pad_len = self.len - 1 - len(x)
+            x = torch.nn.functional.pad(x, (0, pad_len), value=self.pad_token_id)
+            y = torch.nn.functional.pad(y, (0, pad_len), value=self.pad_token_id)
 
-        return tokens[:-1], tokens[1:]
+        return x, y
 
     def step(self):
-        """Increase sequence length for curriculum learning"""
         if self.len + self.step_size <= self.max_len:
             self.len += self.step_size
         else:
@@ -376,6 +395,7 @@ class ThePile(Dataset):
 
     def reset(self):
         self.len = self.min_len
+
 
 class WikiText(Dataset):
     def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0, num_proc=4):
