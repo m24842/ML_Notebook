@@ -69,7 +69,7 @@ def log_info(log_path, model, model_name, configs, train_accuracies=None, test_a
     logging.info(log_message)
 
 def get_available_device():
-    return torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+    return "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
 def apply_weight_decay(model, weight_decay, exclude=["bias", "norm"]):
     """
