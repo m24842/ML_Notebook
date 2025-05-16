@@ -15,19 +15,21 @@ global:
     name: ThePile
     splits:
       train:
-        split: train[:1%]
+        split: train
         tokenizer: EleutherAI/gpt-neox-20b
-        min_len: 1024
-        max_len: 2048
-        warmup_epochs: 3
+        min_len: 256
+        max_len: 256
+        warmup_epochs: 0
       val:
-        split: validation[:1%]
+        split: validation
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 2048
+        max_len: 256
+        num_proc: 72
       test:
-        split: test[:1%]
+        split: test
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 2048
+        max_len: 256
+        num_proc: 72
   
   checkpoint_freq: 500
 
@@ -38,9 +40,9 @@ optimizer_defaults: &optimizer_defaults
   weight_decay: 0.01
 
 scheduler_defaults: &scheduler_defaults
-  name: CosineAnnealingLR
-  T_max: 557500 # ceil(train_samples / batch_size) * epochs
-  eta_min: 1e-6
+  name: CosineAnnealingLRWithWarmup
+  num_warmup_steps: 27875
+  num_training_steps: 557500 # ceil(train_samples / batch_size) * epochs
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -52,14 +54,15 @@ Transformer_defaults: &Transformer_defaults
   
   model: &Transformer_model
     name: Transformer
-    emb_dim: 128
-    mlp_dim: 128
-    n_heads: 4
+    emb_dim: 512
+    mlp_dim: 1024
+    n_heads: 8
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
     dropout: 0.1
     causal: True
+    weight_tying: True
     use_embedding: True
     pos_encoding: xpos
   
@@ -79,15 +82,16 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
-    emb_dim: 128
-    mlp_dim: 128
+    emb_dim: 512
+    mlp_dim: 1024
     mem_dim: 16
-    n_heads: 4
+    n_heads: 8
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
     dropout: 0.1
     causal: True
+    weight_tying: True
     use_embedding: True
     pos_encoding: xpos
   
@@ -107,14 +111,15 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   
   model: &LinearTransformer_model
     name: LinearTransformer
-    emb_dim: 128
-    mlp_dim: 128
-    n_heads: 4
+    emb_dim: 512
+    mlp_dim: 1024
+    n_heads: 8
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
     dropout: 0.1
     causal: True
+    weight_tying: True
     use_embedding: True
     pos_encoding: xpos
   
@@ -134,14 +139,15 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
-    emb_dim: 128
-    mlp_dim: 128
-    n_heads: 4
+    emb_dim: 512
+    mlp_dim: 1024
+    n_heads: 8
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
     dropout: 0.1
     causal: True
+    weight_tying: True
     use_embedding: True
     pos_encoding: xpos
   
@@ -158,98 +164,98 @@ experiments:
       <<: *CompressionTransformer_general
       seed: 0
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 42
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 42
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 1111
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 1111
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 2222
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 2222
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 3333
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 3333
   
   - <<: *Transformer_defaults
     general:
       <<: *Transformer_general
       seed: 0
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 42
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 42
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 1111
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 1111
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 2222
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 2222
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 3333
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 3333
   
   - <<: *OrthoLinearTransformer_defaults
     general:
       <<: *OrthoLinearTransformer_general
       seed: 0
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 42
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 42
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 1111
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 1111
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 2222
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 2222
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 3333
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 3333
   
   - <<: *LinearTransformer_defaults
     general:
       <<: *LinearTransformer_general
       seed: 0
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 42
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 42
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 1111
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 1111
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 2222
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 2222
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 3333
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 3333
   

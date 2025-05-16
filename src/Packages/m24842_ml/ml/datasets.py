@@ -318,7 +318,7 @@ class LAMBADA(Dataset):
         self.len = self.min_len
 
 class ThePile(Dataset):
-    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4):
         """
         splits: ["train", "validation", "test"]
         """
@@ -329,7 +329,7 @@ class ThePile(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('monology/pile-uncopyrighted', split=split, streaming=split=="train")
+        self.data = load_dataset('monology/pile-uncopyrighted', split=split, streaming=split=="train", num_proc=num_proc if not split=="train" else None)
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
     
     def __len__(self):
