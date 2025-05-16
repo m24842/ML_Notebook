@@ -324,6 +324,9 @@ class ThePile(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None, shard_size=10_000_000):
         """
         splits: ["train", "val", "test"]
+        
+        Validation and test splits must be downloaded manually and extracted.
+        Extracted val.jsonl and test.jsonl files should be placed in root/ThePile.
         """
         if warmup_epochs < 1:
             self.min_len = max_len
