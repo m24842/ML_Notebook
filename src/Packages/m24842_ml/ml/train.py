@@ -394,11 +394,12 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         epochs = general_config.get("epochs", 1)
         grad_clip_norm = general_config.get("grad_clip_norm", None)
         accumulation_steps = general_config.get("accumulation_steps", 0)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        num_workers = general_config.get("num_workers", 0)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         val_loader = None
         test_loader = None
-        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         
         model_config = copy.deepcopy(experiment.get("model"))
         model_name = model_config.pop("name")
