@@ -50,9 +50,10 @@ Transformer_defaults: &Transformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 0
+    accumulation_steps: 1
     epochs: 50
     grad_clip_norm: 1.0
+    dynamic_precision: True
   
   model: &Transformer_model
     name: Transformer
@@ -78,9 +79,10 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 0
+    accumulation_steps: 1
     epochs: 50
     grad_clip_norm: 1.0
+    dynamic_precision: True
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
@@ -107,9 +109,10 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 0
+    accumulation_steps: 1
     epochs: 50
     grad_clip_norm: 1.0
+    dynamic_precision: True
   
   model: &LinearTransformer_model
     name: LinearTransformer
@@ -135,9 +138,10 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 0
+    accumulation_steps: 1
     epochs: 50
     grad_clip_norm: 1.0
+    dynamic_precision: True
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
