@@ -317,51 +317,57 @@ class LAMBADA(Dataset):
     def reset(self):
         self.len = self.min_len
 
-class ThePile(IterableDataset if 'train' else Dataset):
+class ThePile(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4):
         """
-        splits: ["train", "validation", "test"]
+        Args:
+            split: one of ["train", "validation", "test"]
+            tokenizer: tokenizer name or path
+            min_len: minimum token sequence length
+            max_len: maximum token sequence length
+            warmup_epochs: controls length warmup
+            num_proc: number of processes for HuggingFace `load_dataset` (non-streaming only)
         """
-        self.streaming = split == "train"
-        self.min_len = max_len if warmup_epochs < 1 else min_len
+        if warmup_epochs < 1:
+            self.min_len = max_len
+        else:
+            self.min_len = min_len
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
-        self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
+        # Load full dataset into memory (or use cached disk version)
         self.data = load_dataset(
             'monology/pile-uncopyrighted',
             split=split,
-            streaming=self.streaming,
-            num_proc=None if self.streaming else num_proc
+            streaming=False,
+            num_proc=num_proc
         )
-    
-    def _tokenize_and_pad(self, text):
-        tokenized = torch.tensor(self.tokenizer(text, add_special_tokens=False)['input_ids'], dtype=torch.long)
-        padded = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=self.pad_token_id)
-        return padded[:-1], padded[1:]
 
-    def __iter__(self):
-        if not self.streaming:
-            raise ValueError("Use standard Dataset interface for non-streaming mode")
-        for item in self.data:
-            x, y = self._tokenize_and_pad(item['text'])
-            yield x, y
-
-    def __getitem__(self, idx):
-        if self.streaming:
-            raise ValueError("Cannot index streamed dataset")
-        item = self.data[idx]['text']
-        return self._tokenize_and_pad(item)
+        # Load tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
+        self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
     def __len__(self):
-        if self.streaming:
-            raise ValueError("Cannot get length of streamed dataset")
         return len(self.data)
 
+    def __getitem__(self, idx):
+        text = self.data[idx]['text']
+        tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
+        tokens = torch.tensor(tokens[:self.len], dtype=torch.long)  # Truncate if needed
+
+        # Pad if shorter than current sequence length
+        if tokens.size(0) < self.len:
+            tokens = torch.nn.functional.pad(tokens, (0, self.len - tokens.size(0)), value=self.pad_token_id)
+
+        return tokens[:-1], tokens[1:]
+
     def step(self):
-        self.len = min(self.len + self.step_size, self.max_len)
+        """Increase sequence length for curriculum learning"""
+        if self.len + self.step_size <= self.max_len:
+            self.len += self.step_size
+        else:
+            self.len = self.max_len
 
     def seq_len_range(self):
         return self.min_len, self.max_len
