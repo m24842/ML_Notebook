@@ -24,12 +24,12 @@ global:
         split: validation
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
-        num_proc: 72
+        num_proc: 8
       test:
         split: test
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
-        num_proc: 72
+        num_proc: 8
   
   checkpoint_freq: 500
 
