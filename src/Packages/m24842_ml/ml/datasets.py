@@ -394,7 +394,6 @@ class ThePile(Dataset):
     def reset(self):
         self.len = self.min_len
 
-
 class WikiText(Dataset):
     def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0, num_proc=4):
         """
