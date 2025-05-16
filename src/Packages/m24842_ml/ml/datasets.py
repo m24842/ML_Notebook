@@ -11,7 +11,7 @@ import random
 import pandas as pd
 from collections import defaultdict
 from transformers import AutoTokenizer
-from datasets import load_dataset, load_from_disk, concatenate_datasets
+from datasets import load_dataset, load_from_disk
 
 class SequentialMNIST(datasets.MNIST):
     def __init__(self, root, train, download=True, permuted=False):
