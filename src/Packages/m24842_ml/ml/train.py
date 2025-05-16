@@ -308,6 +308,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
                     grad_clip_norm (optional): Gradient clipping norm. No clipping if unspecified.
                     load_checkpoint (default: False): Whether to attempt loading model from checkpoint.
                     dynamic_precision (default: False): Whether to use dynamic precision for training.
+                    num_workers (default: 0): Number of workers for data loading.
                 
                 model:
                     name: Class name of the model to use.
