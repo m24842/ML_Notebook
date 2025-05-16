@@ -21,18 +21,21 @@ global:
         max_len: 256
         warmup_epochs: 0
         num_proc: 64
+        shard_size: 10000000
       val:
-        split: validation
+        root: data
+        split: val
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
         num_proc: 64
-        root: data
+        shard_size: 10000000
       test:
+        root: data
         split: test
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
         num_proc: 64
-        root: data
+        shard_size: 10000000
   
   val_freq: 500
   checkpoint_freq: 500
