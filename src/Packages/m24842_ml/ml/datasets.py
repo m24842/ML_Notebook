@@ -319,9 +319,7 @@ class LAMBADA(Dataset):
 
 class ThePile(Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None):
-        """
-        Efficient Pile loader with optional pre-tokenization.
-        
+        """        
         Args:
             split: one of ["train", "val", "test"]
             tokenizer: tokenizer name or path
