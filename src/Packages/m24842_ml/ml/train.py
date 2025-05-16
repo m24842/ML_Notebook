@@ -31,10 +31,10 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
     accumulated_batch_loss = 0
     accumulated_batch_acc = 0
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
-    scaler = GradScaler() if dynamic_precision else None
+    scaler = GradScaler(device=device) if dynamic_precision else None
     optimizer.zero_grad()
     for batch_idx, (data, target) in enumerate(iterable):
-        with autocast() if dynamic_precision else nullcontext():
+        with autocast(device_type=device) if dynamic_precision else nullcontext():
             # Forward pass
             data = data.to(device)
             target = target.to(device)
