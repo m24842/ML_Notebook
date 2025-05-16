@@ -363,8 +363,7 @@ class ThePile(Dataset):
 
             tokenized = raw.map(tokenize, batched=True, num_proc=num_proc)
             tokenized.set_format(type="torch", columns=["input_ids"])
-            if cache_dir:
-                tokenized.save_to_disk(cache_path)
+            tokenized.save_to_disk(cache_path)
             self.data = tokenized
 
     def __len__(self):
