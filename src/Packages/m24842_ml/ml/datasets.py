@@ -2,7 +2,7 @@ import os
 import sys
 import torch
 from torchvision import datasets, transforms
-from torch.utils.data import Dataset
+from torch.utils.data import IterableDataset, Dataset
 from PIL import Image
 import random
 import pandas as pd
@@ -317,40 +317,55 @@ class LAMBADA(Dataset):
     def reset(self):
         self.len = self.min_len
 
-class ThePile(Dataset):
+class ThePile(IterableDataset if 'train' else Dataset):
     def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4):
         """
         splits: ["train", "validation", "test"]
         """
-        if warmup_epochs < 1:
-            self.min_len = max_len
-        else:
-            self.min_len = min_len
+        self.streaming = split == "train"
+        self.min_len = max_len if warmup_epochs < 1 else min_len
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = load_dataset('monology/pile-uncopyrighted', split=split, streaming=split=="train", num_proc=num_proc if not split=="train" else None)
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
+        self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+
+        self.data = load_dataset(
+            'monology/pile-uncopyrighted',
+            split=split,
+            streaming=self.streaming,
+            num_proc=None if self.streaming else num_proc
+        )
     
-    def __len__(self):
-        return len(self.data)
-    
+    def _tokenize_and_pad(self, text):
+        tokenized = torch.tensor(self.tokenizer(text, add_special_tokens=False)['input_ids'], dtype=torch.long)
+        padded = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=self.pad_token_id)
+        return padded[:-1], padded[1:]
+
+    def __iter__(self):
+        if not self.streaming:
+            raise ValueError("Use standard Dataset interface for non-streaming mode")
+        for item in self.data:
+            x, y = self._tokenize_and_pad(item['text'])
+            yield x, y
+
     def __getitem__(self, idx):
+        if self.streaming:
+            raise ValueError("Cannot index streamed dataset")
         item = self.data[idx]['text']
-        tokenized = torch.tensor(self.tokenizer(item, add_special_tokens=False)['input_ids'], dtype=torch.long)
-        pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-        padded_tokenized = torch.nn.functional.pad(tokenized, (0, self.len - tokenized.size(0)), value=pad_token_id)
-        return padded_tokenized[:-1], padded_tokenized[1:]
-    
+        return self._tokenize_and_pad(item)
+
+    def __len__(self):
+        if self.streaming:
+            raise ValueError("Cannot get length of streamed dataset")
+        return len(self.data)
+
     def step(self):
-        if self.len + self.step_size <= self.max_len:
-            self.len += self.step_size
-        else:
-            self.len = self.max_len
-    
+        self.len = min(self.len + self.step_size, self.max_len)
+
     def seq_len_range(self):
         return self.min_len, self.max_len
-    
+
     def reset(self):
         self.len = self.min_len
 
