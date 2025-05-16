@@ -55,6 +55,7 @@ Transformer_defaults: &Transformer_defaults
     epochs: 20
     grad_clip_norm: 1.0
     dynamic_precision: True
+    num_workers: 2
   
   model: &Transformer_model
     name: Transformer
@@ -85,6 +86,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     epochs: 20
     grad_clip_norm: 1.0
     dynamic_precision: True
+    num_workers: 2
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
@@ -116,6 +118,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     epochs: 20
     grad_clip_norm: 1.0
     dynamic_precision: True
+    num_workers: 2
   
   model: &LinearTransformer_model
     name: LinearTransformer
@@ -146,6 +149,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     epochs: 20
     grad_clip_norm: 1.0
     dynamic_precision: True
+    num_workers: 2
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
