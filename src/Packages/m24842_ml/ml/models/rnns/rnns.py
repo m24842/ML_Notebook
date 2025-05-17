@@ -208,7 +208,7 @@ class Mamba2(nn.Module):
                  n_layers=1, n_heads=1,
                  use_embedding=True, weight_tying=False,
                  bidirectional=False,
-                 chunk_size=16, device=torch.device('cpu')):
+                 chunk_size=16, device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
         self.input_dim = input_dim

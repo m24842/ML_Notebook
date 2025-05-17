@@ -16,13 +16,26 @@ from .models import initialize_model
 from .schedulers import initialize_scheduler
 from .datasets import initialize_dataset
 
-def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
+def default_data_fn(data, target):
+    return data, target
+
+def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
                 scheduler=None, device=torch.device("cpu"),
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
                 dynamic_precision=False,
                 checkpoint_freq=None, val_freq=None, info_freq=None):
+    if hasattr(model, "is_pc_model"): return pc_train_epoch(
+        epoch=epoch, train_loader=train_loader, model=model, optimizer=optimizer,
+        loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, scheduler=scheduler,
+        device=device, output_dir=output_dir, model_name=model_name,
+        val_loader=val_loader, wandb_logging=wandb_logging,
+        wandb_metrics=wandb_metrics, grad_clip_norm=grad_clip_norm,
+        accumulation_steps=accumulation_steps, dynamic_precision=dynamic_precision,
+        checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
+    )
+    
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
     model.train()
@@ -38,6 +51,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             # Forward pass
             data = data.to(device)
             target = target.to(device)
+            data, target = data_fn(data, target)
             output = model(data)
             
             # Accuracy
@@ -120,7 +134,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
     return train_loss, train_acc
 
 @ torch.no_grad()
-def val_epoch(model, val_loader, loss_fn, acc_fn,
+def val_epoch(model, val_loader, loss_fn, acc_fn, data_fn=default_data_fn,
               device=torch.device("cpu"),
               wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
@@ -131,6 +145,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn,
     for data, target in iterable:
         data = data.to(device)
         target = target.to(device)
+        data, target = data_fn(data, target)
         output = model(data)
         val_loss += loss_fn(output, target).item()
         val_acc += acc_fn(output, target)
@@ -150,7 +165,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn,
     return val_loss, val_acc
 
 @ torch.no_grad()
-def test_epoch(model, test_loader, loss_fn, acc_fn,
+def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
                device=torch.device("cpu"),
                wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
@@ -162,6 +177,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
     for data, target in iterable:
         data = data.to(device)
         target = target.to(device)
+        data, target = data_fn(data, target)
         output = model(data)
         test_loss += loss_fn(output, target).item()
         test_acc += acc_fn(output, target)
@@ -180,7 +196,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn,
         
     return test_loss, test_acc
 
-def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn,
+def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
           scheduler=None, device=torch.device("cpu"),
           train_config=None, dynamic_precision=False,
           output_dir="", model_name=None,
@@ -239,7 +255,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
             train_loss, train_acc = train_epoch(
                 epoch=epoch, train_loader=train_loader, val_loader=val_loader,
                 model=model, optimizer=optimizer, scheduler=scheduler,
-                loss_fn=loss_fn, acc_fn=acc_fn, device=device,
+                loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
                 output_dir=output_dir, model_name=model_name,
                 wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
                 grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
@@ -276,7 +292,7 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         if wandb_logging: cleanup_wandb(wandb_entity, wandb_project)
         sys.stdout.write("\033[?25h")
 
-def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu")):
+def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, device=torch.device("cpu")):
     """
     Config file options:
         global:
@@ -353,7 +369,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
     if "test" in dataset_splits:
         dataset_args = dataset_splits["test"]
         test_dataset = initialize_dataset(dataset_name, **dataset_args)
-    
+        
     # Get logging configurations
     logging_config = global_config.get("logging", {})
     info_freq = logging_config.get("info_freq", 100)
@@ -388,7 +404,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         if device == torch.device("cuda"):
             torch.cuda.manual_seed_all(seed)
         
-        dynamic_precision = general_config.get("dynamic_precision", False)
+        dynamic_precision = general_config.get("dynamic_precision", False) and device=="cuda"
         
         # Initialize dataloaders
         batch_size = general_config.get("batch_size", 32)
@@ -396,11 +412,11 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         grad_clip_norm = general_config.get("grad_clip_norm", None)
         accumulation_steps = general_config.get("accumulation_steps", 0)
         num_workers = general_config.get("num_workers", 0)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         val_loader = None
         test_loader = None
-        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
-        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         
         model_config = copy.deepcopy(experiment.get("model"))
         model_name = model_config.pop("name")
@@ -465,7 +481,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
             train(
                 epochs=epochs, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,
-                loss_fn=loss_fn, acc_fn=acc_fn,
+                loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn,
                 train_config=train_config, dynamic_precision=dynamic_precision,
                 output_dir=output_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
@@ -492,24 +508,18 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
     
     print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')
 
-def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
+def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
                 scheduler=None, device=torch.device("cpu"),
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
-                dynamic_precision=False, iterative=False, state_init_dir="forward",
-                pc_train_data=None,
+                dynamic_precision=False,
                 checkpoint_freq=None, val_freq=None, info_freq=None):
-    def pc_train_data_default(data, target): return data, target
-    if pc_train_data is None: pc_train_data = pc_train_data_default
-    
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
     model.train()
     train_loss = 0
     train_acc = 0
-    accumulated_batch_loss = 0
-    accumulated_batch_acc = 0
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
     scaler = GradScaler(device=device) if dynamic_precision else None
     optimizer.zero_grad()
@@ -518,8 +528,8 @@ def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             # Train pass
             data = data.to(device)
             target = target.to(device)
-            data, target = pc_train_data(data, target)
-            output = model.train_forward(data, target, iterative=iterative, state_init_dir=state_init_dir)
+            data, target = data_fn(data, target)
+            output = model.train_forward(data, target)
         
         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
@@ -535,32 +545,25 @@ def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             # Accuracy
             with torch.no_grad():
                 accuracy = acc_fn(output.clone(), target.clone())
-                accumulated_batch_acc += accuracy
                 train_acc += accuracy
             
             # Loss
             loss = loss_fn(output, target)
-            batch_loss = loss.item()
-            accumulated_batch_loss += batch_loss
             train_loss += loss.item()
             
             # WandB logging
-            accumulated_batch_loss /= (accumulation_steps + 1)
-            accumulated_batch_acc /= (accumulation_steps + 1)
             if wandb_logging:
                 log_data = {}
-                if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
-                if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
-                if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
+                if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
+                if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
+                if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
                 if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
                 if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
                 wandb.log(log_data)
-            accumulated_batch_loss = 0
-            accumulated_batch_acc = 0
         
         # Post info
         if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
-            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
+            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {accuracy:.2f}%')
         
         # Checkpoint
         if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
@@ -579,14 +582,25 @@ def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
         if scheduler: scheduler.step()
         if dynamic_precision: scaler.update()
         
+        model.eval()
+        output = model(data)
+        model.train()
+        
+        # Accuracy
+        with torch.no_grad():
+            accuracy = acc_fn(output.clone(), target.clone())
+            train_acc += accuracy
+        
+        # Loss
+        loss = loss_fn(output, target)
+        train_loss += loss.item()
+        
         # WandB logging
-        accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
-        accumulated_batch_acc /= (batch_idx % (accumulation_steps + 1)) + 1
         if wandb_logging:
             log_data = {}
-            if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
-            if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
-            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
+            if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
+            if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
+            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
             if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
             if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
             wandb.log(log_data)
@@ -595,7 +609,7 @@ def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
     if hasattr(train_loader.dataset, "step"):
         train_loader.dataset.step()
     
-    train_loss /= len(train_loader)
-    train_acc /= len(train_loader)
+    train_loss /= len(train_loader) / (accumulation_steps + 1)
+    train_acc /= len(train_loader) / (accumulation_steps + 1)
     
     return train_loss, train_acc
