@@ -20,22 +20,12 @@ def default_data_fn(data, target):
     return data, target
 
 def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
-                scheduler=None, device=torch.device("cpu"),
+                scheduler=None, device="cpu",
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
                 dynamic_precision=False,
                 checkpoint_freq=None, val_freq=None, info_freq=None):
-    if hasattr(model, "is_pc_model"): return pc_train_epoch(
-        epoch=epoch, train_loader=train_loader, model=model, optimizer=optimizer,
-        loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, scheduler=scheduler,
-        device=device, output_dir=output_dir, model_name=model_name,
-        val_loader=val_loader, wandb_logging=wandb_logging,
-        wandb_metrics=wandb_metrics, grad_clip_norm=grad_clip_norm,
-        accumulation_steps=accumulation_steps, dynamic_precision=dynamic_precision,
-        checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
-    )
-    
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
     model.train()
@@ -135,7 +125,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
 
 @ torch.no_grad()
 def val_epoch(model, val_loader, loss_fn, acc_fn, data_fn=default_data_fn,
-              device=torch.device("cpu"),
+              device="cpu",
               wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
     val_loss = 0
@@ -166,7 +156,7 @@ def val_epoch(model, val_loader, loss_fn, acc_fn, data_fn=default_data_fn,
 
 @ torch.no_grad()
 def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
-               device=torch.device("cpu"),
+               device="cpu",
                wandb_logging=True, wandb_metrics=["acc", "loss"],):
     model.eval()
     test_loss = 0
@@ -197,7 +187,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
     return test_loss, test_acc
 
 def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
-          scheduler=None, device=torch.device("cpu"),
+          scheduler=None, device="cpu",
           train_config=None, dynamic_precision=False,
           output_dir="", model_name=None,
           val_loader=None, test_loader=None,
@@ -292,9 +282,9 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
         if wandb_logging: cleanup_wandb(wandb_entity, wandb_project)
         sys.stdout.write("\033[?25h")
 
-def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, device=torch.device("cpu")):
+def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, device="cpu"):
     """
-    Config file options:
+    **Config file options:**
         global:
             benchmark_name: Name of the benchmark.
             output_dir: Directory to save model checkpoints.
@@ -314,8 +304,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
             val_freq (default: 500): Frequency of validation during training. No validation if unspecified.
             checkpoint_freq (default: 500): Frequency of saving model checkpoints. No checkpointing if unspecified.
         
-        experiments: List of experiments to run.\n
-            Format:
+        experiments:
+            **List item format:**
                 general:
                     seed (default: 0): Random seed for reproducibility.
                     batch_size (default: 32): Batch size for training.
@@ -327,22 +317,23 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                     num_workers (default: 0): Number of workers for data loading.
                 
                 model:
-                    name: Class name of the model to use.
-                    Other model-specific configurations.
+                    name: Model class name.
+                    Model arguments...
                 
                 optimizer:
-                    name: Optimizer class name (e.g., "Adam", "SGD").
-                    Other optimizer-specific configurations.
+                    name: Optimizer class name (e.g., "SGD", "Adam", "AdamW").
+                    Optimizer arguments...
                 
                 scheduler (optional):
-                    name: Scheduler class name (e.g., "StepLR", "CosineAnnealingLR").
-                    Other scheduler-specific configurations.
-
+                    name: Scheduler class name (e.g., "ConstantLR", "LinearLR", "CosineAnnealingLR").
+                    Scheduler arguments...
+    
     Args:
         yaml_path (str): Path to YAML configuration file.
-        loss_fn (Callable): A function to compute model loss. Takes model output and target as inputs.
-        acc_fn (Callable): A function to compute model accuracy. Takes model output and target as inputs.
-        device (torch.device, optional): Device to run the training on. Defaults to cpu.
+        loss_fn (Callable): A function to compute model loss. Args: (model_output, target). Returns: loss.
+        acc_fn (Callable): A function to compute model accuracy. Args: (model_output, target). Returns: accuracy.
+        data_fn (Callable, optional): A function to augment data and target before passing into model. Args: (data, target). Returns: (data, target).
+        device (str, optional): Device to run training on. Defaults to cpu.
     """
     os.system('clear')
     
@@ -507,109 +498,3 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         del general_config, model_config, optimizer_config, scheduler_config, train_config
     
     print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')
-
-def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
-                scheduler=None, device=torch.device("cpu"),
-                output_dir="", model_name=None, val_loader=None,
-                wandb_logging=True, wandb_metrics=["acc", "loss"],
-                grad_clip_norm=None, accumulation_steps=0,
-                dynamic_precision=False,
-                checkpoint_freq=None, val_freq=None, info_freq=None):
-    # Default model name
-    if model_name is None: model_name = model.__class__.__name__
-    model.train()
-    train_loss = 0
-    train_acc = 0
-    iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
-    scaler = GradScaler(device=device) if dynamic_precision else None
-    optimizer.zero_grad()
-    for batch_idx, (data, target) in enumerate(iterable):
-        with autocast(device_type=device) if dynamic_precision else nullcontext():
-            # Train pass
-            data = data.to(device)
-            target = target.to(device)
-            data, target = data_fn(data, target)
-            output = model.train_forward(data, target)
-        
-        if (batch_idx + 1) % (accumulation_steps + 1) == 0:
-            if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-            optimizer.step() if not dynamic_precision else scaler.step(optimizer)
-            optimizer.zero_grad()
-            if scheduler: scheduler.step()
-            if dynamic_precision: scaler.update()
-            
-            model.eval()
-            output = model(data)
-            model.train()
-            
-            # Accuracy
-            with torch.no_grad():
-                accuracy = acc_fn(output.clone(), target.clone())
-                train_acc += accuracy
-            
-            # Loss
-            loss = loss_fn(output, target)
-            train_loss += loss.item()
-            
-            # WandB logging
-            if wandb_logging:
-                log_data = {}
-                if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
-                if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
-                if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
-                if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
-                if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
-                wandb.log(log_data)
-        
-        # Post info
-        if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
-            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {accuracy:.2f}%')
-        
-        # Checkpoint
-        if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
-            checkpoint(model_name, output_dir, model, optimizer, scheduler)
-        
-        # Validation
-        if val_freq and batch_idx % val_freq == 0 and batch_idx != 0:
-            if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
-            model.train()
-    
-    # Account for last accumulated batch
-    if (batch_idx + 1) % (accumulation_steps + 1) != 0:
-        if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-        optimizer.step() if not dynamic_precision else scaler.step(optimizer)
-        optimizer.zero_grad()
-        if scheduler: scheduler.step()
-        if dynamic_precision: scaler.update()
-        
-        model.eval()
-        output = model(data)
-        model.train()
-        
-        # Accuracy
-        with torch.no_grad():
-            accuracy = acc_fn(output.clone(), target.clone())
-            train_acc += accuracy
-        
-        # Loss
-        loss = loss_fn(output, target)
-        train_loss += loss.item()
-        
-        # WandB logging
-        if wandb_logging:
-            log_data = {}
-            if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
-            if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
-            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
-            if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
-            if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
-            wandb.log(log_data)
-    
-    # Step sequence length if applicable
-    if hasattr(train_loader.dataset, "step"):
-        train_loader.dataset.step()
-    
-    train_loss /= len(train_loader) / (accumulation_steps + 1)
-    train_acc /= len(train_loader) / (accumulation_steps + 1)
-    
-    return train_loss, train_acc

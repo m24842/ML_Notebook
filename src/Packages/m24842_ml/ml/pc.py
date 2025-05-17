@@ -412,3 +412,109 @@ class PCModel(nn.Module):
 #             state_init_dir="forward", 
 #             device=device,
 #         )
+
+# def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
+#                 scheduler=None, device="cpu",
+#                 output_dir="", model_name=None, val_loader=None,
+#                 wandb_logging=True, wandb_metrics=["acc", "loss"],
+#                 grad_clip_norm=None, accumulation_steps=0,
+#                 dynamic_precision=False,
+#                 checkpoint_freq=None, val_freq=None, info_freq=None):
+#     # Default model name
+#     if model_name is None: model_name = model.__class__.__name__
+#     model.train()
+#     train_loss = 0
+#     train_acc = 0
+#     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
+#     scaler = GradScaler(device=device) if dynamic_precision else None
+#     optimizer.zero_grad()
+#     for batch_idx, (data, target) in enumerate(iterable):
+#         with autocast(device_type=device) if dynamic_precision else nullcontext():
+#             # Train pass
+#             data = data.to(device)
+#             target = target.to(device)
+#             data, target = data_fn(data, target)
+#             output = model.train_forward(data, target)
+        
+#         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
+#             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
+#             optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+#             optimizer.zero_grad()
+#             if scheduler: scheduler.step()
+#             if dynamic_precision: scaler.update()
+            
+#             model.eval()
+#             output = model(data)
+#             model.train()
+            
+#             # Accuracy
+#             with torch.no_grad():
+#                 accuracy = acc_fn(output.clone(), target.clone())
+#                 train_acc += accuracy
+            
+#             # Loss
+#             loss = loss_fn(output, target)
+#             train_loss += loss.item()
+            
+#             # WandB logging
+#             if wandb_logging:
+#                 log_data = {}
+#                 if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
+#                 if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
+#                 if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
+#                 if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+#                 if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+#                 wandb.log(log_data)
+        
+#         # Post info
+#         if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
+#             tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {loss.item():.4f}, Acc: {accuracy:.2f}%')
+        
+#         # Checkpoint
+#         if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
+#             checkpoint(model_name, output_dir, model, optimizer, scheduler)
+        
+#         # Validation
+#         if val_freq and batch_idx % val_freq == 0 and batch_idx != 0:
+#             if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
+#             model.train()
+    
+#     # Account for last accumulated batch
+#     if (batch_idx + 1) % (accumulation_steps + 1) != 0:
+#         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
+#         optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+#         optimizer.zero_grad()
+#         if scheduler: scheduler.step()
+#         if dynamic_precision: scaler.update()
+        
+#         model.eval()
+#         output = model(data)
+#         model.train()
+        
+#         # Accuracy
+#         with torch.no_grad():
+#             accuracy = acc_fn(output.clone(), target.clone())
+#             train_acc += accuracy
+        
+#         # Loss
+#         loss = loss_fn(output, target)
+#         train_loss += loss.item()
+        
+#         # WandB logging
+#         if wandb_logging:
+#             log_data = {}
+#             if "acc" in wandb_metrics: log_data["train/acc"] = accuracy
+#             if "loss" in wandb_metrics: log_data["train/loss"] = loss.item()
+#             if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(loss.item())
+#             if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+#             if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+#             wandb.log(log_data)
+    
+#     # Step sequence length if applicable
+#     if hasattr(train_loader.dataset, "step"):
+#         train_loader.dataset.step()
+    
+#     train_loss /= len(train_loader) / (accumulation_steps + 1)
+#     train_acc /= len(train_loader) / (accumulation_steps + 1)
+    
+#     return train_loss, train_acc
