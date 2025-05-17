@@ -371,7 +371,7 @@ class ThePile(Dataset):
                     print(f"Skipping existing shard {i}")
                     continue
 
-                print(f"Tokenizing & saving shard {i+1}/{num_shards}")
+                print(f"Tokenizing shard {i+1}/{num_shards}")
                 shard = raw.shard(num_shards=num_shards, index=i)
                 def tokenize(ex):
                     out = self.tokenizer(
@@ -384,6 +384,7 @@ class ThePile(Dataset):
                     tokenize, batched=True, num_proc=num_proc, remove_columns=shard.column_names
                 )
                 tokenized.set_format(type="torch", columns=["input_ids"])
+                print(f"Saving shard {i+1}/{num_shards}")
                 tokenized.save_to_disk(shard_path)
 
             shard_dirs = sorted(
