@@ -416,7 +416,7 @@ class ThePile(Dataset):
         pad_len = (self.len - 1) - x.size(0)
         if pad_len > 0:
             x = torch.nn.functional.pad(x, (0, pad_len), value=self.pad_token_id)
-            y = torch.nn.functional.pad(y, (0, pad_len), value=self.pad_token_id)
+            y = torch.nn.functional.pad(y, (0, pad_len), value=-100)
 
         return x, y
 

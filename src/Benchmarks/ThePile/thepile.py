@@ -8,10 +8,11 @@ CONFIG_PATH = "src/Benchmarks/ThePile/configs.yaml"
 device = get_available_device()
 
 def loss_fn(output, target):
-    return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
+    return F.cross_entropy(output.transpose(1, 2), target, ignore_index=-100)
 
 def acc_fn(output, target):
-    return 100 * (output.argmax(dim=-1) == target).sum().item() / target.numel()
+    mask = target != -100
+    return 100 * ((output.argmax(dim=-1) == target) & mask).sum().item() / mask.sum().item()
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device)

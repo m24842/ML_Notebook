@@ -42,7 +42,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
             
             # Accuracy
             with torch.no_grad():
-                accuracy = acc_fn(output.clone().detach(), target.clone().detach())
+                accuracy = acc_fn(output.clone(), target.clone())
                 accumulated_batch_acc += accuracy
                 train_acc += accuracy
             
@@ -491,3 +491,111 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         del general_config, model_config, optimizer_config, scheduler_config, train_config
     
     print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')
+
+def pc_train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn,
+                scheduler=None, device=torch.device("cpu"),
+                output_dir="", model_name=None, val_loader=None,
+                wandb_logging=True, wandb_metrics=["acc", "loss"],
+                grad_clip_norm=None, accumulation_steps=0,
+                dynamic_precision=False, iterative=False, state_init_dir="forward",
+                pc_train_data=None,
+                checkpoint_freq=None, val_freq=None, info_freq=None):
+    def pc_train_data_default(data, target): return data, target
+    if pc_train_data is None: pc_train_data = pc_train_data_default
+    
+    # Default model name
+    if model_name is None: model_name = model.__class__.__name__
+    model.train()
+    train_loss = 0
+    train_acc = 0
+    accumulated_batch_loss = 0
+    accumulated_batch_acc = 0
+    iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
+    scaler = GradScaler(device=device) if dynamic_precision else None
+    optimizer.zero_grad()
+    for batch_idx, (data, target) in enumerate(iterable):
+        with autocast(device_type=device) if dynamic_precision else nullcontext():
+            # Train pass
+            data = data.to(device)
+            target = target.to(device)
+            data, target = pc_train_data(data, target)
+            output = model.train_forward(data, target, iterative=iterative, state_init_dir=state_init_dir)
+        
+        if (batch_idx + 1) % (accumulation_steps + 1) == 0:
+            if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
+            optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+            optimizer.zero_grad()
+            if scheduler: scheduler.step()
+            if dynamic_precision: scaler.update()
+            
+            model.eval()
+            output = model(data)
+            model.train()
+            
+            # Accuracy
+            with torch.no_grad():
+                accuracy = acc_fn(output.clone(), target.clone())
+                accumulated_batch_acc += accuracy
+                train_acc += accuracy
+            
+            # Loss
+            loss = loss_fn(output, target)
+            batch_loss = loss.item()
+            accumulated_batch_loss += batch_loss
+            train_loss += loss.item()
+            
+            # WandB logging
+            accumulated_batch_loss /= (accumulation_steps + 1)
+            accumulated_batch_acc /= (accumulation_steps + 1)
+            if wandb_logging:
+                log_data = {}
+                if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
+                if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
+                if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
+                if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+                if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+                wandb.log(log_data)
+            accumulated_batch_loss = 0
+            accumulated_batch_acc = 0
+        
+        # Post info
+        if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
+            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
+        
+        # Checkpoint
+        if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
+            checkpoint(model_name, output_dir, model, optimizer, scheduler)
+        
+        # Validation
+        if val_freq and batch_idx % val_freq == 0 and batch_idx != 0:
+            if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
+            model.train()
+    
+    # Account for last accumulated batch
+    if (batch_idx + 1) % (accumulation_steps + 1) != 0:
+        if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
+        optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+        optimizer.zero_grad()
+        if scheduler: scheduler.step()
+        if dynamic_precision: scaler.update()
+        
+        # WandB logging
+        accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
+        accumulated_batch_acc /= (batch_idx % (accumulation_steps + 1)) + 1
+        if wandb_logging:
+            log_data = {}
+            if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
+            if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
+            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
+            if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+            if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+            wandb.log(log_data)
+    
+    # Step sequence length if applicable
+    if hasattr(train_loader.dataset, "step"):
+        train_loader.dataset.step()
+    
+    train_loss /= len(train_loader)
+    train_acc /= len(train_loader)
+    
+    return train_loss, train_acc

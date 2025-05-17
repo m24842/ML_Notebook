@@ -116,14 +116,14 @@ class PCModel(nn.Module):
         ]).sum()
         return energy
     
-    def train_forward(self, x, y, param_optimizer, param_grad_clip_norm=None, iterative=False, init_dir="forward"):
+    def train_forward(self, x, y, iterative=False, state_init_dir="forward", scaler=None):
         self.update_io_shapes(x, y)
         
         # Amortized state initialization
-        if init_dir == "forward":
+        if state_init_dir == "forward":
             state_tensors = self.forwad_state_init(x)
             state_tensors[-1] = y
-        elif init_dir == "backward":
+        elif state_init_dir == "backward":
             state_tensors = self.backward_state_init(y)
             state_tensors[0] = x
         else:
@@ -133,30 +133,36 @@ class PCModel(nn.Module):
         
         if iterative:
             # Iterative training:
-            # One energy convergence step per parameter update
+            # One energy convergence step per parameter gradient calculation
             for i in range(self.max_its):
                 energy_optimizer.zero_grad()
-                param_optimizer.zero_grad()
+                
                 energy = self.compute_model_energy(state_tensors)
-                energy.backward()
+                
+                if scaler is not None: scaler.scale(energy).backward()
+                else: energy.backward()
+                
                 if self.energy_grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(state_tensors, max_norm=self.energy_grad_clip_norm)
-                if param_grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=param_grad_clip_norm)
+                
                 energy_optimizer.step()
-                param_optimizer.step()
+                
                 if energy.item() < self.min_energy: break
         else:
             # Non-iterative training:
-            # Energy convergence before parameter update
-            param_optimizer.zero_grad()
+            # Energy convergence before parameter gradient calculation
             for i in range(self.max_its):
                 energy_optimizer.zero_grad()
+                
                 energy = self.compute_model_energy(state_tensors)
-                energy.backward()
+                
+                if scaler is not None: scaler.scale(energy).backward()
+                else: energy.backward()
+                
                 if self.energy_grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(state_tensors, max_norm=self.energy_grad_clip_norm)
-                if param_grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=param_grad_clip_norm)
+                
                 energy_optimizer.step()
+                
                 if energy.item() < self.min_energy: break
-            param_optimizer.step()
         return energy
     
     def forward(self, x=None, y=None):
@@ -190,61 +196,64 @@ class PCModel(nn.Module):
                     if energy.item() < self.min_energy: break
                 return state_tensors[0]
 
-# from torchvision import datasets, transforms
-# from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
 
-# device = torch.device('cpu')
+device = torch.device('cpu')
 
-# transform = transforms.Compose([transforms.ToTensor(),])
-# train_set = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-# test_set = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-# train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
-# test_loader = DataLoader(test_set, batch_size=64, shuffle=False)
+transform = transforms.Compose([transforms.ToTensor(),])
+train_set = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+test_set = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_set, batch_size=64, shuffle=False)
 
-# model = PCModel(
-#     layers=[
-#         PCLayer(nn.Sequential(nn.Linear(784, 128, bias=False), nn.ReLU()), nn.Sequential(nn.Linear(128, 784, bias=False), nn.ReLU()), device=device),
-#         PCLayer(nn.Linear(128, 10, bias=False), nn.Linear(10, 128, bias=False), f_loss_fn=F.cross_entropy, b_loss_fn=F.mse_loss, device=device),
-#     ],
-#     max_its=2,
-#     min_energy=1e-3,
-#     energy_lr=1e-0,
-#     energy_optimizer_class=optim.SGD,
-#     device=device
-# )
+model = PCModel(
+    layers=[
+        PCLayer(nn.Sequential(nn.Linear(784, 128, bias=False), nn.ReLU()), nn.Sequential(nn.Linear(128, 784, bias=False), nn.ReLU()), device=device),
+        PCLayer(nn.Linear(128, 10, bias=False), nn.Linear(10, 128, bias=False), f_loss_fn=F.cross_entropy, b_loss_fn=F.mse_loss, device=device),
+    ],
+    max_its=10,
+    min_energy=1e-3,
+    energy_lr=1e-0,
+    energy_optimizer_class=optim.SGD,
+    device=device
+)
 
-# param_optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0)
+param_optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0)
 
-# def train():
-#     model.train()
-#     for batch_idx, (data, target) in enumerate(train_loader):
-#         data = data.flatten(1).to(device)
-#         target = target.to(device)
-#         target = F.one_hot(target, num_classes=10).float()
-#         train_energy = model.train_forward(data, target, param_optimizer, iterative=False, init_dir="forward")
-#         if batch_idx % 100 == 0 and batch_idx > 0:
-#             with no_param_grad(model):
-#                 y = model(data)
-#                 acc = (y.argmax(dim=1) == target.argmax(dim=1)).float().mean()
-#                 loss = F.cross_entropy(y, target)
-#                 print(f"Train epoch: {epoch}, batch: {batch_idx}", train_energy.item(), loss.item(), 100*acc.item())
+def train():
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data = data.flatten(1).to(device)
+        target = target.to(device)
+        target = F.one_hot(target, num_classes=10).float()
+        param_optimizer.zero_grad()
+        train_energy = model.train_forward(data, target, iterative=True, state_init_dir="forward")
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        param_optimizer.step()
+        if batch_idx % 100 == 0 and batch_idx > 0:
+            with no_param_grad(model):
+                y = model(data)
+                acc = (y.argmax(dim=1) == target.argmax(dim=1)).float().mean()
+                loss = F.cross_entropy(y, target)
+                print(f"Train epoch: {epoch}, batch: {batch_idx}", train_energy.item(), loss.item(), 100*acc.item())
 
-# def test():
-#     model.eval()
-#     total_loss = 0
-#     correct = 0
-#     for data, target in test_loader:
-#         data = data.flatten(1).to(device)
-#         target = target.to(device)
-#         y = model(data)
-#         loss = F.cross_entropy(y, target)
-#         total_loss += loss.item()
-#         correct += (y.argmax(dim=1) == target).sum().item()
+def test():
+    model.eval()
+    total_loss = 0
+    correct = 0
+    for data, target in test_loader:
+        data = data.flatten(1).to(device)
+        target = target.to(device)
+        y = model(data)
+        loss = F.cross_entropy(y, target)
+        total_loss += loss.item()
+        correct += (y.argmax(dim=1) == target).sum().item()
 
-#     print("Test Loss:", total_loss / len(test_loader))
-#     print("Test Accuracy:", 100 * correct / len(test_loader.dataset))
+    print("Test Loss:", total_loss / len(test_loader))
+    print("Test Accuracy:", 100 * correct / len(test_loader.dataset))
 
-# epochs = 10
-# for epoch in range(epochs):
-#     train()
-#     test()
+epochs = 10
+for epoch in range(epochs):
+    train()
+    test()
