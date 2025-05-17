@@ -15,4 +15,4 @@ def acc_fn(output, target):
     return 100 * (pred == target).sum().item() / len(target)
 
 if __name__ == "__main__":
-    train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device)
+    train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device=device)
