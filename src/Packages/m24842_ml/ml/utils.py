@@ -6,7 +6,6 @@ import signal
 import requests
 import wandb
 import torch
-import torch.nn as nn
 
 class NoEcho:
     _og_attrs = None
@@ -53,6 +52,13 @@ def cleanup_wandb(entity, project):
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def report_bad_params(model):
+    for name, param in model.named_parameters():
+        if torch.isnan(param).any():
+            print(f"Parameter {name}:\n{param.data}\n")
+        elif torch.isinf(param).any():
+            print(f"Parameter {name}:\n{param.data}\n")
 
 def log_info(log_path, model, model_name, configs, train_accuracies=None, test_accuracies=None):
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')

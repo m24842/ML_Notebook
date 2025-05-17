@@ -52,6 +52,12 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             
             # Loss
             loss = loss_fn(output, target)
+            if torch.isnan(loss).any():
+                report_bad_params(model)
+                raise ValueError(f"Loss is NaN: Epoch {epoch}, Batch {batch_idx}")
+            if torch.isinf(loss).any():
+                report_bad_params(model)
+                raise ValueError(f"Loss is Inf: Epoch {epoch}, Batch {batch_idx}")
             batch_loss = loss.item()
             accumulated_batch_loss += batch_loss
             train_loss += loss.item()
