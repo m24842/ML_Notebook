@@ -37,7 +37,7 @@ global:
         num_proc: 64
         shard_size: 10000000
   
-  val_freq: 500
+  val_freq: 1000000
   checkpoint_freq: 500
 
 ### Defaults ###
@@ -48,8 +48,8 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
-  num_warmup_steps: 402
-  num_training_steps: 8040 # ceil(train_samples / batch_size) * epochs
+  num_warmup_steps: 691444
+  num_training_steps: 3457220 # ceil(train_samples / batch_size) * epochs
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
