@@ -328,33 +328,27 @@ class ThePile(Dataset):
         Validation and test splits must be downloaded manually and extracted.
         Extracted val.jsonl and test.jsonl files should be placed in root/ThePile.
         """
-        if warmup_epochs < 1:
-            self.min_len = max_len
-        else:
-            self.min_len = min_len
+        # dynamic length scheduler
+        self.min_len = max_len if warmup_epochs < 1 else min_len
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
 
+        # tokenizer setup
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
-        self.pad_token_id = (
-            self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
-        )
+        self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
-        cache_dir = os.path.join(f"{root}/ThePile", f"{split}_cache")
+        # cache directory for this split
+        cache_dir = os.path.join(root, "ThePile", f"{split}_cache")
         os.makedirs(cache_dir, exist_ok=True)
 
-        # Find shards
+        # find or create shards on disk
         shard_dirs = sorted(
-            [
-                os.path.join(cache_dir, d)
-                for d in os.listdir(cache_dir)
-                if os.path.isdir(os.path.join(cache_dir, d))
-                and re.match(r"shard_\d+$", d)
-            ]
+            d for d in os.listdir(cache_dir)
+            if os.path.isdir(os.path.join(cache_dir, d)) and re.match(r"shard_\d+$", d)
         )
         if not shard_dirs:
-            # Load and tokenize the dataset in shards
+            # download / tokenize into disk shards if not present
             if split == "train":
                 raw = load_dataset("monology/pile-uncopyrighted", split="train")
             elif split == "val":
@@ -364,72 +358,61 @@ class ThePile(Dataset):
 
             num_examples = len(raw)
             num_shards = math.ceil(num_examples / shard_size)
-
             for i in range(num_shards):
                 shard_path = os.path.join(cache_dir, f"shard_{i}")
                 if os.path.exists(shard_path):
-                    print(f"Skipping existing shard {i}")
                     continue
 
-                print(f"Tokenizing shard {i+1}/{num_shards}")
+                print(f"Tokenizing shard {i+1}/{num_shards}…")
                 shard = raw.shard(num_shards=num_shards, index=i)
                 def tokenize(ex):
-                    out = self.tokenizer(
-                        ex["text"],
-                        return_attention_mask=False,
-                    )
-                    return {"input_ids": out["input_ids"]}
-
+                    return {"input_ids": self.tokenizer(ex["text"], return_attention_mask=False)["input_ids"]}
                 tokenized = shard.map(
-                    tokenize, batched=True, num_proc=num_proc, remove_columns=shard.column_names
+                    tokenize,
+                    batched=True,
+                    num_proc=num_proc,
+                    remove_columns=shard.column_names,
                 )
                 tokenized.set_format(type="torch", columns=["input_ids"])
-                print(f"Saving shard {i+1}/{num_shards}")
                 tokenized.save_to_disk(shard_path)
 
             shard_dirs = sorted(
-                [
-                    os.path.join(cache_dir, d)
-                    for d in os.listdir(cache_dir)
-                    if os.path.isdir(os.path.join(cache_dir, d))
-                    and re.match(r"shard_\d+$", d)
-                ]
+                d for d in os.listdir(cache_dir)
+                if os.path.isdir(os.path.join(cache_dir, d)) and re.match(r"shard_\d+$", d)
             )
 
-        # Shard lengths
-        self.shard_paths = shard_dirs
-        self.shard_lens = []
-        for p in self.shard_paths:
-            ds = load_from_disk(p, keep_in_memory=False)  # Arrow‐mmapped
-            self.shard_lens.append(len(ds))
-        self.cumsum = []
-        running = 0
-        for L in self.shard_lens:
-            running += L
-            self.cumsum.append(running)
+        # full paths
+        self.shard_paths = [os.path.join(cache_dir, d) for d in shard_dirs]
 
-        # Last‐used shard cache
-        self._last_shard_idx = None
-        self._last_shard_ds = None
+        # load all shards once, memory‐map style
+        self.shard_ds = [
+            load_from_disk(path, keep_in_memory=False)
+            for path in self.shard_paths
+        ]
+
+        # compute shard lengths and cumulative indices
+        self.shard_lens = [len(ds) for ds in self.shard_ds]
+        self.cumsum = []
+        total = 0
+        for L in self.shard_lens:
+            total += L
+            self.cumsum.append(total)
 
     def __len__(self):
         return self.cumsum[-1]
 
     def __getitem__(self, idx):
-        # Find shard
+        # pick shard
         shard_idx = bisect.bisect_right(self.cumsum, idx)
-        start = 0 if shard_idx == 0 else self.cumsum[shard_idx - 1]
-        inner_idx = idx - start
+        base = 0 if shard_idx == 0 else self.cumsum[shard_idx - 1]
+        inner_idx = idx - base
 
-        # Lazily load shard if needed
-        if shard_idx != self._last_shard_idx:
-            self._last_shard_ds = load_from_disk(self.shard_paths[shard_idx], in_memory=False)
-            self._last_shard_idx = shard_idx
-
-        input_ids = self._last_shard_ds[inner_idx]["input_ids"][: self.len]
+        # fetch token ids
+        input_ids = self.shard_ds[shard_idx][inner_idx]["input_ids"][: self.len]
         x = input_ids[:-1]
         y = input_ids[1:]
 
+        # pad if too short
         pad_len = (self.len - 1) - x.size(0)
         if pad_len > 0:
             x = torch.nn.functional.pad(x, (0, pad_len), value=self.pad_token_id)

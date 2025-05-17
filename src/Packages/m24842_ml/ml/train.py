@@ -396,11 +396,11 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, device=torch.device("cpu"
         grad_clip_norm = general_config.get("grad_clip_norm", None)
         accumulation_steps = general_config.get("accumulation_steps", 0)
         num_workers = general_config.get("num_workers", 0)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         val_loader = None
         test_loader = None
-        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         
         model_config = copy.deepcopy(experiment.get("model"))
         model_name = model_config.pop("name")
