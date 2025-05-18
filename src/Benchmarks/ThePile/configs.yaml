@@ -46,9 +46,11 @@ optimizer_defaults: &optimizer_defaults
   name: AdamW
   lr: 3e-4
   weight_decay: 0.01
+  betas: [0.9, 0.95]
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
+  eta_min: 1e-5
   num_warmup_steps: 69144
   num_training_steps: 345722 # ceil(train_samples / batch_size) * epochs
 

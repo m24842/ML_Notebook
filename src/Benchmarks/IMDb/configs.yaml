@@ -34,7 +34,7 @@ optimizer_defaults: &optimizer_defaults
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
   T_max: 7820 # ceil(train_samples / batch_size) * epochs
-  eta_min: 1e-6
+  eta_min: 1e-5
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
