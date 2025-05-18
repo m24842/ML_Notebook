@@ -30,14 +30,15 @@ global:
 ### Defaults ###
 optimizer_defaults: &optimizer_defaults
   name: AdamW
-  lr: 1e-3
-  weight_decay: 0.01
+  lr: 6e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-5
-  num_warmup_steps: 200
-  num_training_steps: 1000
+  num_warmup_steps: 1000
+  num_training_steps: 10000
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -45,7 +46,7 @@ Transformer_defaults: &Transformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    train_steps: 10000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
@@ -76,7 +77,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    train_steps: 10000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
@@ -108,7 +109,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    train_steps: 10000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
@@ -139,7 +140,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     seed: 0
     batch_size: 16
     accumulation_steps: 3
-    epochs: 200
+    train_steps: 10000
     grad_clip_norm: 1.0
     dynamic_precision: True
   

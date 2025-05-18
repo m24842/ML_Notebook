@@ -801,3 +801,33 @@ Train accuracies:
 	74.33, 92.13, 94.00, 95.10, 95.81, 96.31, 96.74, 97.16, 97.44, 97.56
 Test accuracies:
 	91.17, 94.16, 95.07, 95.48, 96.01, 96.43, 96.69, 96.81, 96.95, 97.00
+05-18-2025 18:17 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.89
+Test accuracies:
+	47.62

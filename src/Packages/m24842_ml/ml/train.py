@@ -8,6 +8,7 @@ import torch
 import wandb
 import traceback
 from tqdm import tqdm
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
 from contextlib import nullcontext
@@ -20,7 +21,7 @@ def default_data_fn(data, target):
     return data, target
 
 def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
-                scheduler=None, device="cpu",
+                scheduler=None, device="cpu", completed_steps=0, train_steps=None,
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
@@ -37,6 +38,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
     scaler = GradScaler(device=device) if dynamic_precision else None
     optimizer.zero_grad()
     for batch_idx, (data, target) in enumerate(iterable):
+        if train_steps is not None and completed_steps >= train_steps: break
         with autocast(device_type=device) if dynamic_precision else nullcontext():
             # Forward pass
             data = data.to(device)
@@ -86,22 +88,25 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 wandb.log(log_data)
             accumulated_batch_loss = 0
             accumulated_batch_acc = 0
-        
-        # Post info
-        if info_freq and batch_idx % info_freq == 0 and batch_idx != 0:
-            tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
-        
-        # Checkpoint
-        if checkpoint_freq and batch_idx % checkpoint_freq == 0 and batch_idx != 0:
-            checkpoint(model_name, output_dir, model, optimizer, scheduler)
-        
-        # Validation
-        if val_freq and batch_idx % val_freq == 0 and batch_idx != 0:
-            if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
-            model.train()
+            
+            # Post info
+            if info_freq and completed_steps % info_freq == 0 and completed_steps > 0:
+                tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
+            
+            # Checkpoint
+            if checkpoint_freq and completed_steps % checkpoint_freq == 0 and completed_steps > 0:
+                checkpoint(model_name, output_dir, model, optimizer, scheduler)
+            
+            # Validation
+            if val_freq and completed_steps % val_freq == 0 and completed_steps > 0:
+                if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
+                model.train()
+            
+            completed_steps += 1
     
     # Account for last accumulated batch
     if (batch_idx + 1) % (accumulation_steps + 1) != 0:
+        completed_steps += 1
         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
         optimizer.step() if not dynamic_precision else scaler.step(optimizer)
         optimizer.zero_grad()
@@ -127,7 +132,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
     train_loss /= len(train_loader)
     train_acc /= len(train_loader)
     
-    return train_loss, train_acc
+    return train_loss, train_acc, completed_steps
 
 @ torch.no_grad()
 def val_epoch(model, val_loader, loss_fn, acc_fn, data_fn=default_data_fn,
@@ -192,7 +197,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
         
     return test_loss, test_acc
 
-def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
+def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
           scheduler=None, device="cpu",
           train_config=None, dynamic_precision=False,
           output_dir="", model_name=None,
@@ -246,34 +251,66 @@ def train(epochs, benchmark_name, model, train_loader, optimizer, loss_fn, acc_f
             test_accuracies = None
         
         # Train loop
-        for epoch in range(1, epochs + 1):
-            # Train epoch
-            train_loss, train_acc = train_epoch(
-                epoch=epoch, train_loader=train_loader, val_loader=val_loader,
-                model=model, optimizer=optimizer, scheduler=scheduler,
-                loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
-                output_dir=output_dir, model_name=model_name,
-                wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
-                grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
-                dynamic_precision=dynamic_precision,
-                checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
-            )
-            train_losses.append(train_loss)
-            train_accuracies.append(train_acc)
-            
-            # Test epoch
-            if test_loader:
-                test_loss, test_acc = test_epoch(
-                    model, test_loader, loss_fn, acc_fn,
-                    device=device,
-                    wandb_logging=wandb_logging, wandb_metrics=wandb_metrics
+        if epochs is not None:
+            for epoch in range(1, epochs + 1):
+                # Train epoch
+                train_loss, train_acc, _ = train_epoch(
+                    epoch=epoch, train_loader=train_loader, val_loader=val_loader,
+                    model=model, optimizer=optimizer, scheduler=scheduler,
+                    loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
+                    output_dir=output_dir, model_name=model_name,
+                    wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
+                    grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
+                    dynamic_precision=dynamic_precision,
+                    checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
-                test_losses.append(test_loss)
-                test_accuracies.append(test_acc)
-            
-            # Model checkpoint
-            checkpoint(model_name=model_name, output_dir=output_dir,
-                    model=model, optimizer=optimizer, scheduler=scheduler)
+                train_losses.append(train_loss)
+                train_accuracies.append(train_acc)
+                
+                # Test epoch
+                if test_loader:
+                    test_loss, test_acc = test_epoch(
+                        model, test_loader, loss_fn, acc_fn,
+                        device=device,
+                        wandb_logging=wandb_logging, wandb_metrics=wandb_metrics
+                    )
+                    test_losses.append(test_loss)
+                    test_accuracies.append(test_acc)
+                
+                # Model checkpoint
+                checkpoint(model_name=model_name, output_dir=output_dir, model=model, optimizer=optimizer, scheduler=scheduler)
+        
+        elif train_steps is not None:
+            completed_steps = 0
+            epoch = 1
+            while completed_steps < train_steps:
+                train_loss, train_acc, completed_steps = train_epoch(
+                    epoch=epoch, completed_steps=completed_steps, train_steps=train_steps, train_loader=train_loader, val_loader=val_loader,
+                    model=model, optimizer=optimizer, scheduler=scheduler,
+                    loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
+                    output_dir=output_dir, model_name=model_name,
+                    wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
+                    grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
+                    dynamic_precision=dynamic_precision,
+                    checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
+                )
+                train_losses.append(train_loss)
+                train_accuracies.append(train_acc)
+                
+                # Test epoch
+                if test_loader:
+                    test_loss, test_acc = test_epoch(
+                        model, test_loader, loss_fn, acc_fn,
+                        device=device,
+                        wandb_logging=wandb_logging, wandb_metrics=wandb_metrics
+                    )
+                    test_losses.append(test_loss)
+                    test_accuracies.append(test_acc)
+                
+                # Model checkpoint
+                checkpoint(model_name=model_name, output_dir=output_dir, model=model, optimizer=optimizer, scheduler=scheduler)
+                
+                epoch += 1
         
         # Final logging
         if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, configs=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
@@ -316,7 +353,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                     seed (default: 0): Random seed for reproducibility.
                     batch_size (default: 32): Batch size for training.
                     accumulation_steps (default: 0): Number of batches to accumulate gradients for.
-                    epochs (default: 1): Number of epochs to train.
+                    train_steps (optional): Number of training steps. **(Mutually exclusive with epochs)**
+                    epochs (optional): Number of epochs to train. **(Mutually exclusive with train_steps)**
                     grad_clip_norm (optional): Gradient clipping norm. No clipping if unspecified.
                     load_checkpoint (default: False): Whether to attempt loading model from checkpoint.
                     dynamic_precision (default: False): Whether to use dynamic precision for training.
@@ -366,7 +404,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
     if "test" in dataset_splits:
         dataset_args = dataset_splits["test"]
         test_dataset = initialize_dataset(dataset_name, **dataset_args)
-        
+    
     # Get logging configurations
     logging_config = global_config.get("logging", {})
     info_freq = logging_config.get("info_freq", 100)
@@ -405,7 +443,10 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         
         # Initialize dataloaders
         batch_size = general_config.get("batch_size", 32)
-        epochs = general_config.get("epochs", 1)
+        epochs = general_config.get("epochs", None)
+        train_steps = general_config.get("train_steps", None)
+        assert not (train_steps is None and epochs is None), "Either train_steps or epochs must be specified."
+        assert not (train_steps is not None and epochs is not None), "Only one of train_steps or epochs can be specified."
         grad_clip_norm = general_config.get("grad_clip_norm", None)
         accumulation_steps = general_config.get("accumulation_steps", 0)
         num_workers = general_config.get("num_workers", 0)
@@ -463,8 +504,6 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
             "bsz": batch_size,
             "accumulation_steps": accumulation_steps,
             "lr": optimizer_config.get("lr"),
-            "warmup_epochs": scheduler_config.get("warmup_epochs", 0),
-            "total_epochs": epochs,
             "weight_decay": weight_decay,
             "grad_clip_norm": grad_clip_norm,
             "permuted": dataset_splits["train"].get("permuted"),
@@ -476,7 +515,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         successful = True
         try:
             train(
-                epochs=epochs, benchmark_name=benchmark_name, model_name=model_name,
+                epochs=epochs, train_steps=train_steps, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn,
                 train_config=train_config, dynamic_precision=dynamic_precision,

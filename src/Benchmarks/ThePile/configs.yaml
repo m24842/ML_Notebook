@@ -44,23 +44,23 @@ global:
 ### Defaults ###
 optimizer_defaults: &optimizer_defaults
   name: AdamW
-  lr: 3e-4
+  lr: 6e-4
   weight_decay: 0.01
   betas: [0.9, 0.95]
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-5
-  num_warmup_steps: 69144
-  num_training_steps: 345722 # ceil(train_samples / batch_size) * epochs
+  num_warmup_steps: 500
+  num_training_steps: 5000 # ceil(train_samples / batch_size) * epochs
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 63
-    epochs: 2
+    accumulation_steps: 31
+    train_steps: 5000
     grad_clip_norm: 1.0
     dynamic_precision: True
     num_workers: 64
@@ -92,8 +92,8 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 63
-    epochs: 2
+    accumulation_steps: 31
+    train_steps: 5000
     grad_clip_norm: 1.0
     dynamic_precision: True
     num_workers: 64
@@ -126,8 +126,8 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 63
-    epochs: 2
+    accumulation_steps: 31
+    train_steps: 5000
     grad_clip_norm: 1.0
     dynamic_precision: True
     num_workers: 64
@@ -159,8 +159,8 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 63
-    epochs: 2
+    accumulation_steps: 31
+    train_steps: 5000
     grad_clip_norm: 1.0
     dynamic_precision: True
     num_workers: 64
