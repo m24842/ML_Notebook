@@ -44,11 +44,11 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.LayerNorm(emb_dim),
+                    norm1 = nn.RMSNorm(emb_dim),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim) if pos_encoding == "abs" else None,
                     dropout1 = nn.Dropout(dropout),
                     attention = MultiheadAttention(emb_dim, self.n_heads, bias=attention_bias, batch_first=True),
-                    norm2 = nn.LayerNorm(emb_dim),
+                    norm2 = nn.RMSNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
                         nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
@@ -59,7 +59,7 @@ class Transformer(nn.Module):
                 )
             ) for _ in range(self.n_layers)
         ])
-        self.norm_f = nn.LayerNorm(emb_dim)
+        self.norm_f = nn.RMSNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
@@ -120,11 +120,11 @@ class LinearTransformer(nn.Module):
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.LayerNorm(emb_dim),
+                    norm1 = nn.RMSNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim) if pos_encoding == "abs" else None,
                     attention = LinearAttention(emb_dim, self.n_heads, bias=attention_bias),
-                    norm2 = nn.LayerNorm(emb_dim),
+                    norm2 = nn.RMSNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
                         nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
@@ -135,7 +135,7 @@ class LinearTransformer(nn.Module):
                 )
             ) for _ in range(self.n_layers)
         ])
-        self.norm_f = nn.LayerNorm(emb_dim)
+        self.norm_f = nn.RMSNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
@@ -194,11 +194,11 @@ class OrthoLinearTransformer(nn.Module):
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.LayerNorm(emb_dim),
+                    norm1 = nn.RMSNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim) if pos_encoding == "abs" else None,
                     attention = OrthoLinearAttention(emb_dim, self.n_heads, bias=attention_bias),
-                    norm2 = nn.LayerNorm(emb_dim),
+                    norm2 = nn.RMSNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
                         nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
@@ -209,7 +209,7 @@ class OrthoLinearTransformer(nn.Module):
                 )
             ) for _ in range(self.n_layers)
         ])
-        self.norm_f = nn.LayerNorm(emb_dim)
+        self.norm_f = nn.RMSNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
@@ -271,11 +271,11 @@ class CompressionTransformer(nn.Module):
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.LayerNorm(emb_dim),
+                    norm1 = nn.RMSNorm(emb_dim),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim) if pos_encoding == "abs" else None,
                     attention = CompressionAttention(emb_dim, self.n_heads, self.mlp_dim, compressed_len=self.compressed_len, dropout=dropout, bias=attention_bias, batch_first=True, chunk_size=chunk_size),
-                    norm2 = nn.LayerNorm(emb_dim),
+                    norm2 = nn.RMSNorm(emb_dim),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
                         nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias),
@@ -286,7 +286,7 @@ class CompressionTransformer(nn.Module):
                 )
             ) for _ in range(self.n_layers)
         ])
-        self.norm_f = nn.LayerNorm(emb_dim)
+        self.norm_f = nn.RMSNorm(emb_dim)
         
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
