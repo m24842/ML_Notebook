@@ -57,6 +57,8 @@ Transformer_defaults: &Transformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    mlp_bias: False
+    attention_bias: False
     dropout: 0.1
     causal: True
     use_embedding: True
@@ -87,6 +89,8 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    mlp_bias: False
+    attention_bias: False
     dropout: 0.1
     causal: True
     use_embedding: True
@@ -116,6 +120,8 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    mlp_bias: False
+    attention_bias: False
     dropout: 0.1
     causal: True
     use_embedding: True
@@ -145,6 +151,8 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    mlp_bias: False
+    attention_bias: False
     dropout: 0.1
     causal: True
     use_embedding: True
