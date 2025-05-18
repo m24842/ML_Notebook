@@ -42,7 +42,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
-  num_warmup_steps: 0
+  num_warmup_steps: 1490
   num_training_steps: 14900
 
 Transformer_defaults: &Transformer_defaults
