@@ -15,6 +15,7 @@ global:
     name: ThePile
     splits:
       train:
+        root: data
         split: train
         tokenizer: EleutherAI/gpt-neox-20b
         min_len: 256
