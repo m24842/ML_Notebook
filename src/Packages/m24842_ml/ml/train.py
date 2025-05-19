@@ -366,6 +366,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                 
                 optimizer:
                     name: Optimizer class name (e.g., "SGD", "Adam", "AdamW").
+                    exclude_weight_decay (default ["bias", "norm"]): List of parameter names to exclude from weight decay. Provide empty list to not exclude any parameters.
                     Optimizer arguments...
                 
                 scheduler (optional):
@@ -473,7 +474,13 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         optimizer_name = optimizer_config.pop("name")
         optimizer_config = try_to_float(optimizer_config)
         weight_decay = float(optimizer_config.get("weight_decay", 0.0))
-        optimizer_config["params"] = apply_weight_decay(model, weight_decay)
+        exclude_weight_decay = optimizer_config.pop("exclude_weight_decay", None)
+        apply_weight_decay_args = dict(
+            model=model,
+            weight_decay=weight_decay,
+        )
+        if exclude_weight_decay is not None: apply_weight_decay_args["exclude"] = exclude_weight_decay
+        optimizer_config["params"] = apply_weight_decay(**apply_weight_decay_args)
         optimizer = initialize_optimizer(optimizer_name, **optimizer_config)
         
         # Initialize scheduler if specified
