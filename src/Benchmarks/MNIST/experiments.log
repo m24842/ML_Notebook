@@ -831,3 +831,513 @@ Train accuracies:
 	2.89
 Test accuracies:
 	47.62
+05-18-2025 22:21 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.96
+Test accuracies:
+	47.46
+05-18-2025 22:22 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.96
+Test accuracies:
+	47.48
+05-18-2025 22:23 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.92
+Test accuracies:
+	47.38
+05-18-2025 22:26 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.92
+Test accuracies:
+	47.38
+05-18-2025 22:27 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.92
+Test accuracies:
+	47.43
+05-18-2025 22:28 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.60
+Test accuracies:
+	36.00
+05-18-2025 22:32 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.60
+Test accuracies:
+	35.96
+05-18-2025 22:34 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.60
+Test accuracies:
+	35.96
+05-18-2025 22:36 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	2.60
+Test accuracies:
+	36.01
+05-18-2025 22:37 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.11
+Test accuracies:
+	21.79
+05-18-2025 22:38 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.11
+Test accuracies:
+	21.79
+05-18-2025 22:41 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.12
+Test accuracies:
+	19.17
+05-18-2025 22:42 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.13
+Test accuracies:
+	10.11
+05-18-2025 22:43 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.14
+Test accuracies:
+	10.11
+05-18-2025 22:44 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.13
+Test accuracies:
+	10.11
+05-18-2025 22:46 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.13
+Test accuracies:
+	11.78
+05-18-2025 22:48 - CompressionTransformer
+Total params: 405,000
+Hyperparams:
+	emb_dim: 128
+	mlp_dim: 128
+	mem_dim: 16
+	n_heads: 4
+	n_layers: 2
+	input_dim: 1
+	output_dim: 10
+	dropout: 0.1
+	causal: False
+	use_embedding: False
+	pos_encoding: abs
+	pos_encoding_max_len: 784
+	benchmark: MNIST
+	model: CompressionTransformer
+	seed: 0
+	bsz: 64
+	accumulation_steps: 0
+	lr: 0.001
+	weight_decay: 0.01
+	grad_clip_norm: 1.0
+	permuted: False
+	min_len: None
+	max_len: None
+Train accuracies:
+	0.13
+Test accuracies:
+	10.11

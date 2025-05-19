@@ -38,7 +38,6 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
     scaler = GradScaler(device=device) if dynamic_precision else None
     optimizer.zero_grad()
     for batch_idx, (data, target) in enumerate(iterable):
-        if train_steps is not None and completed_steps >= train_steps: break
         with autocast(device_type=device) if dynamic_precision else nullcontext():
             # Forward pass
             data = data.to(device)
@@ -76,6 +75,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             if dynamic_precision: scaler.update()
             
             # WandB logging
+            log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
             accumulated_batch_loss /= (accumulation_steps + 1)
             accumulated_batch_acc /= (accumulation_steps + 1)
             if wandb_logging:
@@ -83,7 +83,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
                 if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
                 if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
-                if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+                if "lr" in wandb_metrics: log_data["misc/lr"] = log_lr
                 if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
                 wandb.log(log_data)
             accumulated_batch_loss = 0
@@ -91,7 +91,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             
             # Post info
             if info_freq and completed_steps % info_freq == 0 and completed_steps > 0:
-                tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {scheduler.get_last_lr()[0]:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
+                tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {log_lr:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
             
             # Checkpoint
             if checkpoint_freq and completed_steps % checkpoint_freq == 0 and completed_steps > 0:
@@ -103,6 +103,8 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 model.train()
             
             completed_steps += 1
+        
+        if train_steps is not None and completed_steps >= train_steps: break
     
     # Account for last accumulated batch
     if (batch_idx + 1) % (accumulation_steps + 1) != 0:
@@ -114,6 +116,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
         if dynamic_precision: scaler.update()
         
         # WandB logging
+        log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
         accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
         accumulated_batch_acc /= (batch_idx % (accumulation_steps + 1)) + 1
         if wandb_logging:
@@ -121,7 +124,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
             if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
             if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
-            if "lr" in wandb_metrics: log_data["misc/lr"] = scheduler.get_last_lr()[0]
+            if "lr" in wandb_metrics: log_data["misc/lr"] = log_lr
             if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
             wandb.log(log_data)
     
