@@ -259,7 +259,7 @@ class OrthoLinearAttention(nn.Module):
         self._reset_parameters()
         
     def _reset_parameters(self):
-        nn.init.constant_(self.beta, math.log(math.e - 1))
+        nn.init.constant_(self.beta, 0.)
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
@@ -297,7 +297,7 @@ class OrthoLinearAttention(nn.Module):
         q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
-        beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         q = (beta * q).softmax(-1)# * q.norm(dim=-1, keepdim=True)
         k = (beta * k).softmax(-1)# * k.norm(dim=-1, keepdim=True)
         
