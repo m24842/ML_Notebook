@@ -11,7 +11,7 @@ global:
       project: Machine Learning
       metrics: [acc, loss, ppl, seq_len, lr]
   
-  dataset: # WikiText 2: 2,433,931 train tokens | WikiText 103: 118,717,293 train tokens
+  dataset: # WikiText 2: 2,433,931 train samples | WikiText 103: 118,717,293 train samples
     name: WikiText
     splits:
       train:
