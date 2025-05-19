@@ -46,16 +46,12 @@ case $choice in
 esac
 
 new_version="$major.$minor.$bug"
-echo "New version: $new_version"
+echo "Upgraded to version: $new_version"
 
 # Replace the version line in pyproject.toml
 # This handles cases where there may be leading whitespace or different spacing around =
 sed -i.bak -E "s/^( *version *= *\")([0-9]+\.[0-9]+\.[0-9]+)(\")/\1$new_version\3/" "$PYPROJECT"
 
-# Confirm it worked
-echo "Updated pyproject.toml:"
-grep -E '^\s*version\s*=' "$PYPROJECT"
-
 # Optional: Build and upload
-# python -m build
-# twine upload dist/*
+python -m build
+twine upload dist/*
