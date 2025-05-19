@@ -1,6 +1,6 @@
 ### Global Configuration ###
 global:
-  benchmark_name: WikiText 2
+  benchmark_name: WikiText 103
   output_dir: src/Benchmarks/WikiText/checkpoints
 
   logging:
@@ -15,23 +15,24 @@ global:
     name: WikiText
     splits:
       train:
-        version: wikitext-2-raw-v1
+        version: wikitext-103-raw-v1
         split: train
         tokenizer: EleutherAI/gpt-neox-20b
         min_len: 256
         max_len: 256
         warmup_epochs: 0
       val:
-        version: wikitext-2-raw-v1
+        version: wikitext-103-raw-v1
         split: validation
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
       test:
-        version: wikitext-2-raw-v1
+        version: wikitext-103-raw-v1
         split: test
         tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
   
+  val_freqL: 500
   checkpoint_freq: 500
 
 ### Defaults ###
@@ -52,15 +53,15 @@ Transformer_defaults: &Transformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 1
+    accumulation_steps: 3
     train_steps: 20000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
   model: &Transformer_model
     name: Transformer
-    emb_dim: 512
-    mlp_dim: 512
+    emb_dim: 128
+    mlp_dim: 128
     n_heads: 4
     n_layers: 6
     input_dim: 50277
@@ -83,15 +84,15 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 1
+    accumulation_steps: 3
     train_steps: 20000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
-    emb_dim: 512
-    mlp_dim: 512
+    emb_dim: 128
+    mlp_dim: 128
     mem_dim: 16
     n_heads: 4
     n_layers: 6
@@ -115,15 +116,15 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 1
+    accumulation_steps: 3
     train_steps: 20000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
   model: &LinearTransformer_model
     name: LinearTransformer
-    emb_dim: 512
-    mlp_dim: 512
+    emb_dim: 128
+    mlp_dim: 128
     n_heads: 4
     n_layers: 6
     input_dim: 50277
@@ -146,15 +147,15 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 16
-    accumulation_steps: 1
+    accumulation_steps: 3
     train_steps: 20000
     grad_clip_norm: 1.0
     dynamic_precision: True
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
-    emb_dim: 512
-    mlp_dim: 512
+    emb_dim: 128
+    mlp_dim: 128
     n_heads: 4
     n_layers: 6
     input_dim: 50277

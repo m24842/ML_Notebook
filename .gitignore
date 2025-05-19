@@ -12,3 +12,4 @@ pyrightconfig.json
 *.pt
 *.npz
 *.egg-info
+*.bak
