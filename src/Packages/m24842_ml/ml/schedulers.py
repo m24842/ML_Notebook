@@ -21,7 +21,7 @@ class CosineAnnealingLRWithWarmup(_LRScheduler):
         else:
             progress = (current_step - self.warmup_steps) / (self.num_training_steps - self.warmup_steps)
             return [
-                self.eta_min + (base_lr - self.eta_min) * 0.5 * (1.0 + math.cos(math.pi * (2 * self.num_cycles * progress)))
+                self.eta_min + (base_lr - self.eta_min) * 0.5 * (1.0 + math.cos(2 * math.pi * self.num_cycles * progress))
                 for base_lr in self.base_lrs
             ]
 
