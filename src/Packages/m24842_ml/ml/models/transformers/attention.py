@@ -46,7 +46,7 @@ class MultiheadAttention(nn.Module):
         
     def _reset_parameters(self):
         # Initialize projections using Xavier uniform
-        nn.init.constant_(self.beta, 0.)
+        nn.init.constant_(self.beta, math.log(math.e - 1))
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
@@ -131,7 +131,9 @@ class MultiheadAttention(nn.Module):
         k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         # Calculate attention scores
-        q = q / (math.sqrt(self.d_head) * torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1))
+        # beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q = q / (math.sqrt(self.d_head) * beta)
         attn_output_weights = torch.bmm(q, k.transpose(1, 2))  # (bsz * n_heads, tgt_len, src_len)
         
         # Apply attention mask if provided
@@ -178,7 +180,7 @@ class MultiheadAttention(nn.Module):
 class LinearAttention(nn.Module):
     """
     Vanilla Linear Attention.
-    Kernel function is elu + 1.
+    Kernel function is softplus.
     """
     def __init__(self, d_model, n_heads, bias=True):
         super().__init__()
@@ -224,8 +226,10 @@ class LinearAttention(nn.Module):
         
         # q = torch.exp(q)
         # k = torch.exp(k)
-        q = F.elu(q) + 1
-        k = F.elu(k) + 1
+        # q = F.elu(q) + 1
+        # k = F.elu(k) + 1
+        q = F.softplus(q)
+        k = F.softplus(k)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
@@ -233,6 +237,7 @@ class LinearAttention(nn.Module):
         else:
             kv = torch.einsum('zsD, zsd -> zDd', k, v).unsqueeze(1)
             k1 = k.sum(dim=1, keepdim=True)
+        
         out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / (q*k1).sum(-1, keepdim=True)
         
         out = rearrange(out, '(b h) s d -> b s (h d)', h=self.n_heads)
@@ -259,7 +264,7 @@ class OrthoLinearAttention(nn.Module):
         self._reset_parameters()
         
     def _reset_parameters(self):
-        nn.init.constant_(self.beta, 0.)
+        nn.init.constant_(self.beta, math.log(math.e - 1))
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
@@ -297,7 +302,8 @@ class OrthoLinearAttention(nn.Module):
         q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
         
-        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        # beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         q = (beta * q).softmax(-1)# * q.norm(dim=-1, keepdim=True)
         k = (beta * k).softmax(-1)# * k.norm(dim=-1, keepdim=True)
         
@@ -406,7 +412,9 @@ class CompressionAttention(nn.Module):
             c_attn_weights = F.dropout(c_attn_weights, p=self.dropout, training=self.training)
         
         ### Expansion self attention ###
-        q_s = q_s / (math.sqrt(self.d_head) * torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1))
+        # beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q_s = q_s / (math.sqrt(self.d_head) * beta)
         
         if causal:
             # Calculate attention scores for compressed output
@@ -512,7 +520,9 @@ class CompressionAttention(nn.Module):
                 s_v_state[:, i] = c_v_state.clone()
         
         ### Expansion self attention ###
-        q_s = q_s / (math.sqrt(self.d_head) * torch.exp(self.beta).reshape(self.n_heads, 1, 1, 1).repeat(bsz, 1, 1, 1))
+        # beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1, 1).repeat(bsz, 1, 1, 1)
+        beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1, 1).repeat(bsz, 1, 1, 1)
+        q_s = q_s / (math.sqrt(self.d_head) * beta)
         q_s = q_s.reshape(-1, self.chunk_size, self.d_head)
         
         if causal:
