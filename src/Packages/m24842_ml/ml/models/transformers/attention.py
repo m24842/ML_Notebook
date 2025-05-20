@@ -349,7 +349,7 @@ class CompressionAttention(nn.Module):
         
     def _reset_parameters(self):
         # Initialize projections using Xavier uniform
-        nn.init.constant_(self.beta, 0.)
+        nn.init.constant_(self.beta, math.log(math.e - 1))
         nn.init.xavier_uniform_(self.q_c)
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
