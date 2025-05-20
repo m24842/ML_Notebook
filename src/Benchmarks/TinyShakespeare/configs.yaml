@@ -48,7 +48,7 @@ Transformer_defaults: &Transformer_defaults
     accumulation_steps: 3
     train_steps: 10000
     grad_clip_norm: 1.0
-    dynamic_precision: True
+    mixed_precision: True
   
   model: &Transformer_model
     name: Transformer
@@ -79,7 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     accumulation_steps: 3
     train_steps: 10000
     grad_clip_norm: 1.0
-    dynamic_precision: True
+    mixed_precision: True
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
@@ -111,7 +111,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     accumulation_steps: 3
     train_steps: 10000
     grad_clip_norm: 1.0
-    dynamic_precision: True
+    mixed_precision: True
   
   model: &LinearTransformer_model
     name: LinearTransformer
@@ -142,7 +142,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     accumulation_steps: 3
     train_steps: 10000
     grad_clip_norm: 1.0
-    dynamic_precision: True
+    mixed_precision: True
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer

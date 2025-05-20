@@ -418,7 +418,7 @@ class PCModel(nn.Module):
 #                 output_dir="", model_name=None, val_loader=None,
 #                 wandb_logging=True, wandb_metrics=["acc", "loss"],
 #                 grad_clip_norm=None, accumulation_steps=0,
-#                 dynamic_precision=False,
+#                 mixed_precision=False,
 #                 checkpoint_freq=None, val_freq=None, info_freq=None):
 #     # Default model name
 #     if model_name is None: model_name = model.__class__.__name__
@@ -426,10 +426,10 @@ class PCModel(nn.Module):
 #     train_loss = 0
 #     train_acc = 0
 #     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
-#     scaler = GradScaler(device=device) if dynamic_precision else None
+#     scaler = GradScaler(device=device) if mixed_precision else None
 #     optimizer.zero_grad()
 #     for batch_idx, (data, target) in enumerate(iterable):
-#         with autocast(device_type=device) if dynamic_precision else nullcontext():
+#         with autocast(device_type=device) if mixed_precision else nullcontext():
 #             # Train pass
 #             data = data.to(device)
 #             target = target.to(device)
@@ -438,10 +438,10 @@ class PCModel(nn.Module):
         
 #         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
 #             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-#             optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+#             optimizer.step() if not mixed_precision else scaler.step(optimizer)
 #             optimizer.zero_grad()
 #             if scheduler: scheduler.step()
-#             if dynamic_precision: scaler.update()
+#             if mixed_precision: scaler.update()
             
 #             model.eval()
 #             output = model(data)
@@ -482,10 +482,10 @@ class PCModel(nn.Module):
 #     # Account for last accumulated batch
 #     if (batch_idx + 1) % (accumulation_steps + 1) != 0:
 #         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-#         optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+#         optimizer.step() if not mixed_precision else scaler.step(optimizer)
 #         optimizer.zero_grad()
 #         if scheduler: scheduler.step()
-#         if dynamic_precision: scaler.update()
+#         if mixed_precision: scaler.update()
         
 #         model.eval()
 #         output = model(data)

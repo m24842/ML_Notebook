@@ -25,7 +25,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
-                dynamic_precision=False,
+                mixed_precision=False,
                 checkpoint_freq=None, val_freq=None, info_freq=None):
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
@@ -35,10 +35,10 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
     accumulated_batch_loss = 0
     accumulated_batch_acc = 0
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
-    scaler = GradScaler(device=device) if dynamic_precision else None
+    scaler = GradScaler(device=device) if mixed_precision else None
     optimizer.zero_grad()
     for batch_idx, (data, target) in enumerate(iterable):
-        with autocast(device_type=device) if dynamic_precision else nullcontext():
+        with autocast(device_type=device) if mixed_precision else nullcontext():
             # Forward pass
             data = data.to(device)
             target = target.to(device)
@@ -65,14 +65,14 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
         
         # Backward pass and gradient accumulation if applicable
         loss = loss / (accumulation_steps + 1)
-        loss.backward() if not dynamic_precision else scaler.scale(loss).backward()
+        loss.backward() if not mixed_precision else scaler.scale(loss).backward()
         
         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-            optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+            optimizer.step() if not mixed_precision else scaler.step(optimizer)
             optimizer.zero_grad()
             if scheduler: scheduler.step()
-            if dynamic_precision: scaler.update()
+            if mixed_precision: scaler.update()
             
             # WandB logging
             log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
@@ -110,10 +110,10 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
     if (batch_idx + 1) % (accumulation_steps + 1) != 0:
         completed_steps += 1
         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-        optimizer.step() if not dynamic_precision else scaler.step(optimizer)
+        optimizer.step() if not mixed_precision else scaler.step(optimizer)
         optimizer.zero_grad()
         if scheduler: scheduler.step()
-        if dynamic_precision: scaler.update()
+        if mixed_precision: scaler.update()
         
         # WandB logging
         log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
@@ -202,7 +202,7 @@ def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
 
 def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
           scheduler=None, device="cpu",
-          train_config=None, dynamic_precision=False,
+          train_config=None, mixed_precision=False,
           output_dir="", model_name=None,
           val_loader=None, test_loader=None,
           local_log_path=None,
@@ -264,7 +264,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
                     output_dir=output_dir, model_name=model_name,
                     wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
-                    dynamic_precision=dynamic_precision,
+                    mixed_precision=mixed_precision,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
                 train_losses.append(train_loss)
@@ -294,7 +294,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
                     output_dir=output_dir, model_name=model_name,
                     wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
-                    dynamic_precision=dynamic_precision,
+                    mixed_precision=mixed_precision,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
                 train_losses.append(train_loss)
@@ -360,7 +360,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                     epochs (optional): Number of epochs to train. **(Mutually exclusive with train_steps)**
                     grad_clip_norm (optional): Gradient clipping norm. No clipping if unspecified.
                     load_checkpoint (default: False): Whether to attempt loading model from checkpoint.
-                    dynamic_precision (default: False): Whether to use dynamic precision for training.
+                    mixed_precision (default: False): Whether to use mixed precision for training.
                     num_workers (default: 0): Number of workers for data loading.
                 
                 model:
@@ -443,7 +443,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         if device == torch.device("cuda"):
             torch.cuda.manual_seed_all(seed)
         
-        dynamic_precision = general_config.get("dynamic_precision", False) and device=="cuda"
+        mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
         
         # Initialize dataloaders
         batch_size = general_config.get("batch_size", 32)
@@ -528,7 +528,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                 epochs=epochs, train_steps=train_steps, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn,
-                train_config=train_config, dynamic_precision=dynamic_precision,
+                train_config=train_config, mixed_precision=mixed_precision,
                 output_dir=output_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
                 local_log_path=local_log_path,
