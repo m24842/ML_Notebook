@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m24842_ml"
-version = "1.0.85"
+version = "1.0.86"
 description = "Collection of ML models and benchmarking tools"
 requires-python = ">=3.8"
 dependencies = [

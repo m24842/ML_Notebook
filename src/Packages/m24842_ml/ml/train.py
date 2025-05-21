@@ -440,7 +440,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         # Set seed
         seed = general_config.get("seed", 0)
         torch.manual_seed(seed)
-        if device == torch.device("cuda"):
+        if device == "cuda":
             torch.cuda.manual_seed_all(seed)
         
         mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
