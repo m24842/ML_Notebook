@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class RMSNorm(nn.Module):
+class GatedRMSNorm(nn.Module):
     def __init__(self, d, eps=1e-5, device=None):
         """Gated Root Mean Square Layer Normalization
 

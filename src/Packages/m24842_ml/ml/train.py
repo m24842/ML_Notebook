@@ -317,7 +317,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
         
         # Final logging
         if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, configs=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
-        wandb.finish()
+        if wandb_logging: wandb.finish()
     
     except KeyboardInterrupt as e: raise e
     except Exception as e:
@@ -386,10 +386,10 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
     os.system('clear')
     
     with open(yaml_path, 'r') as f:
-        config = yaml.safe_load(f)
+        configs = yaml.safe_load(f)
     
     # Extract global training configurations
-    global_config = config.get("global")
+    global_config = configs.get("global")
     benchmark_name = global_config.get("benchmark_name")
     output_dir = global_config.get("output_dir")
     
@@ -425,7 +425,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
     
     # Run all experiments
     successful_count = 0
-    experiments = config.get("experiments")
+    experiments = configs.get("experiments")
     for i, experiment in enumerate(experiments):
         print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m\n')
         

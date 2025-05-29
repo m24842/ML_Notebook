@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from ..common import *
+from ..common import GatedRMSNorm
 
 class Mamba2Block(nn.Module):
     def __init__(self, d_model, n_layers=24, d_state=128, d_conv=4,
@@ -35,7 +35,7 @@ class Mamba2Block(nn.Module):
         self.dt_bias = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.A_log = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.D = nn.Parameter(torch.empty(self.n_heads, device=device))
-        self.norm = RMSNorm(self.d_inner, device=device)
+        self.norm = GatedRMSNorm(self.d_inner, device=device)
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=False, device=device)
         
         self._init_weights()
@@ -227,13 +227,13 @@ class Mamba2(nn.Module):
                             dict(
                                 mixer_f=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device),
                                 mixer_b=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device) if bidirectional else None,
-                                norm=RMSNorm(emb_dim, device=device),
+                                norm=GatedRMSNorm(emb_dim, device=device),
                             )
                         )
                         for _ in range(n_layers)
                     ]
                 ),
-                norm_f=RMSNorm(emb_dim, device=device),
+                norm_f=GatedRMSNorm(emb_dim, device=device),
             )
         )
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
