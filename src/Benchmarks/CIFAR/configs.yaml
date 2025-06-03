@@ -28,8 +28,9 @@ global:
 ### Defaults ###
 optimizer_defaults: &optimizer_defaults
   name: AdamW
-  lr: 3e-4
-  weight_decay: 0.01
+  lr: 6e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
@@ -78,7 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     name: CompressionTransformer
     emb_dim: 128
     mlp_dim: 128
-    mem_dim: 16
+    mem_dim: 64
     n_heads: 4
     n_layers: 4
     input_dim: 1
