@@ -163,7 +163,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   general: &SlidingWindowTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 64
+    batch_size: 32
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
