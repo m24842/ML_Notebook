@@ -19,9 +19,11 @@ global:
         min_len: 1024
         max_len: 2048
         warmup_epochs: 3
+        vocab_size: 256
       test:
         train: False
         max_len: 2048
+        vocab_size: 256
   
   checkpoint_freq: 500
 
@@ -51,7 +53,7 @@ Transformer_defaults: &Transformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 256
     output_dim: 2
     attn_sink: False
     dropout: 0.1
@@ -81,7 +83,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     mem_dim: 16
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 256
     output_dim: 2
     attn_sink: False
     dropout: 0.1
@@ -110,7 +112,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 256
     output_dim: 2
     attn_sink: False
     dropout: 0.1
@@ -139,7 +141,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 256
     output_dim: 2
     attn_sink: False
     dropout: 0.1
@@ -172,7 +174,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     # dilation_factor: 64
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 256
     output_dim: 2
     attn_sink: False
     dropout: 0.1

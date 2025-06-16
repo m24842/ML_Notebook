@@ -70,9 +70,9 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
         if (batch_idx + 1) % (accumulation_steps + 1) == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
             optimizer.step() if not mixed_precision else scaler.step(optimizer)
+            if mixed_precision: scaler.update()
             optimizer.zero_grad()
             if scheduler: scheduler.step()
-            if mixed_precision: scaler.update()
             
             # WandB logging
             log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
@@ -111,9 +111,9 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
         completed_steps += 1
         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
         optimizer.step() if not mixed_precision else scaler.step(optimizer)
+        if mixed_precision: scaler.update()
         optimizer.zero_grad()
         if scheduler: scheduler.step()
-        if mixed_precision: scaler.update()
         
         # WandB logging
         log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
