@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.linalg as LA
-import torch.autograd as AG
 import math
 from einops import rearrange
 import opt_einsum
@@ -15,31 +14,32 @@ class MultiheadAttention(nn.Module):
     Slight difference: the typical 1/sqrt(d_model) attention score scale is now a per head learnable parameter beta initialized at 1/sqrt(d_model).
     """
     def __init__(self, d_model, n_heads, dropout=0.0, bias=True, add_bias_kv=False, 
-                 add_zero_attn=False, batch_first=False):
+                 add_zero_attn=False, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.dropout = dropout
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
+        self.device = device
         
         assert self.d_head * n_heads == self.d_model, "d_model must be divisible by n_heads"
         
         # Linear projections for query, key, and value
-        self.beta = nn.Parameter(torch.empty(self.n_heads))
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
-        self.q_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.out_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
         # Optional bias for key and value
         if add_bias_kv:
-            self.bias_k = nn.Parameter(torch.empty(1, 1, d_model))
-            self.bias_v = nn.Parameter(torch.empty(1, 1, d_model))
+            self.bias_k = nn.Parameter(torch.empty((1, 1, d_model), device=device))
+            self.bias_v = nn.Parameter(torch.empty((1, 1, d_model), device=device))
         else:
             self.bias_k = self.bias_v = None
-            
+        
         self.add_zero_attn = add_zero_attn
         
         self._reset_parameters()
@@ -182,15 +182,17 @@ class LinearAttention(nn.Module):
     Vanilla Linear Attention.
     Kernel function is softplus.
     """
-    def __init__(self, d_model, n_heads, bias=True):
+    def __init__(self, d_model, n_heads, bias=True, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.q_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.out_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.device = device
+        
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
         self._reset_parameters()
     
@@ -248,18 +250,19 @@ class OrthoLinearAttention(nn.Module):
     Orthogonal Linear Attention.
     A derivative of linear attention that orthogonalizes queries and keys for each head to reduce crossterm interference.
     """
-    def __init__(self, d_model: int, n_heads: int, bias: bool = True):
+    def __init__(self, d_model, n_heads, bias=True, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
+        self.device = device
         
-        self.beta = nn.Parameter(torch.empty(self.n_heads))
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
-        self.q_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.out_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
         self._reset_parameters()
         
@@ -324,25 +327,25 @@ class CompressionAttention(nn.Module):
     A derivative of softmax attention that compresses input sequences to a fixed length before expanding back to the original length.
     Achieved by two linear with sequence length attention operations.
     """
-    def __init__(self, d_model, n_heads, mlp_dim, compressed_len,
-                 dropout=0.0, bias=True, batch_first=False):
+    def __init__(self, d_model, n_heads, compressed_len,
+                 dropout=0.0, bias=True, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
-        self.mlp_dim = mlp_dim
         self.d_head = d_model // n_heads
         self.compressed_len = compressed_len
         self.batch_first = batch_first
         self.dropout = dropout
+        self.device = device
         
-        self.q_c = nn.Parameter(torch.empty(compressed_len, d_model))
+        self.q_c = nn.Parameter(torch.empty((compressed_len, d_model), device=device))
         self.q_c._no_weight_decay = True
-        self.beta = nn.Parameter(torch.empty(self.n_heads))
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
-        self.q_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=bias)
-        self.out_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
 
         self._reset_parameters()
         
@@ -365,7 +368,6 @@ class CompressionAttention(nn.Module):
             nn.init.constant_(self.out_proj.bias, 0.)
     
     def forward(self, x, rope=None, causal=True):
-        # Handle batch_first option
         if self.batch_first:
             x = x.transpose(0, 1)
         
@@ -448,3 +450,221 @@ class CompressionAttention(nn.Module):
         if self.batch_first:
             return s_attn_output.transpose(0, 1)
         return s_attn_output
+
+class SlidingWindowAttention(nn.Module):
+    def __init__(self, d_model, n_heads, window_len, dilation=1,
+                 dropout=0.0, bias=True, batch_first=False,
+                 masked_window=True, device="cpu"):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.window_len = window_len
+        self.dilation = dilation
+        self.padding = (self.window_len - 1) * self.dilation
+        self.dropout = dropout
+        self.batch_first = batch_first
+        self.d_head = d_model // n_heads
+        self.masked_window = masked_window
+        self.device = device
+        
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta._no_weight_decay = True
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        
+        self._reset_parameters()
+        
+    def _reset_parameters(self):
+        nn.init.constant_(self.beta, 0.)
+        nn.init.xavier_uniform_(self.q_proj.weight)
+        nn.init.xavier_uniform_(self.k_proj.weight)
+        nn.init.xavier_uniform_(self.v_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
+        if self.out_proj.bias is not None:
+            nn.init.constant_(self.out_proj.bias, 0.)
+    
+    def causal_windowed_mask(self, seq_len, window_len, dilation=1):
+        idxs = torch.arange(seq_len, device=self.device)
+        rows = idxs.unsqueeze(1)
+        cols = idxs.unsqueeze(0)
+        diff = rows - cols
+
+        allowed = (diff >= 0) & (diff <= dilation * (window_len - 1)) & ((diff % dilation) == 0)
+
+        mask = torch.where(allowed, 0.0, float('-inf'))
+        return mask
+    
+    def symmetric_windowed_mask(self, seq_len, window_len, dilation=1):
+        idxs = torch.arange(seq_len, device=self.device)
+        rows = idxs.unsqueeze(1)
+        cols = idxs.unsqueeze(0)
+
+        half = window_len // 2
+        diff = rows - cols
+        abs_diff = diff.abs()
+
+        allowed = (abs_diff <= dilation * half) & ((diff % dilation) == 0)
+
+        mask = torch.where(allowed, 0.0, float('-inf'))
+        # import matplotlib.pyplot as plt
+        # plt.imshow(allowed.cpu().numpy(), cmap='gray', interpolation='nearest')
+        # plt.show()
+        return mask
+    
+    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
+        """
+        Creates a sliding window view of a tensor over a specified dimension.
+
+        This function uses `as_strided` to create a view of the input tensor
+        without making a copy of the data. The new view has an additional
+        dimension corresponding to the window size.
+
+        Args:
+            x (Tensor): The input tensor of arbitrary shape.
+            size (int): The number of elements in each window.
+            dim (int): The dimension to apply the windowing operation over.
+            stride (int): The distance between the start of successive windows.
+            dilation (int, optional): The spacing between elements within a window.
+                                    Defaults to 1.
+            pad (tuple, optional): Amount of zero-padding to add to the left and right
+                                    of the specified dimension. Defaults to (0, 0).
+
+        Returns:
+            Tensor: A view of the input tensor with an added dimension for the windows.
+                    The windowed dimension `dim` is replaced by two dimensions:
+                    `(num_windows, size)`. The new shape is
+                    `(*x.shape[:dim], num_windows, size, *x.shape[dim+1:])`.
+        """
+        # --- 1. Validate and prepare dimensions ---
+        ndim = x.dim()
+        if dim < -ndim or dim >= ndim:
+            raise IndexError(f"Dimension out of range (expected to be in range of [-{ndim}, {ndim-1}], but got {dim})")
+        
+        # Convert negative dim to positive
+        if dim < 0:
+            dim = ndim + dim
+
+        # --- 2. Handle padding ---
+        if pad[0] > 0 or pad[1] > 0:
+            # Create a padding tuple for F.pad. It needs padding for all dimensions,
+            # so we create a list of zeros and fill in the padding for the target dim.
+            # F.pad expects padding in the order of (pad_last_dim, pad_penultimate_dim, ...).
+            pad_tuple = [0] * (2 * ndim)
+            pad_idx = 2 * (ndim - 1 - dim)
+            pad_tuple[pad_idx] = pad[0]
+            pad_tuple[pad_idx + 1] = pad[1]
+            x = F.pad(x, tuple(pad_tuple))
+
+        # --- 3. Calculate output shape ---
+        n_padded = x.shape[dim]
+        
+        # The effective size of the window, accounting for dilation
+        effective_window_size = (size - 1) * dilation + 1
+        
+        # Calculate the number of windows that can be extracted
+        num_windows = (n_padded - effective_window_size) // stride + 1
+
+        if num_windows <= 0:
+            # If no windows can be formed, return an empty tensor with the correct shape.
+            # This avoids errors with as_strided for zero-sized dimensions.
+            final_shape = list(x.shape)
+            final_shape[dim:dim+1] = [0, size]
+            return torch.empty(final_shape, dtype=x.dtype, device=x.device)
+
+        # New shape: original shape with `dim` replaced by (num_windows, size)
+        out_shape = list(x.shape)
+        out_shape[dim:dim+1] = [num_windows, size]
+
+        # --- 4. Calculate output strides ---
+        original_strides = x.stride()
+        element_stride = original_strides[dim]
+
+        # New strides: original strides with the stride for `dim` replaced by two new strides
+        out_stride = (
+            original_strides[:dim] 
+            + (stride * element_stride, dilation * element_stride) 
+            + original_strides[dim+1:]
+        )
+
+        return x.as_strided(out_shape, tuple(out_stride))
+    
+    def forward(self, x, rope=None, causal=True):
+        if self.batch_first:
+            x = x.transpose(0, 1)
+        
+        _, bsz, d_model = x.shape
+        seq_len = x.shape[0]
+        
+        q = self.q_proj(x)  # (seq_len, batch_size, d_model)
+        k = self.k_proj(x)  # (seq_len, batch_size, d_model)
+        v = self.v_proj(x)  # (seq_len, batch_size, d_model)
+        
+        # Reshape for multi-head attention
+        q = rearrange(q, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        k = rearrange(k, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v = rearrange(v, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        
+        if rope:
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q.reshape(bsz, self.n_heads, seq_len, self.d_head), k.reshape(bsz, self.n_heads, seq_len, self.d_head))
+            else:
+                q = rope.rotate_queries_or_keys(q.reshape(bsz, self.n_heads, seq_len, self.d_head))
+                k = rope.rotate_queries_or_keys(k.reshape(bsz, self.n_heads, seq_len, self.d_head))
+            q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+            k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+        
+        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q = q / (math.sqrt(self.d_head) * beta)
+        
+        if self.masked_window:
+            if causal:
+                attn_mask = self.causal_windowed_mask(seq_len, self.window_len, dilation=self.dilation)
+            else:
+                attn_mask = self.symmetric_windowed_mask(seq_len, self.window_len, dilation=self.dilation)
+                        
+            attn_output_weights = torch.bmm(q, k.transpose(1, 2))  # (bsz * n_heads, seq_len, seq_len)
+            attn_output_weights = attn_output_weights + attn_mask.unsqueeze(0)  # (bsz * n_heads, seq_len, seq_len)
+            
+            # Convert attention weights to probabilities
+            attn_output_weights = F.softmax(attn_output_weights, dim=-1)
+            attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
+            
+            # Apply attention weights to values
+            attn_output = torch.bmm(attn_output_weights, v)  # (bsz * n_heads, seq_len, d_head)
+        
+        else:
+            if causal:
+                pad = (self.padding, 0)
+            else:
+                pad = (self.padding-self.padding//2, self.padding//2)
+            
+            k = self.windowed_view(k, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
+            v = self.windowed_view(v, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
+        
+            attn_output_weights = torch.einsum('zsd, zswd -> zsw', q, k)  # (bsz * n_heads, seq_len, window_len)
+            
+            # Convert attention weights to probabilities
+            attn_output_weights = F.softmax(attn_output_weights, dim=-1)
+            attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
+            
+            # Apply attention weights to values
+            attn_output = torch.einsum('zsw, zswd -> zsd', attn_output_weights, v)
+        
+        # Apply final projection
+        attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
+        attn_output = self.out_proj(attn_output)
+        
+        # Return in the correct format depending on batch_first
+        if self.batch_first:
+            return attn_output.transpose(0, 1)
+        return attn_output
