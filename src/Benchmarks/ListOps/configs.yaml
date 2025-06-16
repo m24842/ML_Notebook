@@ -39,14 +39,14 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 30000 # ceil(train_samples / batch_size) * epochs
+  T_max: 15000 # ceil(train_samples / batch_size) * epochs
   eta_min: 1e-5
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -75,7 +75,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   general: &CompressionTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -105,7 +105,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   general: &LinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -134,7 +134,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   general: &OrthoLinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -163,7 +163,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   general: &SlidingWindowTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
