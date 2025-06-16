@@ -175,7 +175,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     window_len: 64
     masked_window: True
     dilate: True
-    # dilation_factor: 64
+    dilation_factor: 2
     n_heads: 4
     n_layers: 4
     input_dim: 17
