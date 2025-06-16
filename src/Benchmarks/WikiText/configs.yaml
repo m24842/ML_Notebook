@@ -190,10 +190,10 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     name: SlidingWindowTransformer
     emb_dim: 128
     mlp_dim: 128
-    window_len: 512
+    window_len: 64
     masked_window: True
     dilate: True
-    dilation_factor: 2
+    # dilation_factor: 64
     n_heads: 4
     n_layers: 6
     input_dim: 50277

@@ -312,7 +312,7 @@ class CompressionTransformer(nn.Module):
 class SlidingWindowTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None, window_len=64, masked_window=True,
-                 attn_sink=False, dilate=True, dilation_factor=2, dropout=0.0,
+                 attn_sink=False, dilate=True, dilation_factor=None, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -341,6 +341,7 @@ class SlidingWindowTransformer(nn.Module):
             self.pos_encoding_max_len = pos_encoding_max_len
         else: self.rope = None
         
+        dilation_factor = window_len if dilation_factor is None else dilation_factor
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
