@@ -40,7 +40,7 @@ Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 16
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -69,7 +69,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   general: &CompressionTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 16
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -99,7 +99,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   general: &LinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 16
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -128,7 +128,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   general: &OrthoLinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 16
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
