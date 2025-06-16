@@ -60,7 +60,7 @@ Transformer_defaults: &Transformer_defaults
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.0
     causal: True
     use_embedding: True
@@ -93,7 +93,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.0
     causal: True
     use_embedding: True
@@ -125,7 +125,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.0
     causal: True
     use_embedding: True
@@ -157,7 +157,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.0
     causal: True
     use_embedding: True
@@ -192,7 +192,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.0
     causal: True
     use_embedding: True

@@ -52,12 +52,12 @@ Transformer_defaults: &Transformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: True
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults
@@ -82,12 +82,12 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: True
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults
@@ -111,12 +111,12 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: True
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults
@@ -140,12 +140,12 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: True
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults
@@ -173,12 +173,12 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: True
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults

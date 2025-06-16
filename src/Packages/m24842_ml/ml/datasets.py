@@ -50,28 +50,40 @@ class SequentialFashionMNIST(datasets.FashionMNIST):
         super().__init__(root, train=train, download=download, transform=self.transform)
 
 class SequentialCIFAR10(datasets.CIFAR10):
-    def __init__(self, root, train, download=True, permuted=False):
-        self.transform = [
-            transforms.Grayscale(num_output_channels=1),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.view(-1, 1))
-        ]
+    def __init__(self, root, train, download=True, grayscale=True, permuted=False):
+        if grayscale:
+            self.transform = [
+                transforms.Grayscale(num_output_channels=1),
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.view(-1, 1))
+            ]
+        else:
+            self.transform = [
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.view(-1, 3))
+            ]
         if permuted:
             random_permutation = torch.randperm(32 * 32)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         super().__init__(root, train=train, download=download, transform=self.transform)
 
 class SequentialCIFAR100(datasets.CIFAR100):
-    def __init__(self, root, train, download=True, permuted=False):
-        self.transform = [
-            transforms.Grayscale(num_output_channels=1),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.view(-1, 1))
-        ]
+    def __init__(self, root, train, download=True, grayscale=True, permuted=False):
+        if grayscale:
+            self.transform = [
+                transforms.Grayscale(num_output_channels=1),
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.view(-1, 1))
+            ]
+        else:
+            self.transform = [
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.view(-1, 3))
+            ]
         if permuted:
             random_permutation = torch.randperm(32 * 32)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         super().__init__(root, train=train, download=download, transform=self.transform)
 

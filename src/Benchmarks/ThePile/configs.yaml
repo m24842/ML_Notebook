@@ -69,13 +69,13 @@ Transformer_defaults: &Transformer_defaults
     name: Transformer
     emb_dim: 512
     mlp_dim: 1024
-    n_heads: 8
-    n_layers: 6
+    n_heads: 12
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.1
     causal: True
     weight_tying: True
@@ -104,13 +104,13 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     emb_dim: 512
     mlp_dim: 1024
     mem_dim: 16
-    n_heads: 8
-    n_layers: 6
+    n_heads: 12
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.1
     causal: True
     weight_tying: True
@@ -138,13 +138,13 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     name: LinearTransformer
     emb_dim: 512
     mlp_dim: 1024
-    n_heads: 8
-    n_layers: 6
+    n_heads: 12
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.1
     causal: True
     weight_tying: True
@@ -172,13 +172,13 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     name: OrthoLinearTransformer
     emb_dim: 512
     mlp_dim: 1024
-    n_heads: 8
-    n_layers: 6
+    n_heads: 12
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.1
     causal: True
     weight_tying: True
@@ -208,13 +208,13 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     masked_window: True
     dilate: True
     # dilation_factor: 64
-    n_heads: 8
-    n_layers: 6
+    n_heads: 12
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
     mlp_bias: False
-    attention_bias: False
+    attn_bias: False
     dropout: 0.1
     causal: True
     weight_tying: True
@@ -234,25 +234,25 @@ experiments:
       <<: *SlidingWindowTransformer_general
       seed: 0
 
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 42
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 42
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 1111
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 1111
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 2222
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 2222
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 3333
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 3333
   
   - <<: *CompressionTransformer_defaults
     general:

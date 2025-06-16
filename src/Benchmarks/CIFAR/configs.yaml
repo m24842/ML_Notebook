@@ -18,10 +18,12 @@ global:
         root: data
         train: True
         permuted: False
+        grayscale: False
       test:
         root: data
         train: False
         permuted: False
+        grayscale: False
   
   checkpoint_freq: 500
 
@@ -41,7 +43,7 @@ Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 20
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -52,10 +54,10 @@ Transformer_defaults: &Transformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 3
     output_dim: 10
     attn_sink: False
-    dropout: 0.1
+    dropout: 0.0
     causal: False
     use_embedding: False
     pos_encoding: abs
@@ -71,7 +73,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   general: &CompressionTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 20
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -83,10 +85,10 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     mem_dim: 64
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 3
     output_dim: 10
     attn_sink: False
-    dropout: 0.1
+    dropout: 0.0
     causal: False
     use_embedding: False
     pos_encoding: abs
@@ -102,7 +104,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   general: &LinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 20
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -113,10 +115,10 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 3
     output_dim: 10
     attn_sink: False
-    dropout: 0.1
+    dropout: 0.0
     causal: False
     use_embedding: False
     pos_encoding: abs
@@ -132,7 +134,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   general: &OrthoLinearTransformer_general
     load_checkpoint: False
     seed: 0
-    batch_size: 32
+    batch_size: 64
     epochs: 20
     grad_clip_norm: 1.0
     mixed_precision: True
@@ -143,10 +145,10 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 3
     output_dim: 10
     attn_sink: False
-    dropout: 0.1
+    dropout: 0.0
     causal: False
     use_embedding: False
     pos_encoding: abs
@@ -163,7 +165,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     load_checkpoint: False
     seed: 0
     batch_size: 64
-    epochs: 10
+    epochs: 20
     grad_clip_norm: 1.0
     mixed_precision: True
   
@@ -177,10 +179,10 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     # dilation_factor: 64
     n_heads: 4
     n_layers: 4
-    input_dim: 1
+    input_dim: 3
     output_dim: 10
     attn_sink: False
-    dropout: 0.1
+    dropout: 0.0
     causal: False
     use_embedding: False
     pos_encoding: abs
