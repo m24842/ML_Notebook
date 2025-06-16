@@ -73,6 +73,7 @@ Transformer_defaults: &Transformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    attn_sink: False
     mlp_bias: False
     attention_bias: False
     dropout: 0.1
@@ -107,6 +108,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    attn_sink: False
     mlp_bias: False
     attention_bias: False
     dropout: 0.1
@@ -140,6 +142,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    attn_sink: False
     mlp_bias: False
     attention_bias: False
     dropout: 0.1
@@ -173,6 +176,43 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
+    attn_sink: False
+    mlp_bias: False
+    attention_bias: False
+    dropout: 0.1
+    causal: True
+    weight_tying: True
+    use_embedding: True
+    pos_encoding: xpos
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
+  general: &SlidingWindowTransformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 64
+    epochs: 10
+    grad_clip_norm: 1.0
+    mixed_precision: True
+  
+  model: &SlidingWindowTransformer_model
+    name: SlidingWindowTransformer
+    emb_dim: 512
+    mlp_dim: 1024
+    window_len: 512
+    masked_window: True
+    dilate: True
+    dilation_factor: 2
+    n_heads: 8
+    n_layers: 6
+    input_dim: 50277
+    output_dim: 50277
+    attn_sink: False
     mlp_bias: False
     attention_bias: False
     dropout: 0.1
@@ -189,6 +229,31 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 0
+
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 42
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 1111
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 2222
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 3333
+  
   - <<: *CompressionTransformer_defaults
     general:
       <<: *CompressionTransformer_general

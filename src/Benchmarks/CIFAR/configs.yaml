@@ -54,6 +54,7 @@ Transformer_defaults: &Transformer_defaults
     n_layers: 4
     input_dim: 1
     output_dim: 10
+    attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: False
@@ -84,6 +85,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_layers: 4
     input_dim: 1
     output_dim: 10
+    attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: False
@@ -113,6 +115,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_layers: 4
     input_dim: 1
     output_dim: 10
+    attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: False
@@ -142,6 +145,41 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_layers: 4
     input_dim: 1
     output_dim: 10
+    attn_sink: False
+    dropout: 0.1
+    causal: False
+    use_embedding: False
+    pos_encoding: abs
+    pos_encoding_max_len: 1024
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
+  general: &SlidingWindowTransformer_general
+    load_checkpoint: False
+    seed: 0
+    batch_size: 64
+    epochs: 10
+    grad_clip_norm: 1.0
+    mixed_precision: True
+  
+  model: &SlidingWindowTransformer_model
+    name: SlidingWindowTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    window_len: 512
+    masked_window: True
+    dilate: True
+    dilation_factor: 2
+    n_heads: 4
+    n_layers: 4
+    input_dim: 1
+    output_dim: 10
+    attn_sink: False
     dropout: 0.1
     causal: False
     use_embedding: False
@@ -156,6 +194,31 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 0
+
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 42
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 1111
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 2222
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 3333
+
   - <<: *CompressionTransformer_defaults
     general:
       <<: *CompressionTransformer_general
