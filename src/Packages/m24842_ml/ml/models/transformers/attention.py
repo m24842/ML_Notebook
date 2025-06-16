@@ -13,8 +13,8 @@ class MultiheadAttention(nn.Module):
     Vanilla Multihead Attention.
     Slight difference: the typical 1/sqrt(d_model) attention score scale is now a per head learnable parameter beta initialized at 1/sqrt(d_model).
     """
-    def __init__(self, d_model, n_heads, dropout=0.0, bias=True, add_bias_kv=False, 
-                 add_zero_attn=False, batch_first=False, device="cpu"):
+    def __init__(self, d_model, n_heads, dropout=0.0, bias=True,
+                 attn_sink=False, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
@@ -25,7 +25,6 @@ class MultiheadAttention(nn.Module):
         
         assert self.d_head * n_heads == self.d_model, "d_model must be divisible by n_heads"
         
-        # Linear projections for query, key, and value
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
@@ -33,14 +32,7 @@ class MultiheadAttention(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
-        # Optional bias for key and value
-        if add_bias_kv:
-            self.bias_k = nn.Parameter(torch.empty((1, 1, d_model), device=device))
-            self.bias_v = nn.Parameter(torch.empty((1, 1, d_model), device=device))
-        else:
-            self.bias_k = self.bias_v = None
-        
-        self.add_zero_attn = add_zero_attn
+        self.attn_sink = attn_sink
         
         self._reset_parameters()
         
@@ -54,36 +46,8 @@ class MultiheadAttention(nn.Module):
         
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
-            
-        if self.bias_k is not None:
-            nn.init.xavier_normal_(self.bias_k)
-        if self.bias_v is not None:
-            nn.init.xavier_normal_(self.bias_v)
         
-    def forward(self, x, key_padding_mask=None, need_weights=True, 
-                attn_mask=None, average_attn_weights=True, rope=None):
-        """
-        Forward pass for the MultiheadAttention module.
-        
-        Args:
-            query: Query embeddings of shape (seq_len_q, batch_size, d_model) or 
-                  (batch_size, seq_len_q, d_model) if batch_first=True
-            key: Key embeddings of shape (seq_len_k, batch_size, d_model) or
-                 (batch_size, seq_len_k, d_model) if batch_first=True
-            value: Value embeddings of shape (seq_len_v, batch_size, d_model) or
-                   (batch_size, seq_len_v, d_model) if batch_first=True
-            key_padding_mask: If provided, specified padding elements in the key will
-                              be ignored by the attention. Shape: (batch_size, seq_len_k)
-            need_weights: If True, returns attention weights in addition to attention output
-            attn_mask: 2D or 3D mask that prevents attention to certain positions
-            average_attn_weights: If True, returns averaged attention weights over heads
-            
-        Returns:
-            attn_output: Attention output of shape (seq_len_q, batch_size, d_model) or
-                         (batch_size, seq_len_q, d_model) if batch_first=True
-            attn_output_weights: Attention weights of shape (batch_size, seq_len_q, seq_len_k)
-                                 if need_weights=True, otherwise None
-        """
+    def forward(self, x, attn_mask=None, rope=None):
         # Handle batch_first option
         if self.batch_first:
             x = x.transpose(0, 1)
@@ -96,25 +60,13 @@ class MultiheadAttention(nn.Module):
         k = self.k_proj(x)  # (src_len, batch_size, d_model)
         v = self.v_proj(x)  # (src_len, batch_size, d_model)
         
-        # Handle bias for key and value if present
-        if self.bias_k is not None and self.bias_v is not None:
-            k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
-            v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
-            if attn_mask is not None:
-                attn_mask = F.pad(attn_mask, (0, 1))
-            if key_padding_mask is not None:
-                key_padding_mask = F.pad(key_padding_mask, (0, 1))
-            src_len += 1
-        
         # Add zero attention if requested
-        if self.add_zero_attn:
+        if self.attn_sink:
             src_len += 1
-            k = torch.cat([k, torch.zeros((1, bsz, d_model), dtype=k.dtype, device=k.device)], d_model=0)
-            v = torch.cat([v, torch.zeros((1, bsz, d_model), dtype=v.dtype, device=v.device)], d_model=0)
+            k = torch.cat([k, torch.zeros((1, bsz, d_model), dtype=k.dtype, device=k.device)], dim=0)
+            v = torch.cat([v, torch.zeros((1, bsz, d_model), dtype=v.dtype, device=v.device)], dim=0)
             if attn_mask is not None:
                 attn_mask = F.pad(attn_mask, (0, 1))
-            if key_padding_mask is not None:
-                key_padding_mask = F.pad(key_padding_mask, (0, 1))
         
         # Reshape q, k, v for multi-head attention
         q = q.contiguous().view(tgt_len, bsz * self.n_heads, self.d_head).transpose(0, 1)
@@ -144,15 +96,6 @@ class MultiheadAttention(nn.Module):
                 attn_mask = attn_mask.repeat(self.n_heads, 1, 1)
             attn_output_weights = attn_output_weights + attn_mask
         
-        # Apply key padding mask if provided
-        if key_padding_mask is not None:
-            attn_output_weights = attn_output_weights.view(bsz, self.n_heads, tgt_len, src_len)
-            attn_output_weights = attn_output_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float('-inf'),
-            )
-            attn_output_weights = attn_output_weights.view(bsz * self.n_heads, tgt_len, src_len)
-        
         # Convert attention weights to probabilities
         attn_output_weights = F.softmax(attn_output_weights, dim=-1)
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
@@ -164,29 +107,22 @@ class MultiheadAttention(nn.Module):
         attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, d_model)
         attn_output = self.out_proj(attn_output)
         
-        # Process attention weights if needed
-        if need_weights:
-            attn_output_weights = attn_output_weights.view(bsz, self.n_heads, tgt_len, src_len)
-            if average_attn_weights:
-                attn_output_weights = attn_output_weights.mean(dim=1)
-        else:
-            attn_output_weights = None
-        
         # Return in the correct format depending on batch_first
         if self.batch_first:
-            return attn_output.transpose(0, 1), attn_output_weights
-        return attn_output, attn_output_weights
+            return attn_output.transpose(0, 1)
+        return attn_output
 
 class LinearAttention(nn.Module):
     """
     Vanilla Linear Attention.
     Kernel function is softplus.
     """
-    def __init__(self, d_model, n_heads, bias=True, device="cpu"):
+    def __init__(self, d_model, n_heads, bias=True, attn_sink=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
+        self.attn_sink = attn_sink
         self.device = device
         
         self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
@@ -212,10 +148,16 @@ class LinearAttention(nn.Module):
             nn.init.constant_(self.out_proj.bias, 0.)
     
     def forward(self, x, rope=None, causal=True):
-        bsz, seq_len, d_model = x.size()
+        bsz, src_len, d_model = x.size()
+        tgt_len = src_len
         q = rearrange(self.q_proj(x), 'b s (h d) -> b h s d', h=self.n_heads)
         k = rearrange(self.k_proj(x), 'b s (h d) -> b h s d', h=self.n_heads)
         v = rearrange(self.v_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        
+        if self.attn_sink:
+            src_len += 1
+            k = torch.cat([k, torch.zeros((bsz, self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=2)
+            v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=1)
         
         if rope:
             if rope.use_xpos:
@@ -223,8 +165,8 @@ class LinearAttention(nn.Module):
             else:
                 q = rope.rotate_queries_or_keys(q)
                 k = rope.rotate_queries_or_keys(k)
-        q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-        k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+        q = q.reshape(bsz * self.n_heads, tgt_len, self.d_head).contiguous()
+        k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         # q = torch.exp(q)
         # k = torch.exp(k)
@@ -241,7 +183,6 @@ class LinearAttention(nn.Module):
             k1 = k.sum(dim=1, keepdim=True)
         
         out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / (q*k1).sum(-1, keepdim=True)
-        
         out = rearrange(out, '(b h) s d -> b s (h d)', h=self.n_heads)
         return self.out_proj(out)
 
@@ -250,11 +191,12 @@ class OrthoLinearAttention(nn.Module):
     Orthogonal Linear Attention.
     A derivative of linear attention that orthogonalizes queries and keys for each head to reduce crossterm interference.
     """
-    def __init__(self, d_model, n_heads, bias=True, device="cpu"):
+    def __init__(self, d_model, n_heads, bias=True, attn_sink=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
+        self.attn_sink = attn_sink
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
@@ -285,16 +227,22 @@ class OrthoLinearAttention(nn.Module):
     def forward(self, x: torch.Tensor, rope: Optional[RotaryEmbedding] = None, causal: bool = True) -> torch.Tensor:
         """
         Args:
-            x (torch.Tensor): Input sequence of shape (batch_size, seq_len, d_model).
+            x (torch.Tensor): Input sequence of shape (batch_size, src_len, d_model).
             rope (Optional[RotaryEmbedding]): Optional RoPE encoder for rotating queries and keys.
 
         Returns:
-            torch.Tensor: Output sequence of shape (batch_size, seq_len, d_model).
+            torch.Tensor: Output sequence of shape (batch_size, src_len, d_model).
         """
-        bsz, seq_len, d_model = x.size()
+        bsz, src_len, d_model = x.size()
+        tgt_len = src_len
         q = rearrange(self.q_proj(x), 'b s (h d) -> b h s d', h=self.n_heads)
         k = rearrange(self.k_proj(x), 'b s (h d) -> b h s d', h=self.n_heads)
         v = rearrange(self.v_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        
+        if self.attn_sink:
+            src_len += 1
+            k = torch.cat([k, torch.zeros((bsz, self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=2)
+            v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=1)
         
         if rope:
             if rope.use_xpos:
@@ -302,8 +250,8 @@ class OrthoLinearAttention(nn.Module):
             else:
                 q = rope.rotate_queries_or_keys(q)
                 k = rope.rotate_queries_or_keys(k)
-        q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-        k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+        q = q.reshape(bsz * self.n_heads, tgt_len, self.d_head).contiguous()
+        k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
@@ -327,13 +275,14 @@ class CompressionAttention(nn.Module):
     A derivative of softmax attention that compresses input sequences to a fixed length before expanding back to the original length.
     Achieved by two linear with sequence length attention operations.
     """
-    def __init__(self, d_model, n_heads, compressed_len,
+    def __init__(self, d_model, n_heads, compressed_len, attn_sink=False,
                  dropout=0.0, bias=True, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
         self.compressed_len = compressed_len
+        self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.dropout = dropout
         self.device = device
@@ -372,13 +321,18 @@ class CompressionAttention(nn.Module):
             x = x.transpose(0, 1)
         
         cmprs_len = self.compressed_len
-        _, bsz, d_model = x.shape
-        src_len = x.shape[0]
+        src_len, bsz, d_model = x.shape
+        tgt_len = src_len
         
         q_c = self.q_c.unsqueeze(1).repeat(1, bsz, 1)  # (compressed_len, d_model)
-        q_s = self.q_proj(x)  # (src_len, batch_size, d_model)
+        q_s = self.q_proj(x)  # (tgt_len, batch_size, d_model)
         k_s = self.k_proj(x)  # (src_len, batch_size, d_model)
         v_s = self.v_proj(x)  # (src_len, batch_size, d_model)
+        
+        if self.attn_sink:
+            src_len += 1
+            k_s = torch.cat([k_s, torch.zeros((1, bsz, d_model), dtype=x.dtype, device=x.device)], dim=0)
+            v_s = torch.cat([v_s, torch.zeros((1, bsz, d_model), dtype=x.dtype, device=x.device)], dim=0)
         
         # Reshape for multi-head attention
         q_c = rearrange(q_c, 'c b (h d) -> (b h) c d', h=self.n_heads).contiguous()
@@ -388,11 +342,11 @@ class CompressionAttention(nn.Module):
         
         if rope:
             if rope.use_xpos:
-                q_s, k_s = rope.rotate_queries_and_keys(q_s.reshape(bsz, self.n_heads, src_len, self.d_head), k_s.reshape(bsz, self.n_heads, src_len, self.d_head))
+                q_s, k_s = rope.rotate_queries_and_keys(q_s.reshape(bsz, self.n_heads, tgt_len, self.d_head), k_s.reshape(bsz, self.n_heads, src_len, self.d_head))
             else:
-                q_s = rope.rotate_queries_or_keys(q_s.reshape(bsz, self.n_heads, src_len, self.d_head))
+                q_s = rope.rotate_queries_or_keys(q_s.reshape(bsz, self.n_heads, tgt_len, self.d_head))
                 k_s = rope.rotate_queries_or_keys(k_s.reshape(bsz, self.n_heads, src_len, self.d_head))
-            q_s = q_s.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
+            q_s = q_s.reshape(bsz * self.n_heads, tgt_len, self.d_head).contiguous()
             k_s = k_s.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         kv_s = torch.cat([k_s, v_s], dim=-1)  # (bsz * n_heads, src_len, 2*d_head)
@@ -419,29 +373,29 @@ class CompressionAttention(nn.Module):
             # Calculate attention scores for compressed output
             kv_c = torch.cumsum((c_attn_weights.unsqueeze(-1) * kv_s.unsqueeze(1)), dim=2) / c_attn_norm.unsqueeze(-1)  # (bsz * n_heads, cmprs_len, src_len, 2*d_head)
             k_c, v_c = kv_c.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, cmprs_len, src_len, d_head)
-            s_attn_weights = torch.einsum('zsd, zcsd -> zsc', q_s, k_c)  # (bsz * n_heads, src_len, cmprs_len)
+            s_attn_weights = torch.einsum('zsd, zcsd -> zsc', q_s, k_c)  # (bsz * n_heads, tgt_len, cmprs_len)
             
             # Convert attention weights to probabilities
             s_attn_weights = F.softmax(s_attn_weights, dim=-1)
             s_attn_weights = F.dropout(s_attn_weights, p=self.dropout, training=self.training)
             
             # Apply attention weights to values
-            s_attn_output = torch.einsum('zsc, zcsd -> zsd', s_attn_weights, v_c)  # (bsz * n_heads, src_len, d_head)
+            s_attn_output = torch.einsum('zsc, zcsd -> zsd', s_attn_weights, v_c)  # (bsz * n_heads, tgt_len, d_head)
         else:
             # Calculate attention scores for compressed output
             kv_c = torch.bmm(c_attn_weights, kv_s)  # (bsz * n_heads, cmprs_len, 2*d_head)
             k_c, v_c = kv_c.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, cmprs_len, d_head)
-            s_attn_weights = torch.bmm(q_s, k_c.transpose(1, 2))  # (bsz * n_heads, src_len, cmprs_len)
+            s_attn_weights = torch.bmm(q_s, k_c.transpose(1, 2))  # (bsz * n_heads, tgt_len, cmprs_len)
             
             # Convert attention weights to probabilities
             s_attn_weights = F.softmax(s_attn_weights, dim=-1)
             s_attn_weights = F.dropout(s_attn_weights, p=self.dropout, training=self.training)
             
             # Apply attention weights to values
-            s_attn_output = torch.bmm(s_attn_weights, v_c)  # (bsz * n_heads, src_len, d_head)
+            s_attn_output = torch.bmm(s_attn_weights, v_c)  # (bsz * n_heads, tgt_len, d_head)
         
         # Reshape output
-        s_attn_output = s_attn_output.transpose(0, 1).contiguous().view(src_len, bsz, d_model)
+        s_attn_output = s_attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, d_model)
         
         # Apply final projection
         s_attn_output = self.out_proj(s_attn_output)
@@ -453,7 +407,7 @@ class CompressionAttention(nn.Module):
 
 class SlidingWindowAttention(nn.Module):
     def __init__(self, d_model, n_heads, window_len, dilation=1,
-                 dropout=0.0, bias=True, batch_first=False,
+                 attn_sink=False, dropout=0.0, bias=True, batch_first=False,
                  masked_window=True, device="cpu"):
         super().__init__()
         self.d_model = d_model
@@ -465,6 +419,7 @@ class SlidingWindowAttention(nn.Module):
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
         self.masked_window = masked_window
+        self.attn_sink = attn_sink
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
@@ -515,9 +470,6 @@ class SlidingWindowAttention(nn.Module):
         allowed = (abs_diff <= dilation * half) & ((diff % dilation) == 0)
 
         mask = torch.where(allowed, 0.0, float('-inf'))
-        # import matplotlib.pyplot as plt
-        # plt.imshow(allowed.cpu().numpy(), cmap='gray', interpolation='nearest')
-        # plt.show()
         return mask
     
     def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
@@ -601,12 +553,12 @@ class SlidingWindowAttention(nn.Module):
         if self.batch_first:
             x = x.transpose(0, 1)
         
-        _, bsz, d_model = x.shape
-        seq_len = x.shape[0]
+        src_len, bsz, d_model = x.shape
+        tgt_len = src_len
         
-        q = self.q_proj(x)  # (seq_len, batch_size, d_model)
-        k = self.k_proj(x)  # (seq_len, batch_size, d_model)
-        v = self.v_proj(x)  # (seq_len, batch_size, d_model)
+        q = self.q_proj(x)  # (src_len, batch_size, d_model)
+        k = self.k_proj(x)  # (src_len, batch_size, d_model)
+        v = self.v_proj(x)  # (src_len, batch_size, d_model)
         
         # Reshape for multi-head attention
         q = rearrange(q, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
@@ -615,12 +567,12 @@ class SlidingWindowAttention(nn.Module):
         
         if rope:
             if rope.use_xpos:
-                q, k = rope.rotate_queries_and_keys(q.reshape(bsz, self.n_heads, seq_len, self.d_head), k.reshape(bsz, self.n_heads, seq_len, self.d_head))
+                q, k = rope.rotate_queries_and_keys(q.reshape(bsz, self.n_heads, src_len, self.d_head), k.reshape(bsz, self.n_heads, src_len, self.d_head))
             else:
-                q = rope.rotate_queries_or_keys(q.reshape(bsz, self.n_heads, seq_len, self.d_head))
-                k = rope.rotate_queries_or_keys(k.reshape(bsz, self.n_heads, seq_len, self.d_head))
-            q = q.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
-            k = k.reshape(bsz * self.n_heads, seq_len, self.d_head).contiguous()
+                q = rope.rotate_queries_or_keys(q.reshape(bsz, self.n_heads, src_len, self.d_head))
+                k = rope.rotate_queries_or_keys(k.reshape(bsz, self.n_heads, src_len, self.d_head))
+            q = q.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
+            k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
@@ -628,19 +580,25 @@ class SlidingWindowAttention(nn.Module):
         
         if self.masked_window:
             if causal:
-                attn_mask = self.causal_windowed_mask(seq_len, self.window_len, dilation=self.dilation)
+                attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation)
             else:
-                attn_mask = self.symmetric_windowed_mask(seq_len, self.window_len, dilation=self.dilation)
-                        
-            attn_output_weights = torch.bmm(q, k.transpose(1, 2))  # (bsz * n_heads, seq_len, seq_len)
-            attn_output_weights = attn_output_weights + attn_mask.unsqueeze(0)  # (bsz * n_heads, seq_len, seq_len)
+                attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation)
+            
+            attn_output_weights = torch.bmm(q, k.transpose(1, 2))  # (bsz * n_heads, src_len, src_len)
+            attn_output_weights = attn_output_weights + attn_mask.unsqueeze(0)  # (bsz * n_heads, src_len, src_len)
+            
+            if self.attn_sink:
+                sink_weight = torch.zeros((bsz * self.n_heads, src_len, 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, src_len, src_len + 1)
             
             # Convert attention weights to probabilities
             attn_output_weights = F.softmax(attn_output_weights, dim=-1)
             attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
             
+            if self.attn_sink: attn_output_weights = attn_output_weights[..., :-1]
+            
             # Apply attention weights to values
-            attn_output = torch.bmm(attn_output_weights, v)  # (bsz * n_heads, seq_len, d_head)
+            attn_output = torch.bmm(attn_output_weights, v)  # (bsz * n_heads, src_len, d_head)
         
         else:
             if causal:
@@ -651,11 +609,17 @@ class SlidingWindowAttention(nn.Module):
             k = self.windowed_view(k, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
             v = self.windowed_view(v, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
         
-            attn_output_weights = torch.einsum('zsd, zswd -> zsw', q, k)  # (bsz * n_heads, seq_len, window_len)
+            attn_output_weights = torch.einsum('zsd, zswd -> zsw', q, k)  # (bsz * n_heads, src_len, window_len)
+            
+            if self.attn_sink:
+                sink_weight = torch.zeros((bsz * self.n_heads, src_len, 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, src_len, window_len + 1)
             
             # Convert attention weights to probabilities
             attn_output_weights = F.softmax(attn_output_weights, dim=-1)
             attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
+            
+            if self.attn_sink: attn_output_weights = attn_output_weights[..., :-1]
             
             # Apply attention weights to values
             attn_output = torch.einsum('zsw, zswd -> zsd', attn_output_weights, v)

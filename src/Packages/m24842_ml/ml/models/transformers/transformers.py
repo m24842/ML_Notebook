@@ -12,7 +12,7 @@ from ..common import *
 
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None,
+                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
                  dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -47,9 +47,9 @@ class Transformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
                     dropout1 = nn.Dropout(dropout),
-                    attention = MultiheadAttention(emb_dim, self.n_heads, bias=attention_bias, batch_first=True, device=device),
+                    attention = MultiheadAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attention_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
-                    dropout2 = nn.Dropout(dropout, device=device),
+                    dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
                         nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
                         nn.ReLU(),
@@ -78,7 +78,7 @@ class Transformer(nn.Module):
             if layer.abs_pos_encoding is not None:
                 pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
                 x = x + layer.abs_pos_encoding(pos)
-            a_out, _ = layer.attention(x, attn_mask=mask, rope=self.rope if self.pos_encoding == "rope" else None)
+            a_out = layer.attention(x, attn_mask=mask, rope=self.rope if self.pos_encoding == "rope" else None)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x + layer.dropout2(ff_out)
@@ -88,7 +88,7 @@ class Transformer(nn.Module):
 
 class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None,
+                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
                  dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -123,7 +123,7 @@ class LinearTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = LinearAttention(emb_dim, self.n_heads, bias=attention_bias, device=device),
+                    attention = LinearAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attention_bias, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
@@ -162,7 +162,7 @@ class LinearTransformer(nn.Module):
 
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None,
+                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
                  dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -197,7 +197,7 @@ class OrthoLinearTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = OrthoLinearAttention(emb_dim, self.n_heads, bias=attention_bias, device=device),
+                    attention = OrthoLinearAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attention_bias, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
@@ -236,7 +236,7 @@ class OrthoLinearTransformer(nn.Module):
 
 class CompressionTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16,
+                 n_layers=1, n_heads=1, mlp_dim=None, mem_dim=16, attn_sink=False, 
                  dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -272,7 +272,7 @@ class CompressionTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = CompressionAttention(emb_dim, self.n_heads, compressed_len=self.compressed_len, dropout=dropout, bias=attention_bias, batch_first=True, device=device),
+                    attention = CompressionAttention(emb_dim, self.n_heads, compressed_len=self.compressed_len, attn_sink=attn_sink, dropout=dropout, bias=attention_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
@@ -312,7 +312,8 @@ class CompressionTransformer(nn.Module):
 class SlidingWindowTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None, window_len=64, masked_window=True,
-                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
+                 attn_sink=False, dilate=True, dilation_factor=2, dropout=0.0,
+                 causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attention_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
@@ -346,7 +347,7 @@ class SlidingWindowTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = SlidingWindowAttention(emb_dim, self.n_heads, window_len=window_len, masked_window=masked_window, dilation=2**i, dropout=dropout, bias=attention_bias, batch_first=True, device=device),
+                    attention = SlidingWindowAttention(emb_dim, self.n_heads, window_len=window_len, masked_window=masked_window, attn_sink=attn_sink, dilation=dilation_factor**i if dilate else 1, dropout=dropout, bias=attention_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(
