@@ -466,29 +466,8 @@ class SlidingWindowAttention(nn.Module):
         return mask
     
     def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
-        """
-        Creates a sliding window view of a tensor over a specified dimension.
-
-        This function uses `as_strided` to create a view of the input tensor
-        without making a copy of the data. The new view has an additional
-        dimension corresponding to the window size.
-
-        Args:
-            x (Tensor): The input tensor of arbitrary shape.
-            size (int): The number of elements in each window.
-            dim (int): The dimension to apply the windowing operation over.
-            stride (int): The distance between the start of successive windows.
-            dilation (int, optional): The spacing between elements within a window.
-                                    Defaults to 1.
-            pad (tuple, optional): Amount of zero-padding to add to the left and right
-                                    of the specified dimension. Defaults to (0, 0).
-
-        Returns:
-            Tensor: A view of the input tensor with an added dimension for the windows.
-                    The windowed dimension `dim` is replaced by two dimensions:
-                    `(num_windows, size)`. The new shape is
-                    `(*x.shape[:dim], num_windows, size, *x.shape[dim+1:])`.
-        """
+        if dilation > size: return self.windowed_view_no_pad(x, size, dim, stride, dilation, pad)
+        
         # --- 1. Validate and prepare dimensions ---
         ndim = x.dim()
         if dim < -ndim or dim >= ndim:
@@ -541,6 +520,60 @@ class SlidingWindowAttention(nn.Module):
         )
 
         return x.as_strided(out_shape, tuple(out_stride))
+    
+    def windowed_view_no_pad(self, x, size, dim, stride=1, dilation=1, pad=(0,0)):
+        # 1) normalize dim
+        ndim = x.dim()
+        if dim < 0:
+            dim += ndim
+
+        N = x.size(dim)
+        pad_l, pad_r = pad
+
+        # 2) effective window length & number of windows
+        eff = (size - 1) * dilation + 1
+        W = (N + pad_l + pad_r - eff) // stride + 1
+        if W <= 0:
+            # empty case
+            out_shape = list(x.shape)
+            out_shape[dim:dim+1] = [0, size]
+            return x.new_empty(out_shape)
+
+        # 3) permute so that `dim` → last
+        axes = [d for d in range(ndim) if d != dim] + [dim]
+        x_perm = x.permute(axes)             # shape: [*batch, N]
+        B_shape = x_perm.shape[:-1]         # tuple of batch dims
+        B = int(torch.prod(torch.tensor(B_shape)))  # total batch
+
+        # 4) flatten batch dims → [B, N]
+        x_flat = x_perm.reshape(B, N)
+
+        # 5) build the [W, S] abs‑index matrix
+        starts  = torch.arange(W, device=x.device) * stride - pad_l   # (W,)
+        offsets = torch.arange(size, device=x.device) * dilation      # (S,)
+        abs_idx = starts[:, None] + offsets[None, :]                  # (W, S)
+
+        # 6) clamp for safe gather
+        clamped = abs_idx.clamp(0, N-1)   # (W, S)
+
+        # 7) expand and gather in one shot:
+        #    x_exp: [B, W, N]; idx_exp: [B, W, S]
+        x_exp   = x_flat.unsqueeze(1).expand(B, W, N)
+        idx_exp = clamped.unsqueeze(0).expand(B, W, size)
+        out_flat = x_exp.gather(2, idx_exp)   # → [B, W, S]
+
+        # 8) zero‑mask real OOB slots
+        mask = (abs_idx < 0) | (abs_idx >= N)       # (W, S)
+        mask_exp = mask.unsqueeze(0).expand(B, W, size)
+        out_flat = out_flat.masked_fill(mask_exp, 0)
+
+        # 9) un‑flatten → [*batch, W, S]
+        out_perm = out_flat.reshape(*B_shape, W, size)
+
+        # 10) move the last two axes back to (dim, dim+1)
+        out = out_perm.moveaxis([-2, -1], [dim, dim+1])
+
+        return out
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
