@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.linalg as LA
 import math
+import warnings
 import opt_einsum
 from functools import lru_cache
 from einops import rearrange
@@ -397,6 +398,10 @@ class CompressionAttention(nn.Module):
         return s_attn_output
 
 class SlidingWindowAttention(nn.Module):
+    """
+    Sliding Window Attention.
+    Applies softmax attention over a dilated sliding window of fixed length.
+    """
     def __init__(self, d_model, n_heads, window_len, dilation=1,
                  attn_sink=False, dropout=0.0, bias=True, batch_first=False,
                  masked_window=True, device="cpu"):
@@ -465,7 +470,7 @@ class SlidingWindowAttention(nn.Module):
         mask = torch.where(allowed, 0.0, float('-inf'))
         return mask
     
-    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):        
+    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
         # --- 1. Validate and prepare dimensions ---
         ndim = x.dim()
         if dim < -ndim or dim >= ndim:
@@ -524,7 +529,6 @@ class SlidingWindowAttention(nn.Module):
             x = x.transpose(0, 1)
         
         src_len, bsz, d_model = x.shape
-        tgt_len = src_len
         
         q = self.q_proj(x)  # (src_len, batch_size, d_model)
         k = self.k_proj(x)  # (src_len, batch_size, d_model)
@@ -574,32 +578,210 @@ class SlidingWindowAttention(nn.Module):
             # Computing attention for each band of the dilated sliding window instead of windowing k and v
             # Avoids unncessary padding and consumes far less compute
             
-            pad_ammount = self.padding % src_len
-            if pad_ammount == self.padding: pad_ammount = 0
+            pad_amount = self.padding % src_len
+            if pad_amount == self.padding: pad_amount = 0
             if causal:
-                pad = (pad_ammount, 0)
+                pad = (pad_amount, 0)
             else:
-                pad = (pad_ammount//2, pad_ammount//2)
+                pad = (pad_amount//2, pad_amount//2)
             
-            q = self.windowed_view(q, src_len, dim=1, stride=self.window_len, dilation=1, pad=pad)
-        
+            q = self.windowed_view(q, src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
+
             attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q, k)  # (bsz * n_heads, n_bands, src_len)
             
             if self.attn_sink:
-                sink_weight = torch.zeros((bsz * self.n_heads, attn_output_weights.shape[1], 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
-                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, n_bands, src_len + 1)
+                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=1)  # (bsz * n_heads, n_bands+1, src_len)
             
             # Convert attention weights to probabilities
-            attn_output_weights = F.softmax(attn_output_weights, dim=-1)
+            attn_output_weights = F.softmax(attn_output_weights, dim=1)
             attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
             
-            if self.attn_sink: attn_output_weights = attn_output_weights[..., :-1]
+            if self.attn_sink: attn_output_weights = attn_output_weights[:, :-1]
             
             # Apply attention weights to values
             attn_output = torch.einsum('zbs, zsd -> zbd', attn_output_weights, v)
             
             # Pad to src_len
             attn_output = F.pad(attn_output, (0, 0, src_len - attn_output.shape[1], 0), mode="constant", value=0)
+        
+        # Apply final projection
+        attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
+        attn_output = self.out_proj(attn_output)
+        
+        # Return in the correct format depending on batch_first
+        if self.batch_first:
+            return attn_output.transpose(0, 1)
+        return attn_output
+
+class FastAttention(nn.Module):
+    """
+    Fast Attention.
+    A form of windowed attention that hierarchically computes windowed attention scores at exponentially larger dilations.
+    This allows attention over the full sequence length with far fewer operations than naive attention.
+    Note: attn_sink should generally be set to True for optimal performance.
+    """
+    def __init__(self, d_model, n_heads, window_len, dilation_factor=64, n_dilations=2,
+                 attn_sink=True, dropout=0.0, bias=True, batch_first=False,
+                 device="cpu"):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.window_len = window_len
+        self.dilation_factor = dilation_factor
+        self.n_dilations = n_dilations
+        self.dilations = [dilation_factor**i for i in range(n_dilations)]
+        self.padding_sizes = [(self.window_len - 1) * d for d in self.dilations]
+        self.dropout = dropout
+        self.batch_first = batch_first
+        self.d_head = d_model // n_heads
+        self.attn_sink = attn_sink
+        if not attn_sink: warnings.warn("FastAttention generally performs better with attn_sink=True. Using attn_sink=False may lead to suboptimal performance.", UserWarning)
+        self.device = device
+        
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta._no_weight_decay = True
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        
+        self._reset_parameters()
+        
+    def _reset_parameters(self):
+        nn.init.constant_(self.beta, 0.)
+        nn.init.xavier_uniform_(self.q_proj.weight)
+        nn.init.xavier_uniform_(self.k_proj.weight)
+        nn.init.xavier_uniform_(self.v_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
+        if self.out_proj.bias is not None:
+            nn.init.constant_(self.out_proj.bias, 0.)
+    
+    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
+        # --- 1. Validate and prepare dimensions ---
+        ndim = x.dim()
+        if dim < -ndim or dim >= ndim:
+            raise IndexError(f"Dimension out of range (expected to be in range of [-{ndim}, {ndim-1}], but got {dim})")
+        
+        # Convert negative dim to positive
+        if dim < 0:
+            dim = ndim + dim
+
+        # --- 2. Handle padding ---
+        if pad[0] > 0 or pad[1] > 0:
+            # Create a padding tuple for F.pad. It needs padding for all dimensions,
+            # so we create a list of zeros and fill in the padding for the target dim.
+            # F.pad expects padding in the order of (pad_last_dim, pad_penultimate_dim, ...).
+            pad_tuple = [0] * (2 * ndim)
+            pad_idx = 2 * (ndim - 1 - dim)
+            pad_tuple[pad_idx] = pad[0]
+            pad_tuple[pad_idx + 1] = pad[1]
+            x = F.pad(x, tuple(pad_tuple))
+
+        # --- 3. Calculate output shape ---
+        n_padded = x.shape[dim]
+        
+        # The effective size of the window, accounting for dilation
+        effective_window_size = (size - 1) * dilation + 1
+        
+        # Calculate the number of windows that can be extracted
+        num_windows = (n_padded - effective_window_size) // stride + 1
+
+        if num_windows <= 0:
+            # If no windows can be formed, return an empty tensor with the correct shape.
+            # This avoids errors with as_strided for zero-sized dimensions.
+            final_shape = list(x.shape)
+            final_shape[dim:dim+1] = [0, size]
+            return torch.empty(final_shape, dtype=x.dtype, device=x.device)
+
+        # New shape: original shape with `dim` replaced by (num_windows, size)
+        out_shape = list(x.shape)
+        out_shape[dim:dim+1] = [num_windows, size]
+
+        # --- 4. Calculate output strides ---
+        original_strides = x.stride()
+        element_stride = original_strides[dim]
+
+        # New strides: original strides with the stride for `dim` replaced by two new strides
+        out_stride = (
+            original_strides[:dim] 
+            + (stride * element_stride, dilation * element_stride) 
+            + original_strides[dim+1:]
+        )
+
+        return x.as_strided(out_shape, tuple(out_stride))
+    
+    def forward(self, x, rope=None, causal=True):
+        if self.batch_first:
+            x = x.transpose(0, 1)
+        
+        src_len, bsz, d_model = x.shape
+        
+        q = self.q_proj(x)  # (src_len, batch_size, d_model)
+        k = self.k_proj(x)  # (src_len, batch_size, d_model)
+        v = self.v_proj(x)  # (src_len, batch_size, d_model)
+        
+        # Reshape for multi-head attention
+        q = rearrange(q, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        k = rearrange(k, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v = rearrange(v, 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        
+        if rope:
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q.reshape(bsz, self.n_heads, src_len, self.d_head), k.reshape(bsz, self.n_heads, src_len, self.d_head))
+            else:
+                q = rope.rotate_queries_or_keys(q.reshape(bsz, self.n_heads, src_len, self.d_head))
+                k = rope.rotate_queries_or_keys(k.reshape(bsz, self.n_heads, src_len, self.d_head))
+            q = q.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
+            k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
+        
+        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q = q / (math.sqrt(self.d_head) * beta)
+        
+        # Computing attention for each band of the dilated sliding window instead of windowing k and v
+        # Avoids unncessary padding and consumes far less compute
+        pad_amounts = [(p % src_len) if (p % src_len != p) else 0 for p in self.padding_sizes]
+        if causal:
+            pads = [(pad, 0) for pad in pad_amounts]
+        else:
+            pads = [(pad // 2, pad // 2) for pad in pad_amounts]
+        
+        attn_output = torch.zeros_like(v)
+        for i in range(self.n_dilations):
+            pad = pads[i]
+            dilation = self.dilations[i]
+            
+            q_i = self.windowed_view(q, src_len, dim=1, stride=dilation, dilation=1, pad=pad)
+            
+            attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q_i, k)  # (bsz * n_heads, n_bands, src_len)
+            
+            if self.attn_sink:
+                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=1)  # (bsz * n_heads, n_bands+1, src_len)
+            
+            # Convert attention weights to probabilities
+            attn_output_weights = F.softmax(attn_output_weights, dim=1)
+            attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
+            
+            if self.attn_sink: attn_output_weights = attn_output_weights[:, :-1]
+            
+            # Apply attention weights to keys
+            k = torch.einsum('zbs, zsd -> zbd', attn_output_weights, k)
+            v = torch.einsum('zbs, zsd -> zbd', attn_output_weights, v)
+            
+            # Pad to src_len
+            k = F.pad(k, (0, 0, src_len - k.shape[1], 0), mode="constant", value=0)
+            v = F.pad(v, (0, 0, src_len - v.shape[1], 0), mode="constant", value=0)
+            
+            attn_output = attn_output + v
         
         # Apply final projection
         attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
