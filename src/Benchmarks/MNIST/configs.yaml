@@ -326,53 +326,53 @@ experiments:
   #     <<: *Transformer_general
   #     seed: 3333
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 0
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 0
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 42
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 42
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 1111
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 1111
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 2222
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 2222
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 3333
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 3333
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 0
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 0
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 42
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 42
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 1111
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 1111
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 2222
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 2222
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 3333
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 3333
   

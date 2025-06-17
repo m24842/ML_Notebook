@@ -7,6 +7,10 @@ import requests
 import wandb
 import torch
 
+class Ref:
+    def __init__(self, value):
+        self.value = value
+
 class NoEcho:
     _og_attrs = None
 
@@ -54,11 +58,15 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def report_bad_params(model):
+    any_bad_params = False
     for name, param in model.named_parameters():
         if torch.isnan(param).any():
+            any_bad_params = True
             print(f"Parameter {name}:\n{param.data}\n")
         elif torch.isinf(param).any():
+            any_bad_params = True
             print(f"Parameter {name}:\n{param.data}\n")
+    return any_bad_params
 
 def log_info(log_path, model, model_name, configs, train_accuracies=None, test_accuracies=None):
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')

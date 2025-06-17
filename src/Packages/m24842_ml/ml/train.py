@@ -6,6 +6,7 @@ import yaml
 import copy
 import torch
 import wandb
+import warnings
 import traceback
 from tqdm import tqdm
 import torch.nn as nn
@@ -54,11 +55,13 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             # Loss
             loss = loss_fn(output, target)
             if torch.isnan(loss).any():
-                report_bad_params(model)
-                raise ValueError(f"Loss is NaN: Epoch {epoch}, Batch {batch_idx}")
+                any_bad_params = report_bad_params(model)
+                warnings.warn(f"Loss is NaN: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
+                if any_bad_params: raise RuntimeError("NaN values detected in model parameters.")
             if torch.isinf(loss).any():
-                report_bad_params(model)
-                raise ValueError(f"Loss is Inf: Epoch {epoch}, Batch {batch_idx}")
+                any_bad_params = report_bad_params(model)
+                warnings.warn(f"Loss is Inf: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
+                if any_bad_params: raise RuntimeError("Inf values detected in model parameters.")
             batch_loss = loss.item()
             accumulated_batch_loss += batch_loss
             train_loss += loss.item()
