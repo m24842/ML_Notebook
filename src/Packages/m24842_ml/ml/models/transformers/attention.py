@@ -255,8 +255,8 @@ class OrthoLinearAttention(nn.Module):
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
-        q = q / (math.sqrt(self.d_head) * beta)
-        k = k / (math.sqrt(self.d_head) * beta)
+        q = q * beta
+        k = k * beta
         
         q = q.softmax(-1)
         k = k.softmax(-1)
