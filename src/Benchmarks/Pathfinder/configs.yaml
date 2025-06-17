@@ -48,6 +48,7 @@ Transformer_defaults: &Transformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &Transformer_model
     name: Transformer
@@ -78,6 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
@@ -109,6 +111,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &LinearTransformer_model
     name: LinearTransformer
@@ -139,6 +142,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
@@ -169,6 +173,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &SlidingWindowTransformer_model
     name: SlidingWindowTransformer
@@ -203,6 +208,7 @@ FastTransformer_defaults: &FastTransformer_defaults
     epochs: 10
     grad_clip_norm: 1.0
     mixed_precision: True
+    num_workers: 16
   
   model: &FastTransformer_model
     name: FastTransformer
