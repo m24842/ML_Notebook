@@ -226,10 +226,10 @@ FastTransformer_defaults: &FastTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 0
+  - <<: *FastTransformer_defaults
+    general:
+      <<: *FastTransformer_general
+      seed: 0
 
   # - <<: *FastTransformer_defaults
   #   general:

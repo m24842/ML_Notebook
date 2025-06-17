@@ -7,9 +7,34 @@ import requests
 import wandb
 import torch
 
-class Ref:
-    def __init__(self, value):
-        self.value = value
+class InvalidLossBackoff:
+    def __init__(self, max_backoffs=10, mode="consecutive"):
+        """
+        modes: ["consecutive", "cumulative"]
+            * consecutive: triggered if loss is invalid for max_backoffs consecutive steps
+            * cumulative: triggered if loss is invalid for max_backoffs steps in total
+        """
+        self.mode = mode
+        self.max_backoffs = max_backoffs
+        self.backoff_count = 0
+    
+    def step(self, loss):
+        invalid_loss = False
+        if self.mode == "consecutive":
+            if torch.isnan(loss).any() or torch.isinf(loss).any():
+                invalid_loss = True
+                self.backoff_count += 1
+            else:
+                self.backoff_count = 0
+        elif self.mode == "cumulative":
+            if torch.isnan(loss).any() or torch.isinf(loss).any():
+                invalid_loss = True
+                self.backoff_count += 1
+        
+        if self.backoff_count >= self.max_backoffs:
+            raise ValueError("Invalid loss backoff limit reached.")
+
+        return invalid_loss
 
 class NoEcho:
     _og_attrs = None

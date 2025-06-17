@@ -26,7 +26,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 output_dir="", model_name=None, val_loader=None,
                 wandb_logging=True, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
-                mixed_precision=False,
+                mixed_precision=False, loss_backoff=InvalidLossBackoff(10, "consecutive"),
                 checkpoint_freq=None, val_freq=None, info_freq=None):
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
@@ -54,14 +54,14 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             
             # Loss
             loss = loss_fn(output, target)
-            if torch.isnan(loss).any():
+            
+            # Check for invalid loss and param values
+            if loss_backoff.step(loss):
                 any_bad_params = report_bad_params(model)
-                warnings.warn(f"Detected NaN Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
-                if any_bad_params: raise RuntimeError("NaN values detected in model parameters.")
-            if torch.isinf(loss).any():
-                any_bad_params = report_bad_params(model)
-                warnings.warn(f"Detected Inf Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
-                if any_bad_params: raise RuntimeError("Inf values detected in model parameters.")
+                warnings.warn(f"Detected Invalid Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
+                if any_bad_params: raise RuntimeError("Invalid values detected in model parameters.")
+            
+            # Accumulate loss for metrics
             batch_loss = loss.item()
             accumulated_batch_loss += batch_loss
             train_loss += loss.item()
@@ -212,6 +212,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
           wandb_logging=True, wandb_entity=None, wandb_project=None,
           wandb_metrics=["acc", "loss"],
           grad_clip_norm=None, accumulation_steps=0,
+          loss_backoff=InvalidLossBackoff(10, "consecutive"),
           checkpoint_freq=None, val_freq=None, info_freq=None):
     try:
         sys.stdout.write("\033[?25l")
@@ -267,7 +268,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
                     output_dir=output_dir, model_name=model_name,
                     wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
-                    mixed_precision=mixed_precision,
+                    mixed_precision=mixed_precision, loss_backoff=loss_backoff,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
                 train_losses.append(train_loss)
@@ -297,7 +298,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
                     output_dir=output_dir, model_name=model_name,
                     wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
-                    mixed_precision=mixed_precision,
+                    mixed_precision=mixed_precision, loss_backoff=loss_backoff,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
                 train_losses.append(train_loss)
@@ -362,6 +363,8 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                     train_steps (optional): Number of training steps. **(Mutually exclusive with epochs)**
                     epochs (optional): Number of epochs to train. **(Mutually exclusive with train_steps)**
                     grad_clip_norm (optional): Gradient clipping norm. No clipping if unspecified.
+                    loss_backoff_count (default: 10): Number of invalid loss backoffs before stopping training.
+                    loss_backoff_type (default: consecutive): Type of invalid loss backoff.
                     load_checkpoint (default: False): Whether to attempt loading model from checkpoint.
                     mixed_precision (default: False): Whether to use mixed precision for training.
                     num_workers (default: 0): Number of workers for data loading.
@@ -446,16 +449,21 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         if device == "cuda":
             torch.cuda.manual_seed_all(seed)
         
-        mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
-        
-        # Initialize dataloaders
         batch_size = general_config.get("batch_size", 32)
+        accumulation_steps = general_config.get("accumulation_steps", 0)
         epochs = general_config.get("epochs", None)
         train_steps = general_config.get("train_steps", None)
         assert not (train_steps is None and epochs is None), "Either train_steps or epochs must be specified."
         assert not (train_steps is not None and epochs is not None), "Only one of train_steps or epochs can be specified."
+        
         grad_clip_norm = general_config.get("grad_clip_norm", None)
-        accumulation_steps = general_config.get("accumulation_steps", 0)
+        mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
+        
+        loss_backoff_count = general_config.get("loss_backoff_count", 10)
+        loss_backoff_type = general_config.get("loss_backoff_type", "consecutive")
+        loss_backoff = InvalidLossBackoff(loss_backoff_count, loss_backoff_type)
+        
+        # Initialize dataloaders
         num_workers = general_config.get("num_workers", 0)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         val_loader = None
@@ -538,6 +546,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
                 wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project,
                 wandb_metrics=wandb_metrics,
                 grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
+                loss_backoff=loss_backoff,
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
                 device=device,
             )
