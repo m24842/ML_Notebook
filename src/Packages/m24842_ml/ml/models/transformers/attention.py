@@ -3,10 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.linalg as LA
 import math
-from einops import rearrange
 import opt_einsum
-from typing import Optional
-from rotary_embedding_torch import RotaryEmbedding
+from functools import lru_cache
+from einops import rearrange
 
 class MultiheadAttention(nn.Module):
     """
@@ -224,15 +223,7 @@ class OrthoLinearAttention(nn.Module):
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
     
-    def forward(self, x: torch.Tensor, rope: Optional[RotaryEmbedding] = None, causal: bool = True) -> torch.Tensor:
-        """
-        Args:
-            x (torch.Tensor): Input sequence of shape (batch_size, src_len, d_model).
-            rope (Optional[RotaryEmbedding]): Optional RoPE encoder for rotating queries and keys.
-
-        Returns:
-            torch.Tensor: Output sequence of shape (batch_size, src_len, d_model).
-        """
+    def forward(self, x, rope=None, causal=True):
         bsz, src_len, d_model = x.size()
         tgt_len = src_len
         q = rearrange(self.q_proj(x), 'b s (h d) -> b h s d', h=self.n_heads)
@@ -447,6 +438,7 @@ class SlidingWindowAttention(nn.Module):
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
     
+    @lru_cache(maxsize=2)
     def causal_windowed_mask(self, seq_len, window_len, dilation=1):
         idxs = torch.arange(seq_len, device=self.device)
         rows = idxs.unsqueeze(1)
@@ -458,6 +450,7 @@ class SlidingWindowAttention(nn.Module):
         mask = torch.where(allowed, 0.0, float('-inf'))
         return mask
     
+    @lru_cache(maxsize=2)
     def symmetric_windowed_mask(self, seq_len, window_len, dilation=1):
         idxs = torch.arange(seq_len, device=self.device)
         rows = idxs.unsqueeze(1)

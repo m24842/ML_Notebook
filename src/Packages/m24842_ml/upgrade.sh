@@ -17,7 +17,7 @@ select choice in "major" "minor" "bug"; do
     esac
 done
 
-# Extract the current version from pyproject.toml
+# Current version from pyproject.toml
 version_line=$(grep -E '^\s*version\s*=' "$PYPROJECT" | head -n 1)
 
 if [[ $version_line =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
@@ -48,10 +48,9 @@ esac
 new_version="$major.$minor.$bug"
 echo "Upgraded to version: $new_version"
 
-# Replace the version line in pyproject.toml
-# This handles cases where there may be leading whitespace or different spacing around =
+# Update version in pyproject.toml
 sed -i.bak -E "s/^( *version *= *\")([0-9]+\.[0-9]+\.[0-9]+)(\")/\1$new_version\3/" "$PYPROJECT"
 
-# Optional: Build and upload
+rm -rf dist/
 python -m build
 twine upload dist/*
