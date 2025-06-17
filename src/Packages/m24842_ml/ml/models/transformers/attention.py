@@ -173,8 +173,8 @@ class LinearAttention(nn.Module):
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
-        q = beta * q
-        k = beta * k
+        q = q / (math.sqrt(self.d_head) * beta)
+        k = k / (math.sqrt(self.d_head) * beta)
         
         # q = torch.exp(q)
         # k = torch.exp(k)
@@ -255,8 +255,11 @@ class OrthoLinearAttention(nn.Module):
         
         beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
         # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
-        q = (beta * q).softmax(-1)# * q.norm(dim=-1, keepdim=True)
-        k = (beta * k).softmax(-1)# * k.norm(dim=-1, keepdim=True)
+        q = q / (math.sqrt(self.d_head) * beta)
+        k = k / (math.sqrt(self.d_head) * beta)
+        
+        q = q.softmax(-1)
+        k = k.softmax(-1)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
