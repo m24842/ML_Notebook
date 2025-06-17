@@ -465,9 +465,7 @@ class SlidingWindowAttention(nn.Module):
         mask = torch.where(allowed, 0.0, float('-inf'))
         return mask
     
-    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
-        if dilation > size: return self.windowed_view_no_pad(x, size, dim, stride, dilation, pad)
-        
+    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):        
         # --- 1. Validate and prepare dimensions ---
         ndim = x.dim()
         if dim < -ndim or dim >= ndim:
@@ -521,60 +519,6 @@ class SlidingWindowAttention(nn.Module):
 
         return x.as_strided(out_shape, tuple(out_stride))
     
-    def windowed_view_no_pad(self, x, size, dim, stride=1, dilation=1, pad=(0,0)):
-        # 1) normalize dim
-        ndim = x.dim()
-        if dim < 0:
-            dim += ndim
-
-        N = x.size(dim)
-        pad_l, pad_r = pad
-
-        # 2) effective window length & number of windows
-        eff = (size - 1) * dilation + 1
-        W = (N + pad_l + pad_r - eff) // stride + 1
-        if W <= 0:
-            # empty case
-            out_shape = list(x.shape)
-            out_shape[dim:dim+1] = [0, size]
-            return x.new_empty(out_shape)
-
-        # 3) permute so that `dim` → last
-        axes = [d for d in range(ndim) if d != dim] + [dim]
-        x_perm = x.permute(axes)             # shape: [*batch, N]
-        B_shape = x_perm.shape[:-1]         # tuple of batch dims
-        B = int(torch.prod(torch.tensor(B_shape)))  # total batch
-
-        # 4) flatten batch dims → [B, N]
-        x_flat = x_perm.reshape(B, N)
-
-        # 5) build the [W, S] abs‑index matrix
-        starts  = torch.arange(W, device=x.device) * stride - pad_l   # (W,)
-        offsets = torch.arange(size, device=x.device) * dilation      # (S,)
-        abs_idx = starts[:, None] + offsets[None, :]                  # (W, S)
-
-        # 6) clamp for safe gather
-        clamped = abs_idx.clamp(0, N-1)   # (W, S)
-
-        # 7) expand and gather in one shot:
-        #    x_exp: [B, W, N]; idx_exp: [B, W, S]
-        x_exp   = x_flat.unsqueeze(1).expand(B, W, N)
-        idx_exp = clamped.unsqueeze(0).expand(B, W, size)
-        out_flat = x_exp.gather(2, idx_exp)   # → [B, W, S]
-
-        # 8) zero‑mask real OOB slots
-        mask = (abs_idx < 0) | (abs_idx >= N)       # (W, S)
-        mask_exp = mask.unsqueeze(0).expand(B, W, size)
-        out_flat = out_flat.masked_fill(mask_exp, 0)
-
-        # 9) un‑flatten → [*batch, W, S]
-        out_perm = out_flat.reshape(*B_shape, W, size)
-
-        # 10) move the last two axes back to (dim, dim+1)
-        out = out_perm.moveaxis([-2, -1], [dim, dim+1])
-
-        return out
-    
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
             x = x.transpose(0, 1)
@@ -627,19 +571,23 @@ class SlidingWindowAttention(nn.Module):
             attn_output = torch.bmm(attn_output_weights, v)  # (bsz * n_heads, src_len, d_head)
         
         else:
-            if causal:
-                pad = (self.padding, 0)
-            else:
-                pad = (self.padding-self.padding//2, self.padding//2)
+            # Computing attention for each band of the dilated sliding window instead of windowing k and v
+            # Avoids unncessary padding and consumes far less compute
             
-            k = self.windowed_view(k, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
-            v = self.windowed_view(v, self.window_len, dim=1, stride=1, dilation=self.dilation, pad=pad)
+            pad_ammount = self.padding % src_len
+            if pad_ammount == self.padding: pad_ammount = 0
+            if causal:
+                pad = (pad_ammount, 0)
+            else:
+                pad = (pad_ammount//2, pad_ammount//2)
+            
+            q = self.windowed_view(q, src_len, dim=1, stride=self.window_len, dilation=1, pad=pad)
         
-            attn_output_weights = torch.einsum('zsd, zswd -> zsw', q, k)  # (bsz * n_heads, src_len, window_len)
+            attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q, k)  # (bsz * n_heads, n_bands, src_len)
             
             if self.attn_sink:
-                sink_weight = torch.zeros((bsz * self.n_heads, src_len, 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
-                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, src_len, window_len + 1)
+                sink_weight = torch.zeros((bsz * self.n_heads, attn_output_weights.shape[1], 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, n_bands, src_len + 1)
             
             # Convert attention weights to probabilities
             attn_output_weights = F.softmax(attn_output_weights, dim=-1)
@@ -648,7 +596,10 @@ class SlidingWindowAttention(nn.Module):
             if self.attn_sink: attn_output_weights = attn_output_weights[..., :-1]
             
             # Apply attention weights to values
-            attn_output = torch.einsum('zsw, zswd -> zsd', attn_output_weights, v)
+            attn_output = torch.einsum('zbs, zsd -> zbd', attn_output_weights, v)
+            
+            # Pad to src_len
+            attn_output = F.pad(attn_output, (0, 0, src_len - attn_output.shape[1], 0), mode="constant", value=0)
         
         # Apply final projection
         attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
