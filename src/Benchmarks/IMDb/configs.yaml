@@ -17,8 +17,8 @@ global:
       train:
         train: True
         min_len: 1024
-        max_len: 2048
-        warmup_epochs: 3
+        max_len: 1024
+        warmup_epochs: 0
         vocab_size: 256
       test:
         train: False
