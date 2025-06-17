@@ -28,6 +28,15 @@ global:
   checkpoint_freq: 500
 
 ### Defaults ###
+general_defaults: &general_defaults
+  load_checkpoint: False
+  seed: 0
+  batch_size: 16
+  accumulation_steps: 3
+  train_steps: 10000
+  grad_clip_norm: 1.0
+  mixed_precision: True
+
 optimizer_defaults: &optimizer_defaults
   name: AdamW
   lr: 6e-4
@@ -42,13 +51,7 @@ scheduler_defaults: &scheduler_defaults
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &Transformer_model
     name: Transformer
@@ -74,13 +77,7 @@ Transformer_defaults: &Transformer_defaults
 
 CompressionTransformer_defaults: &CompressionTransformer_defaults
   general: &CompressionTransformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
@@ -107,13 +104,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
 
 LinearTransformer_defaults: &LinearTransformer_defaults
   general: &LinearTransformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &LinearTransformer_model
     name: LinearTransformer
@@ -139,13 +130,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
 
 OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   general: &OrthoLinearTransformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
@@ -171,13 +156,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
 
 SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   general: &SlidingWindowTransformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &SlidingWindowTransformer_model
     name: SlidingWindowTransformer
@@ -207,13 +186,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
 
 FastTransformer_defaults: &FastTransformer_defaults
   general: &FastTransformer_general
-    load_checkpoint: False
-    seed: 0
-    batch_size: 16
-    accumulation_steps: 3
-    train_steps: 10000
-    grad_clip_norm: 1.0
-    mixed_precision: True
+    <<: *general_defaults
   
   model: &FastTransformer_model
     name: FastTransformer
