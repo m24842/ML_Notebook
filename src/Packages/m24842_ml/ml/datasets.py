@@ -21,7 +21,7 @@ class SequentialMNIST(datasets.MNIST):
         ]
         if permuted:
             random_permutation = torch.randperm(28 * 28)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         super().__init__(root, train=train, download=download, transform=self.transform)
 
@@ -33,7 +33,7 @@ class SequentialEMNIST(datasets.EMNIST):
         ]
         if permuted:
             random_permutation = torch.randperm(28 * 28)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         super().__init__(root, train=train, download=download, split=split, transform=self.transform)
 
@@ -45,7 +45,7 @@ class SequentialFashionMNIST(datasets.FashionMNIST):
         ]
         if permuted:
             random_permutation = torch.randperm(28 * 28)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         super().__init__(root, train=train, download=download, transform=self.transform)
 
@@ -95,7 +95,7 @@ class Pathfinder(Dataset):
         ]
         if permuted:
             random_permutation = torch.randperm(dim**2)
-            self.transform.append(transforms.Lambda(lambda x: x.view(-1)[random_permutation].view(-1, 1)))
+            self.transform.append(transforms.Lambda(lambda x: x[random_permutation]))
         self.transform = transforms.Compose(self.transform)
         self.data = []
         
@@ -120,7 +120,7 @@ class Pathfinder(Dataset):
         while image is None:
             img_path, label = self.data[idx]
             try:
-                image = Image.open(img_path).convert('RGB')
+                image = Image.open(img_path).convert('L')
             except:
                 idx = (idx + 1) % len(self.data)
         if self.transform:

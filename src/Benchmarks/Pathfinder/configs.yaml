@@ -56,7 +56,7 @@ Transformer_defaults: &Transformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.0
     causal: False
@@ -87,7 +87,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.0
     causal: False
@@ -117,7 +117,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.0
     causal: False
@@ -147,7 +147,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.0
     causal: False
@@ -181,7 +181,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     n_heads: 4
     n_layers: 4
     input_dim: 1
-    output_dim: 10
+    output_dim: 2
     attn_sink: False
     dropout: 0.0
     causal: False
