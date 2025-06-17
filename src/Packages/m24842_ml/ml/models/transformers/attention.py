@@ -125,6 +125,8 @@ class LinearAttention(nn.Module):
         self.attn_sink = attn_sink
         self.device = device
         
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
@@ -133,6 +135,7 @@ class LinearAttention(nn.Module):
         self._reset_parameters()
     
     def _reset_parameters(self):
+        nn.init.constant_(self.beta, 0.)
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
@@ -167,6 +170,11 @@ class LinearAttention(nn.Module):
                 k = rope.rotate_queries_or_keys(k)
         q = q.reshape(bsz * self.n_heads, tgt_len, self.d_head).contiguous()
         k = k.reshape(bsz * self.n_heads, src_len, self.d_head).contiguous()
+        
+        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q = beta * q
+        k = beta * k
         
         # q = torch.exp(q)
         # k = torch.exp(k)
