@@ -56,11 +56,11 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             loss = loss_fn(output, target)
             if torch.isnan(loss).any():
                 any_bad_params = report_bad_params(model)
-                warnings.warn(f"Loss is NaN: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
+                warnings.warn(f"Detected NaN Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
                 if any_bad_params: raise RuntimeError("NaN values detected in model parameters.")
             if torch.isinf(loss).any():
                 any_bad_params = report_bad_params(model)
-                warnings.warn(f"Loss is Inf: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
+                warnings.warn(f"Detected Inf Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
                 if any_bad_params: raise RuntimeError("Inf values detected in model parameters.")
             batch_loss = loss.item()
             accumulated_batch_loss += batch_loss
