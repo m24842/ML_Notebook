@@ -187,7 +187,7 @@ FastTransformer_defaults: &FastTransformer_defaults
     n_layers: 6
     input_dim: 50277
     output_dim: 50277
-    attn_sink: True
+    attn_sink: False
     dropout: 0.1
     causal: True
     use_embedding: True

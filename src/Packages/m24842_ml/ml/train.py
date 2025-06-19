@@ -246,6 +246,9 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
         if hasattr(train_loader.dataset, "seq_len_range"):
             min_len, max_len = train_loader.dataset.seq_len_range()
             model = allocate_dynamic_memory(model, train_loader.batch_size, min_len, max_len, device)
+        else:
+            # Compile the model for faster training
+            model = compile_model(model, train_loader.dataset[0][0].shape, device)
         
         # Metrics
         train_losses = []

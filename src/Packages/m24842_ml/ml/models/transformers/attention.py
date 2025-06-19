@@ -7,6 +7,7 @@ import warnings
 import opt_einsum
 from functools import lru_cache
 from einops import rearrange
+from ..common import *
 
 class MultiheadAttention(nn.Module):
     """
@@ -421,7 +422,6 @@ class SlidingWindowAttention(nn.Module):
         self.n_heads = n_heads
         self.window_len = window_len
         self.dilation = dilation
-        self.padding = (self.window_len - 1) * self.dilation
         self.dropout = dropout
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
@@ -455,19 +455,23 @@ class SlidingWindowAttention(nn.Module):
             nn.init.constant_(self.out_proj.bias, 0.)
     
     @lru_cache(maxsize=2)
-    def causal_windowed_mask(self, seq_len, window_len, dilation=1):
+    def causal_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):
         idxs = torch.arange(seq_len, device=self.device)
         rows = idxs.unsqueeze(1)
         cols = idxs.unsqueeze(0)
         diff = rows - cols
 
         allowed = (diff >= 0) & (diff <= dilation * (window_len - 1)) & ((diff % dilation) == 0)
+        allowed = allowed.unsqueeze(0)
+        
+        if not to_bias:
+            return allowed.float()
 
         mask = torch.where(allowed, 0.0, float('-inf'))
         return mask
     
     @lru_cache(maxsize=2)
-    def symmetric_windowed_mask(self, seq_len, window_len, dilation=1):
+    def symmetric_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):
         idxs = torch.arange(seq_len, device=self.device)
         rows = idxs.unsqueeze(1)
         cols = idxs.unsqueeze(0)
@@ -477,63 +481,54 @@ class SlidingWindowAttention(nn.Module):
         abs_diff = diff.abs()
 
         allowed = (abs_diff <= dilation * half) & ((diff % dilation) == 0)
+        allowed = allowed.unsqueeze(0)
+        
+        if not to_bias:
+            return allowed.float()
 
         mask = torch.where(allowed, 0.0, float('-inf'))
         return mask
-    
-    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
-        # --- 1. Validate and prepare dimensions ---
-        ndim = x.dim()
-        if dim < -ndim or dim >= ndim:
-            raise IndexError(f"Dimension out of range (expected to be in range of [-{ndim}, {ndim-1}], but got {dim})")
-        
-        # Convert negative dim to positive
-        if dim < 0:
-            dim = ndim + dim
 
-        # --- 2. Handle padding ---
-        if pad[0] > 0 or pad[1] > 0:
-            # Create a padding tuple for F.pad. It needs padding for all dimensions,
-            # so we create a list of zeros and fill in the padding for the target dim.
-            # F.pad expects padding in the order of (pad_last_dim, pad_penultimate_dim, ...).
-            pad_tuple = [0] * (2 * ndim)
-            pad_idx = 2 * (ndim - 1 - dim)
-            pad_tuple[pad_idx] = pad[0]
-            pad_tuple[pad_idx + 1] = pad[1]
-            x = F.pad(x, tuple(pad_tuple))
+    def shift(self, x, shifts, dims, fill_value=None):
+        dim_src, dim_shift = dims
+        if not torch.is_tensor(shifts):
+            shifts = torch.tensor(shifts, dtype=torch.long, device=self.device)
+        else:
+            shifts = shifts.to(device=self.device, dtype=torch.long)
+        assert shifts.dim() == 1 and shifts.size(0) == x.size(dim_src), f"shifts must have length {x.size(dim_src)}"
 
-        # --- 3. Calculate output shape ---
-        n_padded = x.shape[dim]
-        
-        # The effective size of the window, accounting for dilation
-        effective_window_size = (size - 1) * dilation + 1
-        
-        # Calculate the number of windows that can be extracted
-        num_windows = (n_padded - effective_window_size) // stride + 1
+        # 1) move the two dims we care about to positions 0 and 1
+        x2 = x.movedim((dim_src, dim_shift), (0, 1))
+        # now x2.shape = [S, L, *rest]
 
-        if num_windows <= 0:
-            # If no windows can be formed, return an empty tensor with the correct shape.
-            # This avoids errors with as_strided for zero-sized dimensions.
-            final_shape = list(x.shape)
-            final_shape[dim:dim+1] = [0, size]
-            return torch.empty(final_shape, dtype=x.dtype, device=x.device)
+        S, L, *rest = x2.shape
 
-        # New shape: original shape with `dim` replaced by (num_windows, size)
-        out_shape = list(x.shape)
-        out_shape[dim:dim+1] = [num_windows, size]
+        # 2) build a "pos" tensor of shape [S, L, *rest] with
+        #    pos[s, l, ...] = l
+        pos = torch.arange(L, device=self.device).view(1, L, *([1] * len(rest))).expand(S, L, *rest)
 
-        # --- 4. Calculate output strides ---
-        original_strides = x.stride()
-        element_stride = original_strides[dim]
+        # 3) reshape shifts to [S, 1, 1, ...] so it broadcasts
+        shifts2 = shifts.view(S, *([1] * (1 + len(rest))))
 
-        # New strides: original strides with the stride for `dim` replaced by two new strides
-        out_stride = (
-            original_strides[:dim] 
-            + (stride * element_stride, dilation * element_stride) 
-            + original_strides[dim+1:]
-        )
+        # “real” indices before wrapping
+        raw_idx = pos - shifts2  # could be negative or >=L
 
-        return x.as_strided(out_shape, tuple(out_stride))
+        # clamp to valid range so gather won’t error
+        idx_clamped = raw_idx.clamp(0, L-1)
+
+        # gather everything (wrapped and non‑wrapped)
+        gathered = x2.gather(dim=1, index=idx_clamped)
+
+        if fill_value is not None:
+            # mask where we’re out of bounds
+            mask = (raw_idx < 0) | (raw_idx >= L)  # same shape as raw_idx
+            
+            # now zero‑out the wrapped positions
+            gathered[mask] = fill_value
+
+        # move dims back
+        out = gathered.movedim((0, 1), (dim_src, dim_shift))
+        return out
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -565,13 +560,18 @@ class SlidingWindowAttention(nn.Module):
         
         if self.masked_window:
             if causal:
-                attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation)
+                attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, src_len, src_len)
             else:
-                attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation)
+                attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, src_len, src_len)
             
+            if self.attn_sink:
+                k = torch.cat([k, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=k.dtype, device=k.device)], dim=1)
+                v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=v.dtype, device=v.device)], dim=1)
+                if attn_mask is not None:
+                    attn_mask = F.pad(attn_mask, (0, 1))  # (1, src_len, src_len + 1)
+
             attn_output_weights = torch.bmm(q, k.transpose(1, 2))  # (bsz * n_heads, src_len, src_len)
-            attn_output_weights = attn_output_weights + attn_mask.unsqueeze(0)  # (bsz * n_heads, src_len, src_len)
-            
+            attn_output_weights = attn_output_weights + attn_mask  # (bsz * n_heads, src_len, src_len)
             if self.attn_sink:
                 sink_weight = torch.zeros((bsz * self.n_heads, src_len, 1), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
                 attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=-1)  # (bsz * n_heads, src_len, src_len + 1)
@@ -584,24 +584,24 @@ class SlidingWindowAttention(nn.Module):
             
             # Apply attention weights to values
             attn_output = torch.bmm(attn_output_weights, v)  # (bsz * n_heads, src_len, d_head)
-        
         else:
-            # Computing attention for each band of the dilated sliding window instead of windowing k and v
-            # Avoids unncessary padding and consumes far less compute
-            
-            pad_amount = self.padding % src_len
-            if pad_amount == self.padding: pad_amount = 0
             if causal:
-                pad = (pad_amount, 0)
+                pad_amount = min(src_len-1, (self.window_len-1) * self.dilation)
+                pad = (0, pad_amount)
             else:
-                pad = (pad_amount//2, pad_amount//2)
-            
-            q = self.windowed_view(q, src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
+                pad_amount = self.dilation * min((src_len - 1) // self.dilation, self.window_len // 2)
+                pad = (pad_amount, pad_amount)
+
+            q = dilated_sliding_window(q, size=src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
+            # q = dilated_sliding_window_nopad(q, size=src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
 
             attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q, k)  # (bsz * n_heads, n_bands, src_len)
             
+            shifts = torch.arange(-pad[0], pad[1]+1, self.dilation, device=self.device)
+            attn_output_weights = self.shift(attn_output_weights, shifts, dims=(1, 2), fill_value=float('-inf'))
+            
             if self.attn_sink:
-                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, 1, src_len)
                 attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=1)  # (bsz * n_heads, n_bands+1, src_len)
             
             # Convert attention weights to probabilities
@@ -610,11 +610,14 @@ class SlidingWindowAttention(nn.Module):
             
             if self.attn_sink: attn_output_weights = attn_output_weights[:, :-1]
             
-            # Apply attention weights to values
-            attn_output = torch.einsum('zbs, zsd -> zbd', attn_output_weights, v)
+            attn_output_weights = self.shift(attn_output_weights, -shifts, dims=(1, 2), fill_value=0.0)
             
-            # Pad to src_len
-            attn_output = F.pad(attn_output, (0, 0, src_len - attn_output.shape[1], 0), mode="constant", value=0)
+            # Apply attention weights to values
+            attn_output = attn_output_weights.unsqueeze(-1) * v.unsqueeze(1)
+            
+            attn_output = self.shift(attn_output, shifts, dims=(1, 2), fill_value=0.0)
+            
+            attn_output = attn_output.sum(dim=1)
         
         # Apply final projection
         attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
@@ -630,10 +633,9 @@ class FastAttention(nn.Module):
     Fast Attention.
     A form of windowed attention that hierarchically computes windowed attention scores at exponentially larger dilations.
     This allows attention over the full sequence length with far fewer operations than naive attention.
-    Note: attn_sink should generally be set to True for optimal performance.
     """
     def __init__(self, d_model, n_heads, window_len, dilation_factor=64, n_dilations=2,
-                 attn_sink=True, dropout=0.0, bias=True, batch_first=False,
+                 attn_sink=False, dropout=0.0, bias=True, batch_first=False,
                  device="cpu"):
         super().__init__()
         self.d_model = d_model
@@ -642,12 +644,10 @@ class FastAttention(nn.Module):
         self.dilation_factor = dilation_factor
         self.n_dilations = n_dilations
         self.dilations = [dilation_factor**i for i in range(n_dilations)]
-        self.padding_sizes = [(self.window_len - 1) * d for d in self.dilations]
         self.dropout = dropout
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
         self.attn_sink = attn_sink
-        if not attn_sink: warnings.warn("FastAttention generally performs better with attn_sink=True. Using attn_sink=False may lead to suboptimal performance.", UserWarning)
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
@@ -674,60 +674,47 @@ class FastAttention(nn.Module):
             nn.init.constant_(self.v_proj.bias, 0.)
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
-    
-    def windowed_view(self, x, size, dim, stride=1, dilation=1, pad=(0, 0)):
-        # --- 1. Validate and prepare dimensions ---
-        ndim = x.dim()
-        if dim < -ndim or dim >= ndim:
-            raise IndexError(f"Dimension out of range (expected to be in range of [-{ndim}, {ndim-1}], but got {dim})")
-        
-        # Convert negative dim to positive
-        if dim < 0:
-            dim = ndim + dim
 
-        # --- 2. Handle padding ---
-        if pad[0] > 0 or pad[1] > 0:
-            # Create a padding tuple for F.pad. It needs padding for all dimensions,
-            # so we create a list of zeros and fill in the padding for the target dim.
-            # F.pad expects padding in the order of (pad_last_dim, pad_penultimate_dim, ...).
-            pad_tuple = [0] * (2 * ndim)
-            pad_idx = 2 * (ndim - 1 - dim)
-            pad_tuple[pad_idx] = pad[0]
-            pad_tuple[pad_idx + 1] = pad[1]
-            x = F.pad(x, tuple(pad_tuple))
+    def shift(self, x, shifts, dims, fill_value=None):
+        dim_src, dim_shift = dims
+        if not torch.is_tensor(shifts):
+            shifts = torch.tensor(shifts, dtype=torch.long, device=self.device)
+        else:
+            shifts = shifts.to(device=self.device, dtype=torch.long)
+        assert shifts.dim() == 1 and shifts.size(0) == x.size(dim_src), f"shifts must have length {x.size(dim_src)}"
 
-        # --- 3. Calculate output shape ---
-        n_padded = x.shape[dim]
-        
-        # The effective size of the window, accounting for dilation
-        effective_window_size = (size - 1) * dilation + 1
-        
-        # Calculate the number of windows that can be extracted
-        num_windows = (n_padded - effective_window_size) // stride + 1
+        # 1) move the two dims we care about to positions 0 and 1
+        x2 = x.movedim((dim_src, dim_shift), (0, 1))
+        # now x2.shape = [S, L, *rest]
 
-        if num_windows <= 0:
-            # If no windows can be formed, return an empty tensor with the correct shape.
-            # This avoids errors with as_strided for zero-sized dimensions.
-            final_shape = list(x.shape)
-            final_shape[dim:dim+1] = [0, size]
-            return torch.empty(final_shape, dtype=x.dtype, device=x.device)
+        S, L, *rest = x2.shape
 
-        # New shape: original shape with `dim` replaced by (num_windows, size)
-        out_shape = list(x.shape)
-        out_shape[dim:dim+1] = [num_windows, size]
+        # 2) build a "pos" tensor of shape [S, L, *rest] with
+        #    pos[s, l, ...] = l
+        pos = torch.arange(L, device=self.device).view(1, L, *([1] * len(rest))).expand(S, L, *rest)
 
-        # --- 4. Calculate output strides ---
-        original_strides = x.stride()
-        element_stride = original_strides[dim]
+        # 3) reshape shifts to [S, 1, 1, ...] so it broadcasts
+        shifts2 = shifts.view(S, *([1] * (1 + len(rest))))
 
-        # New strides: original strides with the stride for `dim` replaced by two new strides
-        out_stride = (
-            original_strides[:dim] 
-            + (stride * element_stride, dilation * element_stride) 
-            + original_strides[dim+1:]
-        )
+        # “real” indices before wrapping
+        raw_idx = pos - shifts2  # could be negative or >=L
 
-        return x.as_strided(out_shape, tuple(out_stride))
+        # clamp to valid range so gather won’t error
+        idx_clamped = raw_idx.clamp(0, L-1)
+
+        # gather everything (wrapped and non‑wrapped)
+        gathered = x2.gather(dim=1, index=idx_clamped)
+
+        if fill_value is not None:
+            # mask where we’re out of bounds
+            mask = (raw_idx < 0) | (raw_idx >= L)  # same shape as raw_idx
+            
+            # now zero‑out the wrapped positions
+            gathered[mask] = fill_value
+
+        # move dims back
+        out = gathered.movedim((0, 1), (dim_src, dim_shift))
+        return out
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -759,23 +746,28 @@ class FastAttention(nn.Module):
         
         # Computing attention for each band of the dilated sliding window instead of windowing k and v
         # Avoids unncessary padding and consumes far less compute
-        pad_amounts = [(p % src_len) if (p % src_len != p) else 0 for p in self.padding_sizes]
         if causal:
-            pads = [(pad, 0) for pad in pad_amounts]
+            pad_amounts = [min(src_len-1, (self.window_len-1) * dilation) for dilation in self.dilations]
+            pads = [(0, pad) for pad in pad_amounts]
         else:
-            pads = [(pad // 2, pad // 2) for pad in pad_amounts]
+            pad_amounts = [dilation * min((src_len - 1) // dilation, self.window_len // 2) for dilation in self.dilations]
+            pads = [(pad, pad) for pad in pad_amounts]
         
         attn_output = torch.zeros_like(v)
         for i in range(self.n_dilations):
             pad = pads[i]
             dilation = self.dilations[i]
+
+            q = dilated_sliding_window(q, size=src_len, dim=1, stride=dilation, dilation=1, pad=pad)
+            # q = dilated_sliding_window_nopad(q, size=src_len, dim=1, stride=dilation, dilation=1, pad=pad)
+
+            attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q, k)  # (bsz * n_heads, n_bands, src_len)
             
-            q_i = self.windowed_view(q, src_len, dim=1, stride=dilation, dilation=1, pad=pad)
-            
-            attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q_i, k)  # (bsz * n_heads, n_bands, src_len)
+            shifts = torch.arange(-pad[0], pad[1]+1, dilation, device=self.device)
+            attn_output_weights = self.shift(attn_output_weights, shifts, dims=(1, 2), fill_value=float('-inf'))
             
             if self.attn_sink:
-                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, src_len, 1)
+                sink_weight = torch.zeros((bsz * self.n_heads, 1, src_len), dtype=x.dtype, device=self.device)  # (bsz * n_heads, 1, src_len)
                 attn_output_weights = torch.cat([attn_output_weights, sink_weight], dim=1)  # (bsz * n_heads, n_bands+1, src_len)
             
             # Convert attention weights to probabilities
@@ -784,13 +776,17 @@ class FastAttention(nn.Module):
             
             if self.attn_sink: attn_output_weights = attn_output_weights[:, :-1]
             
-            # Apply attention weights to keys
-            k = torch.einsum('zbs, zsd -> zbd', attn_output_weights, k)
-            v = torch.einsum('zbs, zsd -> zbd', attn_output_weights, v)
+            attn_output_weights = self.shift(attn_output_weights, -shifts, dims=(1, 2), fill_value=0.0)
             
-            # Pad to src_len
-            k = F.pad(k, (0, 0, src_len - k.shape[1], 0), mode="constant", value=0)
-            v = F.pad(v, (0, 0, src_len - v.shape[1], 0), mode="constant", value=0)
+            # Apply attention weights to keys and values
+            kv = torch.cat([k, v], dim=-1)  # (bsz * n_heads, src_len, 2*d_head)
+            kv = attn_output_weights.unsqueeze(-1) * kv.unsqueeze(1)
+            
+            kv = self.shift(kv, shifts, dims=(1, 2), fill_value=0.0)
+            
+            kv = kv.sum(dim=1)
+            
+            k, v = kv.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, src_len, d_head)
             
             attn_output = attn_output + v
         

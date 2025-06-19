@@ -142,7 +142,7 @@ def checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None):
     if optimizer: torch.save(optimizer.state_dict(), optimizer_path)
     if scheduler: torch.save(scheduler.state_dict(), scheduler_path)
 
-def load_checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None, device=torch.device('cpu')):
+def load_checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None, device="cpu"):
     model_dir = f'{output_dir}/{model_name}'
     model_path = f'{model_dir}/{model_name}.pt'
     optimizer_path = f'{model_dir}/{model_name}_opt.pt'
@@ -167,14 +167,47 @@ def load_checkpoint(model_name, output_dir, model, optimizer=None, scheduler=Non
         if scheduler: output += (scheduler,)
     return output
 
-def allocate_dynamic_memory(model, bsz, min_len, max_len, device=torch.device('cpu')):
+def allocate_dynamic_memory(model, bsz, min_len, max_len, device="cpu"):
     """
     Allocate dynamic memory on the specified device.
     """
-    temp = torch.zeros(bsz, max_len, dtype=torch.long, device=device)
+    input_dim = getattr(model, 'input_dim', 1)
+    use_embedding = getattr(model, 'use_embedding', input_dim == 1)
+    if use_embedding and input_dim == 1:
+        shape = (bsz, max_len)
+    else:
+        shape = (bsz, max_len, input_dim)
+    temp = torch.zeros(shape, device=device)
+    
     torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
-    model = torch.compile(model, dynamic=True, backend="eager")
-    with torch.no_grad(): model(temp)
+    
+    backends = ["inductor", "aot_eager", "eager"]
+    for backend in backends:
+        try:
+            compiled_model = torch.compile(model, dynamic=True, backend=backend)
+            with torch.no_grad(): compiled_model(temp)
+            model = compiled_model
+            break
+        except:
+            pass
+    
+    return model
+
+def compile_model(model, input_shape, device="cpu"):
+    """
+    Allocate dynamic memory on the specified device.
+    """
+    temp = torch.zeros(input_shape, device=device)
+    backends = ["inductor", "aot_eager", "eager"]
+    for backend in backends:
+        try:
+            compiled_model = torch.compile(model, dynamic=True, backend=backend)
+            with torch.no_grad(): compiled_model(temp)
+            model = compiled_model
+            break
+        except:
+            pass
+    
     return model
 
 def try_to_float(dictionary):
