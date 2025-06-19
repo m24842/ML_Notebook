@@ -389,7 +389,7 @@ class FastTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None,
                  window_len=64, n_dilations=2, dilation_factor=None,
-                 attn_sink=False, dropout=0.0,
+                 attn_sink=False, dropout=0.0, masked_window=True,
                  causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -425,7 +425,7 @@ class FastTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = FastAttention(emb_dim, self.n_heads, window_len=window_len, n_dilations=n_dilations, dilation_factor=dilation_factor, attn_sink=attn_sink, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
+                    attention = FastAttention(emb_dim, self.n_heads, window_len=window_len, n_dilations=n_dilations, dilation_factor=dilation_factor, attn_sink=attn_sink, masked_window=masked_window, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = nn.Sequential(

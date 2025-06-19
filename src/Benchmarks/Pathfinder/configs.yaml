@@ -188,6 +188,7 @@ FastTransformer_defaults: &FastTransformer_defaults
     emb_dim: 128
     mlp_dim: 128
     window_len: 64
+    masked_window: True
     n_dilations: 2
     # dilation_factor: 64
     n_heads: 4
