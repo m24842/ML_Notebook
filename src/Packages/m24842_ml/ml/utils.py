@@ -1,7 +1,6 @@
 import os
 import sys
 import termios
-import logging
 import signal
 import requests
 import wandb
@@ -93,20 +92,6 @@ def report_bad_params(model):
             print(f"Parameter {name}:\n{param.data}\n")
     return any_bad_params
 
-def log_info(log_path, model, model_name, configs, train_accuracies=None, test_accuracies=None):
-    logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m-%d-%Y %H:%M')
-    log_message = (
-        f"{model_name}\n"
-        + f"Total params: {count_parameters(model):,}\n"
-        + f"Hyperparams:\n"
-        + '\n'.join([f'\t{key}: {value}' for key, value in configs.items()]) + '\n'
-        + (f"Train accuracies:\n" if train_accuracies else "")
-        + (f"\t{', '.join(f'{acc:.2f}' for acc in train_accuracies)}\n" if train_accuracies else "")
-        + (f"Test accuracies:\n" if test_accuracies else "")
-        + (f"\t{', '.join(f'{acc:.2f}' for acc in test_accuracies)}" if test_accuracies else "")
-    )
-    logging.info(log_message)
-
 def get_available_device():
     return "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -130,8 +115,8 @@ def apply_weight_decay(model, weight_decay, exclude=["bias", "norm"]):
         {"params": no_decay_params, "weight_decay": 0.0},
     ]
 
-def checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None):
-    model_dir = f'{output_dir}/{model_name}'
+def checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler=None):
+    model_dir = f'{checkpoint_dir}/{model_name}'
     model_path = f'{model_dir}/{model_name}.pt'
     optimizer_path = f'{model_dir}/{model_name}_opt.pt'
     scheduler_path = f'{model_dir}/{model_name}_sch.pt'
@@ -142,8 +127,8 @@ def checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None):
     if optimizer: torch.save(optimizer.state_dict(), optimizer_path)
     if scheduler: torch.save(scheduler.state_dict(), scheduler_path)
 
-def load_checkpoint(model_name, output_dir, model, optimizer=None, scheduler=None, device="cpu"):
-    model_dir = f'{output_dir}/{model_name}'
+def load_checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler=None, device="cpu"):
+    model_dir = f'{checkpoint_dir}/{model_name}'
     model_path = f'{model_dir}/{model_name}.pt'
     optimizer_path = f'{model_dir}/{model_name}_opt.pt'
     scheduler_path = f'{model_dir}/{model_name}_sch.pt'
@@ -219,3 +204,6 @@ def try_to_float(dictionary):
             try: dictionary[key] = float(value)
             except: pass
     return dictionary
+
+def capitalize(s):
+    return s[0].upper() + s[1:]

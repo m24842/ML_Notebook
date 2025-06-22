@@ -13,28 +13,138 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
 from contextlib import nullcontext
+from dataclasses import dataclass
 from .utils import *
 from .models import initialize_model
 from .schedulers import initialize_scheduler
 from .datasets import initialize_dataset
 
-def default_data_fn(data, target):
+# === Metric Logging ===
+
+@dataclass
+class Metric:
+    prefix: str = None
+    name: str = ""
+    value: float = 0.0
+    reset_value: float = 0.0
+    batch_avg: bool = True
+    
+    def __eq__(self, metric):
+        if isinstance(metric, Metric):
+            return self.name == metric.name
+        return False
+
+    def __str__(self, prefixed_name=False):
+        if prefixed_name:
+            return f"{capitalize(self.get_prefixed_name())}: {self.value:.4f}"
+        return f"{capitalize(self.name)}: {self.value:.4f}"
+    
+    def accumulate(self, value):
+        if self.batch_avg:
+            self.value += value
+        else:
+            self.value = value
+    
+    def rescale(self, count):
+        if self.batch_avg:
+            self.value /= count
+    
+    def reset(self):
+        self.value = self.reset_value
+    
+    def get_prefixed_name(self, prefix=""):
+        prefix = self.prefix if self.prefix is not None else prefix
+        return prefix + self.name
+
+class MetricCollection:
+    def __init__(self, metrics=None):
+        if metrics is None:
+            self.metrics = {}
+        elif isinstance(metrics, Metric):
+            self.metrics = {metrics.name: metrics}
+        elif isinstance(metrics, list):
+            self.metrics = {metric.name: metric for metric in metrics if isinstance(metric, Metric)}
+        elif isinstance(metrics, dict):
+            self.metrics = {name: metric for name, metric in metrics.items() if isinstance(metric, Metric)}
+        else:
+            raise TypeError(f"Expected Metric or list of Metrics, got {type(metrics)}")
+    
+    def __getitem__(self, name):
+        return self.metrics.get(name, None)
+    
+    def __len__(self):
+        return len(self.metrics)
+    
+    def __iter__(self):
+        return iter(self.metrics.values())
+    
+    def __str__(self):
+        return ", ".join(str(metric) for metric in sorted(self.metrics.values(), key=lambda m: str(m)))
+    
+    def __add__(self, other):
+        if isinstance(other, Metric):
+            return MetricCollection(metrics={**self.metrics, other.name: other})
+        elif isinstance(other, MetricCollection):
+            return MetricCollection(metrics={**self.metrics, **other.metrics})
+        else:
+            raise TypeError(f"Expected Metric or MetricCollection, got {type(other)}")
+    
+    def append(self, metric):
+        self.add_metric(metric)
+    
+    def add_metric(self, metric):
+        if metric is None: return
+        if isinstance(metric, Metric):
+            self.metrics[metric.name] = metric
+        else:
+            raise TypeError(f"Expected Metric or list of Metrics, got {type(metric)}")
+    
+    def add_metrics(self, metrics):
+        if metrics is None: return
+        for metric in metrics:
+            self.add_metric(metric)
+    
+    def accumulate_metrics(self, new_metrics):
+        if new_metrics is None: return
+        if isinstance(new_metrics, Metric): new_metrics = [new_metrics]
+        for metric in new_metrics:
+            if self.metrics.get(metric.name) is not None:
+                self.metrics[metric.name].accumulate(metric.value)
+            else:
+                self.add_metric(metric)
+
+    def rescale_metrics(self, count):
+        for metric in self.metrics.values():
+            metric.rescale(count)
+
+    def reset_metrics(self):
+        for metric in self.metrics.values():
+            metric.reset()
+    
+    def to_dict(self, prefix=""):
+        return {metric.get_prefixed_name(prefix): metric.value for metric in self.metrics.values()}
+
+def default_log_fn(output, data, target):
+    return []
+
+# === Data Augmentation ===
+
+def default_data_fn(data, target, model, dataset):
     return data, target
 
-def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
+# === Training ===
+
+def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
                 scheduler=None, device="cpu", completed_steps=0, train_steps=None,
-                output_dir="", model_name=None, val_loader=None,
-                wandb_logging=True, wandb_metrics=["acc", "loss"],
+                checkpoint_dir="", model_name=None, val_loader=None,
+                wandb_logging=False, wandb_metrics=["acc", "loss"],
                 grad_clip_norm=None, accumulation_steps=0,
                 mixed_precision=False, loss_backoff=InvalidLossBackoff(10, "consecutive"),
                 checkpoint_freq=None, val_freq=None, info_freq=None):
     # Default model name
     if model_name is None: model_name = model.__class__.__name__
     model.train()
-    train_loss = 0
-    train_acc = 0
-    accumulated_batch_loss = 0
-    accumulated_batch_acc = 0
+    accumulated_batch_metrics = MetricCollection()
     iterable = tqdm(train_loader, desc=f"Train Epoch {epoch}", leave=False, bar_format='{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}')
     scaler = GradScaler(device=device) if mixed_precision else None
     optimizer.zero_grad()
@@ -43,14 +153,8 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             # Forward pass
             data = data.to(device)
             target = target.to(device)
-            data, target = data_fn(data, target)
+            data, target = data_fn(data, target, model=model, dataset=train_loader.dataset)
             output = model(data)
-            
-            # Accuracy
-            with torch.no_grad():
-                accuracy = acc_fn(output.clone(), target.clone())
-                accumulated_batch_acc += accuracy
-                train_acc += accuracy
             
             # Loss
             loss = loss_fn(output, target)
@@ -61,10 +165,15 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
                 warnings.warn(f"Detected Invalid Loss: Epoch {epoch}, Batch {batch_idx}", RuntimeWarning)
                 if any_bad_params: raise RuntimeError("Invalid values detected in model parameters.")
             
-            # Accumulate loss for metrics
-            batch_loss = loss.item()
-            accumulated_batch_loss += batch_loss
-            train_loss += loss.item()
+            # Accumulate metrics
+            new_metrics = log_fn(
+                loss=loss.detach(),
+                output=output.detach(),
+                data=data.detach(),
+                target=target.detach(),
+            )
+            new_metrics.append(Metric(name="loss", value=loss.item(), reset_value=0.0, batch_avg=True))
+            accumulated_batch_metrics.accumulate_metrics(new_metrics)
         
         # Backward pass and gradient accumulation if applicable
         loss = loss / (accumulation_steps + 1)
@@ -78,33 +187,33 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
             if scheduler: scheduler.step()
             
             # WandB logging
-            log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
-            accumulated_batch_loss /= (accumulation_steps + 1)
-            accumulated_batch_acc /= (accumulation_steps + 1)
+            accumulated_batch_metrics.rescale_metrics(accumulation_steps + 1)
+            lr = scheduler.get_last_lr()[0] if scheduler is not None else optimizer.param_groups[0]["lr"]
+            accumulated_batch_metrics.add_metric(
+                Metric(name="lr", prefix="misc/", value=lr, batch_avg=False),
+            )
+            if hasattr(train_loader.dataset, "len"):
+                accumulated_batch_metrics.add_metric(
+                    Metric(name="seq_len", prefix="misc/", value=train_loader.dataset.len, reset_value=0.0, batch_avg=False)
+                )
             if wandb_logging:
-                log_data = {}
-                if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
-                if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
-                if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
-                if "lr" in wandb_metrics: log_data["misc/lr"] = log_lr
-                if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
+                log_data = accumulated_batch_metrics.to_dict(prefix="train/")
                 wandb.log(log_data)
-            accumulated_batch_loss = 0
-            accumulated_batch_acc = 0
             
             # Post info
-            if info_freq and completed_steps % info_freq == 0 and completed_steps > 0:
-                tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] LR: {log_lr:.1e}, Loss: {batch_loss:.4f}, Acc: {accuracy:.2f}%')
+            if info_freq is not None and completed_steps % info_freq == 0 and completed_steps > 0:
+                tqdm.write(f'Train Epoch {epoch}: [{batch_idx}/{len(train_loader)}] {accumulated_batch_metrics}')
             
             # Checkpoint
-            if checkpoint_freq and completed_steps % checkpoint_freq == 0 and completed_steps > 0:
-                checkpoint(model_name, output_dir, model, optimizer, scheduler)
+            if checkpoint_freq is not None and completed_steps % checkpoint_freq == 0 and completed_steps > 0:
+                checkpoint(model_name, checkpoint_dir, model, optimizer, scheduler)
             
             # Validation
-            if val_freq and completed_steps % val_freq == 0 and completed_steps > 0:
-                if val_loader: val_epoch(model, val_loader, loss_fn, acc_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
+            if val_loader is not None and val_freq is not None and completed_steps % val_freq == 0 and completed_steps > 0:
+                val_epoch(model, val_loader, loss_fn=loss_fn, log_fn=log_fn, data_fn=data_fn, device=device, wandb_logging=wandb_logging, wandb_metrics=wandb_metrics)
                 model.train()
             
+            accumulated_batch_metrics.reset_metrics()
             completed_steps += 1
         
         if train_steps is not None and completed_steps >= train_steps: break
@@ -119,98 +228,91 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, acc_fn, data_fn=
         if scheduler: scheduler.step()
         
         # WandB logging
-        log_lr = scheduler.get_last_lr()[0] if scheduler else optimizer.param_groups[0]["lr"]
-        accumulated_batch_loss /= (batch_idx % (accumulation_steps + 1)) + 1
-        accumulated_batch_acc /= (batch_idx % (accumulation_steps + 1)) + 1
+        accumulated_batch_metrics.rescale_metrics(batch_idx + 1)
+        lr = scheduler.get_last_lr()[0] if scheduler is not None else optimizer.param_groups[0]["lr"]
+        accumulated_batch_metrics.add_metric(
+            Metric(name="lr", prefix="misc/", value=lr, batch_avg=False),
+        )
+        if hasattr(train_loader.dataset, "len"):
+            accumulated_batch_metrics.add_metric(
+                Metric(name="seq_len", prefix="misc/", value=train_loader.dataset.len, reset_value=0.0, batch_avg=False)
+            )
         if wandb_logging:
-            log_data = {}
-            if "acc" in wandb_metrics: log_data["train/acc"] = accumulated_batch_acc
-            if "loss" in wandb_metrics: log_data["train/loss"] = accumulated_batch_loss
-            if "ppl" in wandb_metrics: log_data["train/ppl"] = math.exp(accumulated_batch_loss)
-            if "lr" in wandb_metrics: log_data["misc/lr"] = log_lr
-            if "seq_len" in wandb_metrics: log_data["misc/seq_len"] = train_loader.dataset.len
-            wandb.log(log_data)
+            wandb.log(accumulated_batch_metrics.to_dict(prefix="train/"))
     
     # Step sequence length if applicable
     if hasattr(train_loader.dataset, "step"):
         train_loader.dataset.step()
     
-    train_loss /= len(train_loader)
-    train_acc /= len(train_loader)
-    
-    return train_loss, train_acc, completed_steps
+    return completed_steps
 
 @ torch.no_grad()
-def val_epoch(model, val_loader, loss_fn, acc_fn, data_fn=default_data_fn,
+def val_epoch(model, val_loader, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
               device="cpu",
-              wandb_logging=True, wandb_metrics=["acc", "loss"],):
+              wandb_logging=False,):
     model.eval()
-    val_loss = 0
-    val_acc = 0
+    val_metrics = MetricCollection()
     start = time.time()
     iterable = val_loader
     for data, target in iterable:
         data = data.to(device)
         target = target.to(device)
-        data, target = data_fn(data, target)
+        data, target = data_fn(data, target, model=model, dataset=val_loader.dataset)
         output = model(data)
-        val_loss += loss_fn(output, target).item()
-        val_acc += acc_fn(output, target)
+        loss = loss_fn(output, target)
+        new_metrics = log_fn(
+            loss=loss,
+            output=output,
+            data=data,
+            target=target,
+        )
+        new_metrics.append(Metric(name="loss", value=loss, reset_value=0.0, batch_avg=True))
+        val_metrics.accumulate_metrics(new_metrics)
 
     total_time = time.time() - start
-    val_loss /= len(val_loader)
-    val_acc /= len(val_loader)
+    val_metrics.rescale_metrics(len(val_loader))
     
-    tqdm.write(f'\033[93mVal Epoch: Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%, Elapsed: {total_time:.3f}s\033[0m')
+    tqdm.write(f'\033[93mVal Epoch: {val_metrics}, Elapsed: {total_time:.3f}s\033[0m')
     if wandb_logging:
-        log_data = {}
-        if "acc" in wandb_metrics: log_data["val/acc"] = val_acc
-        if "loss" in wandb_metrics: log_data["val/loss"] = val_loss
-        if "ppl" in wandb_metrics: log_data["val/ppl"] = math.exp(val_loss)
-        wandb.log(log_data)
-    
-    return val_loss, val_acc
+        wandb.log(val_metrics.to_dict(prefix="val/"))
 
 @ torch.no_grad()
-def test_epoch(model, test_loader, loss_fn, acc_fn, data_fn=default_data_fn,
+def test_epoch(model, test_loader, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
                device="cpu",
-               wandb_logging=True, wandb_metrics=["acc", "loss"],):
+               wandb_logging=False,):
     model.eval()
-    test_loss = 0
-    test_acc = 0
+    test_metrics = MetricCollection()
     start = time.time()
     tqdm.write("")
     iterable = tqdm(test_loader, desc=f"Test Epoch", leave=False, bar_format='\033[92m{desc}: [{n_fmt}/{total_fmt}] {percentage:.0f}%|{bar}| [{rate_fmt}] {postfix}\033[0m')
     for data, target in iterable:
         data = data.to(device)
         target = target.to(device)
-        data, target = data_fn(data, target)
+        data, target = data_fn(data, target, model=model, dataset=test_loader.dataset)
         output = model(data)
-        test_loss += loss_fn(output, target).item()
-        test_acc += acc_fn(output, target)
+        loss = loss_fn(output, target)
+        new_metrics = log_fn(
+            loss=loss,
+            output=output,
+            data=data,
+            target=target,
+        )
+        new_metrics.append(Metric(name="loss", value=loss, reset_value=0.0, batch_avg=True))
+        test_metrics.accumulate_metrics(new_metrics)
 
     total_time = time.time() - start
-    test_loss /= len(test_loader)
-    test_acc /= len(test_loader)
+    test_metrics.rescale_metrics(len(test_loader))
     
-    tqdm.write(f'\033[92mTest Epoch: Loss: {test_loss:.4f}, Acc: {test_acc:.2f}%, Elapsed: {total_time:.3f}s\033[0m\n')
+    tqdm.write(f'\033[92mTest Epoch: {test_metrics}, Elapsed: {total_time:.3f}s\033[0m\n')
     if wandb_logging:
-        log_data = {}
-        if "acc" in wandb_metrics: log_data["test/acc"] = test_acc
-        if "loss" in wandb_metrics: log_data["test/loss"] = test_loss
-        if "ppl" in wandb_metrics: log_data["test/ppl"] = math.exp(test_loss)
-        wandb.log(log_data)
-        
-    return test_loss, test_acc
+        wandb.log(test_metrics.to_dict(prefix="test/"))
 
-def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, acc_fn, data_fn=default_data_fn,
+def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
           scheduler=None, device="cpu",
           train_config=None, mixed_precision=False,
-          output_dir="", model_name=None,
+          checkpoint_dir="", model_name=None,
           val_loader=None, test_loader=None,
-          local_log_path=None,
           wandb_logging=True, wandb_entity=None, wandb_project=None,
-          wandb_metrics=["acc", "loss"],
           grad_clip_norm=None, accumulation_steps=0,
           loss_backoff=InvalidLossBackoff(10, "consecutive"),
           checkpoint_freq=None, val_freq=None, info_freq=None):
@@ -250,80 +352,61 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
             # Compile the model for faster training
             model = compile_model(model, train_loader.dataset[0][0].shape, device)
         
-        # Metrics
-        train_losses = []
-        train_accuracies = []
-        if test_loader:
-            test_losses = []
-            test_accuracies = []
-        else:
-            test_losses = None
-            test_accuracies = None
-        
         # Train loop
         if epochs is not None:
             for epoch in range(1, epochs + 1):
                 # Train epoch
-                train_loss, train_acc, _ = train_epoch(
+                train_epoch(
                     epoch=epoch, train_loader=train_loader, val_loader=val_loader,
                     model=model, optimizer=optimizer, scheduler=scheduler,
-                    loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
-                    output_dir=output_dir, model_name=model_name,
-                    wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
+                    loss_fn=loss_fn, log_fn=log_fn, data_fn=data_fn, device=device,
+                    checkpoint_dir=checkpoint_dir, model_name=model_name,
+                    wandb_logging=wandb_logging,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
                     mixed_precision=mixed_precision, loss_backoff=loss_backoff,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
-                train_losses.append(train_loss)
-                train_accuracies.append(train_acc)
                 
                 # Test epoch
                 if test_loader:
-                    test_loss, test_acc = test_epoch(
-                        model, test_loader, loss_fn, acc_fn,
+                    test_epoch(
+                        model=model, test_loader=test_loader, loss_fn=loss_fn, log_fn=log_fn, data_fn=data_fn,
                         device=device,
-                        wandb_logging=wandb_logging, wandb_metrics=wandb_metrics
+                        wandb_logging=wandb_logging,
                     )
-                    test_losses.append(test_loss)
-                    test_accuracies.append(test_acc)
                 
                 # Model checkpoint
-                checkpoint(model_name=model_name, output_dir=output_dir, model=model, optimizer=optimizer, scheduler=scheduler)
+                checkpoint(model_name=model_name, checkpoint_dir=checkpoint_dir, model=model, optimizer=optimizer, scheduler=scheduler)
         
         elif train_steps is not None:
             completed_steps = 0
             epoch = 1
             while completed_steps < train_steps:
-                train_loss, train_acc, completed_steps = train_epoch(
+                completed_steps = train_epoch(
                     epoch=epoch, completed_steps=completed_steps, train_steps=train_steps, train_loader=train_loader, val_loader=val_loader,
                     model=model, optimizer=optimizer, scheduler=scheduler,
-                    loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn, device=device,
-                    output_dir=output_dir, model_name=model_name,
-                    wandb_logging=wandb_logging, wandb_metrics=wandb_metrics,
+                    loss_fn=loss_fn, log_fn=log_fn, data_fn=data_fn, device=device,
+                    checkpoint_dir=checkpoint_dir, model_name=model_name,
+                    wandb_logging=wandb_logging,
                     grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
                     mixed_precision=mixed_precision, loss_backoff=loss_backoff,
                     checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq
                 )
-                train_losses.append(train_loss)
-                train_accuracies.append(train_acc)
                 
                 # Test epoch
                 if test_loader:
-                    test_loss, test_acc = test_epoch(
-                        model, test_loader, loss_fn, acc_fn,
+                    test_epoch(
+                        model=model, test_loader=test_loader, loss_fn=loss_fn, log_fn=log_fn, data_fn=data_fn,
                         device=device,
-                        wandb_logging=wandb_logging, wandb_metrics=wandb_metrics
+                        wandb_logging=wandb_logging,
                     )
-                    test_losses.append(test_loss)
-                    test_accuracies.append(test_acc)
                 
                 # Model checkpoint
-                checkpoint(model_name=model_name, output_dir=output_dir, model=model, optimizer=optimizer, scheduler=scheduler)
+                checkpoint(model_name=model_name, checkpoint_dir=checkpoint_dir, model=model, optimizer=optimizer, scheduler=scheduler)
                 
                 epoch += 1
         
-        # Final logging
-        if local_log_path: log_info(log_path=local_log_path, model=model, model_name=model_name, configs=train_config, train_accuracies=train_accuracies, test_accuracies=test_accuracies)
+        # Finalize logging
         if wandb_logging: wandb.finish()
     
     except KeyboardInterrupt as e: raise e
@@ -335,64 +418,125 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
         if wandb_logging: cleanup_wandb(wandb_entity, wandb_project)
         sys.stdout.write("\033[?25h")
 
-def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, device="cpu"):
+def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn, device="cpu"):
     """
     **Config file options:**
-        global:
-            benchmark_name: Name of the benchmark.
-            output_dir: Directory to save model checkpoints.
+        `global`:
+            `benchmark_name`: Name of the benchmark.
             
-            dataset:
-                name: Class name of the dataset to use.
-                splits: Dictionary of dataset splits with their configurations. (e.g., "train", "val", "test")
+            `checkpoint_dir`: Directory to save model checkpoints.
             
-            logging (optional):
-                info_freq (default: 100): Frequency of CLI logging training information. No CLI logging if unspecified.
-                local_log_path: Path to save local logs.
-                wandb: WandB logging configurations.
-                    entity: WandB entity name.
-                    project: WandB project name.
-                    metrics (default: ["acc", "loss"]): List of metrics to log. (e.g., ["acc", "loss", "ppl", "lr", "seq_len"]).
+            `dataset`:
+                `name`: Class name of the dataset to use.
+
+                `splits`: Dictionary of dataset splits with their configurations. (e.g., "train", "val", "test")
             
-            val_freq (default: 500): Frequency of validation during training. No validation if unspecified.
-            checkpoint_freq (default: 500): Frequency of saving model checkpoints. No checkpointing if unspecified.
-        
-        experiments:
-            **List item format:**
-                general:
-                    seed (default: 0): Random seed for reproducibility.
-                    batch_size (default: 32): Batch size for training.
-                    accumulation_steps (default: 0): Number of batches to accumulate gradients for.
-                    train_steps (optional): Number of training steps. **(Mutually exclusive with epochs)**
-                    epochs (optional): Number of epochs to train. **(Mutually exclusive with train_steps)**
-                    grad_clip_norm (optional): Gradient clipping norm. No clipping if unspecified.
-                    loss_backoff_count (default: 10): Number of invalid loss backoffs before stopping training.
-                    loss_backoff_type (default: consecutive): Type of invalid loss backoff.
-                    load_checkpoint (default: False): Whether to attempt loading model from checkpoint.
-                    mixed_precision (default: False): Whether to use mixed precision for training.
-                    num_workers (default: 0): Number of workers for data loading.
+            `logging` (optional):
+                `info_freq` (default: 100): Frequency of CLI logging training information. No CLI logging if unspecified.
                 
-                model:
-                    name: Model class name.
+                `wandb`: WandB logging configurations.
+                    `entity`: WandB entity name.
+                
+                    `project`: WandB project name.
+                    
+            `val_freq` (default: 500): Frequency of validation during training. Ignored in no validation dataset is provided.
+            
+            `checkpoint_freq` (default: 500): Frequency of saving model checkpoints. No checkpointing if set to None.
+        
+        `experiments`:
+            **List item format:**
+                `general`:
+                    `seed` (default: 0): Random seed for reproducibility.
+                    
+                    `batch_size` (default: 32): Batch size for training.
+                    
+                    `accumulation_steps` (default: 0): Number of batches to accumulate gradients for.
+                    
+                    `train_steps` (optional): Number of training steps. **(Mutually exclusive with epochs)**
+                    
+                    `epochs` (optional): Number of epochs to train. **(Mutually exclusive with train_steps)**
+                    
+                    `use_loss_fn` (default: 0):
+                        If loss_fn is a list, this specifies which function to use from the list.
+                        0 means use the first function in the list.
+                    
+                    `use_log_fn` (default: 0):
+                        If log_fn is a list, this specifies which function to use from the list.
+                        -1 means use default_log_fn which only logs the loss.
+                    
+                    `use_data_fn` (default: -1):
+                        If data_fn is a list, this specifies which function to use from the list.
+                        -1 means use default_data_fn which doesn't modify the data.
+                    
+                    `grad_clip_norm` (optional): Gradient clipping norm. No clipping if unspecified.
+                    
+                    `loss_backoff_count` (default: 10): Number of invalid loss backoffs before stopping training.
+                    
+                    `loss_backoff_type` (default: consecutive): Type of invalid loss backoff.
+                    
+                    `load_checkpoint` (default: False): Whether to attempt loading model from checkpoint.
+                    
+                    `mixed_precision` (default: False): Whether to use mixed precision for training.
+                    
+                    `num_workers` (default: 0): Number of workers for data loading.
+                
+                `model`:
+                    `name`: Model class name.
+                    
                     Model arguments...
                 
-                optimizer:
-                    name: Optimizer class name (e.g., "SGD", "Adam", "AdamW").
-                    exclude_weight_decay (default ["bias", "norm"]): List of parameter names to exclude from weight decay. Provide empty list to not exclude any parameters.
+                `optimizer`:
+                    `name`: Optimizer class name (e.g., "SGD", "Adam", "AdamW").
+                    
+                    `exclude_weight_decay` (default ["bias", "norm"]):
+                        List of parameter names to exclude from weight decay.
+                        Provide empty list to not exclude any parameters.
+                    
                     Optimizer arguments...
                 
-                scheduler (optional):
-                    name: Scheduler class name (e.g., "ConstantLR", "LinearLR", "CosineAnnealingLR").
+                `scheduler` (optional):
+                    `name`: Scheduler class name (e.g., "ConstantLR", "LinearLR", "CosineAnnealingLR").
+                    
                     Scheduler arguments...
     
     Args:
-        yaml_path (str): Path to YAML configuration file.
-        loss_fn (Callable): A function to compute model loss. Args: (model_output, target). Returns: loss.
-        acc_fn (Callable): A function to compute model accuracy. Args: (model_output, target). Returns: accuracy.
-        data_fn (Callable, optional): A function to augment data and target before passing into model. Args: (data, target). Returns: (data, target).
-        device (str, optional): Device to run training on. Defaults to cpu.
+        yaml_path (str):
+            Path to YAML configuration file.
+
+        loss_fn (Callable):
+            Args: (model_output, target)
+            Returns: loss
+            A function or list of functions that each compute model loss.
+            If a list, `use_log_fn` in experiment general config specifies which function to use.
+            If a single function, it will be treated as a list with a single item.
+            At least one loss function must be provided.
+            Defaults to the first function in the list if provided.
+        
+        log_fn (Callable, optional):
+            Args: (loss, output, data, target)
+            Returns: list of Metric objects or MetricCollection
+            A function or list of functions that each log arbitrary metrics during training.
+            If a list, `use_log_fn` in experiment general config specifies which function to use.
+            If a single function, it will be treated as a list with a single item.
+            Defaults to a function that logs nothing.
+            **Note**: loss, lr, and sequence length (if applicable) are logged automatically.
+        
+        data_fn (Callable, optional):
+            Args: (data, target, model, dataset)
+            Returns: (data, target)
+            A function or list of functions that each augment data and target before passing into model.
+            If a list, `use_data_fn` in experiment general config specifies which function to use.
+            If a single function, it will be treated as a list with a single item.
+            Defaults to a function that does not modify the data.
+        
+        device (str, optional):
+            Device to run training on. Defaults to cpu.
     """
     os.system('clear')
+    
+    if not isinstance(loss_fn, list): loss_fn = [loss_fn]
+    if not isinstance(log_fn, list): log_fn = [log_fn]
+    if not isinstance(data_fn, list): data_fn = [data_fn]
     
     with open(yaml_path, 'r') as f:
         configs = yaml.safe_load(f)
@@ -400,7 +544,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
     # Extract global training configurations
     global_config = configs.get("global")
     benchmark_name = global_config.get("benchmark_name")
-    output_dir = global_config.get("output_dir")
+    checkpoint_dir = global_config.get("checkpoint_dir")
     
     # Initialize datasets
     dataset_config = global_config.get("dataset")
@@ -421,12 +565,10 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
     # Get logging configurations
     logging_config = global_config.get("logging", {})
     info_freq = logging_config.get("info_freq", 100)
-    local_log_path = logging_config.get("local_log_path")
     wandb_config = logging_config.get("wandb", {})
     wandb_logging = wandb_config is not None
     wandb_entity = wandb_config.get("entity")
     wandb_project = wandb_config.get("project")
-    wandb_metrics = wandb_config.get("metrics", ["acc", "loss"])
     
     # Get checkpointing configurations
     val_freq = global_config.get("val_freq", 500)
@@ -474,6 +616,27 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
         
+        # Choose loss function
+        loss_fn_index = general_config.get("use_loss_fn", 0)
+        assert 0 <= loss_fn_index < len(loss_fn), f"Invalid loss_fn index: {loss_fn_index}. Must be between 0 and {len(loss_fn) - 1}."
+        experiment_loss_fn = loss_fn[loss_fn_index]
+        
+        # Choose logging function
+        log_fn_index = general_config.get("use_log_fn", 0)
+        if log_fn_index == -1:
+            experiment_log_fn = default_log_fn
+        else:
+            assert 0 <= log_fn_index < len(log_fn), f"Invalid log_fn index: {log_fn_index}. Must be between 0 and {len(log_fn) - 1}."
+            experiment_log_fn = log_fn[log_fn_index]
+        
+        # Choose data function
+        data_fn_index = general_config.get("use_data_fn", -1)
+        if data_fn_index == -1:
+            experiment_data_fn = default_data_fn
+        else:
+            assert 0 <= data_fn_index < len(data_fn), f"Invalid data_fn index: {data_fn_index}. Must be between 0 and {len(data_fn) - 1}."
+            experiment_data_fn = data_fn[data_fn_index]
+        
         model_config = copy.deepcopy(experiment.get("model"))
         model_name = model_config.pop("name")
         model_config = try_to_float(model_config)
@@ -513,7 +676,7 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
         load_from_checkpoint = general_config.get("load_checkpoint", False)
         if load_from_checkpoint:
             model, optimizer, scheduler = load_checkpoint(
-                model_name=model_name, output_dir=output_dir,
+                model_name=model_name, checkpoint_dir=checkpoint_dir,
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 device=device
             )
@@ -541,13 +704,11 @@ def train_from_config_file(yaml_path, loss_fn, acc_fn, data_fn=default_data_fn, 
             train(
                 epochs=epochs, train_steps=train_steps, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,
-                loss_fn=loss_fn, acc_fn=acc_fn, data_fn=data_fn,
+                loss_fn=experiment_loss_fn, log_fn=experiment_log_fn, data_fn=experiment_data_fn,
                 train_config=train_config, mixed_precision=mixed_precision,
-                output_dir=output_dir,
+                checkpoint_dir=checkpoint_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
-                local_log_path=local_log_path,
                 wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project,
-                wandb_metrics=wandb_metrics,
                 grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
                 loss_backoff=loss_backoff,
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,

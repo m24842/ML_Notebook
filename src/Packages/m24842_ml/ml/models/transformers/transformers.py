@@ -461,3 +461,91 @@ class FastTransformer(nn.Module):
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x
+
+class DiffusionTransformer(nn.Module):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
+                 dropout=0.0, weight_tying=False,
+                 mlp_bias=True, attn_bias=True,
+                 pos_encoding=None, pos_encoding_max_len=None,
+                 device="cpu"):
+        super().__init__()
+        self.emb_dim = emb_dim
+        assert input_dim == output_dim, "input_dim and output_dim must be the same for DiffusionTransformer"
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        
+        self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
+        
+        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
+        
+        self.pos_encoding = pos_encoding
+        if pos_encoding == "rope":
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+        elif pos_encoding == "xpos":
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+        elif pos_encoding == "abs":
+            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
+            self.pos_encoding_max_len = pos_encoding_max_len
+        else: self.rope = None
+        
+        self.layers = nn.ModuleList([
+            nn.ModuleDict(
+                dict(
+                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
+                    dropout1 = nn.Dropout(dropout),
+                    attention = MultiheadAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attn_bias, batch_first=True, device=device),
+                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    dropout2 = nn.Dropout(dropout),
+                    feedforward = nn.Sequential(
+                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
+                        nn.ReLU(),
+                        nn.Dropout(dropout),
+                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
+                    )
+                )
+            ) for _ in range(self.n_layers)
+        ])
+        self.norm_f = nn.RMSNorm(emb_dim, device=device)
+        
+        nn.init.xavier_uniform_(self.embedding.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        self.to(device)
+    
+    def get_noise(self, x, profile_fn=None, scale=1.0, offset=0.0):
+        """
+        Args:
+            x: input tensor of shape (batch_size, seq_len, emb_dim)
+            profile_fn: function to apply to profile gaussian noise, defaults to identity
+            scale: scaling factor for profile step resolution, defaults to 1.0
+            offset: offset to apply the profile_fn from the end of the sequence, defaults to 0.0
+        """
+        if profile_fn is None: profile_fn = lambda x: x
+        seq_len = x.size(1)
+        noise = torch.randn_like(x, device=x.device)
+        axis = offset + scale * torch.arange(-seq_len, 0, dtype=torch.float32, device=x.device).reshape(1, seq_len, 1)
+        profiled_noise = profile_fn(axis) * noise
+        return profiled_noise
+    
+    def forward(self, x):
+        seq_len = x.size(1)
+        x_orig = x.clone()
+        x = self.embedding(x)
+        for layer in self.layers:
+            x = layer.norm1(x)
+            if layer.abs_pos_encoding is not None:
+                pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
+                x = x + layer.abs_pos_encoding(pos)
+            a_out = layer.attention(x, attn_mask=None, rope=self.rope if self.pos_encoding == "rope" else None)
+            x = layer.norm2(x + layer.dropout1(a_out))
+            ff_out = layer.feedforward(x)
+            x = x + layer.dropout2(ff_out)
+        x = self.norm_f(x)
+        x = self.out_proj(x)
+        return x_orig - x

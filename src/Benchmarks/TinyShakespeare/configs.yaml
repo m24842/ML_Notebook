@@ -1,11 +1,10 @@
 ### Global Configuration ###
 global:
   benchmark_name: Tiny Shakespeare
-  output_dir: src/Benchmarks/TinyShakespeare/checkpoints
+  checkpoint_dir: src/Benchmarks/TinyShakespeare/checkpoints
 
   logging:
     info_freq: 100
-    local_log_path: src/Benchmarks/TinyShakespeare/experiments.log
     wandb:
       entity: m24842
       project: Machine Learning
@@ -17,13 +16,13 @@ global:
       train:
         train: True
         tokenizer: EleutherAI/gpt-neox-20b
-        min_len: 1024
-        max_len: 2048
-        warmup_epochs: 40
+        min_len: 256
+        max_len: 256
+        warmup_epochs: 0
       test:
         train: False
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 2048
+        max_len: 256
   
   checkpoint_freq: 500
 
@@ -32,7 +31,7 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 16
-  accumulation_steps: 3
+  accumulation_steps: 0
   train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: True
@@ -214,155 +213,205 @@ FastTransformer_defaults: &FastTransformer_defaults
   scheduler:
     <<: *scheduler_defaults
 
+DiffusionTransformer_defaults: &DiffusionTransformer_defaults
+  general: &DiffusionTransformer_general
+    <<: *general_defaults
+    use_data_fn: 0
+  
+  model: &DiffusionTransformer_model
+    name: DiffusionTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 6
+    input_dim: 50277
+    output_dim: 50277
+    attn_sink: False
+    mlp_bias: False
+    attn_bias: False
+    dropout: 0.0
+    pos_encoding: xpos
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 ### Experiments Configuration ###
 experiments:
-  - <<: *FastTransformer_defaults
+  - <<: *DiffusionTransformer_defaults
     general:
-      <<: *FastTransformer_general
+      <<: *DiffusionTransformer_general
       seed: 0
 
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 42
+  # - <<: *DiffusionTransformer_defaults
+  #   general:
+  #     <<: *DiffusionTransformer_general
+  #     seed: 42
   
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 1111
+  # - <<: *DiffusionTransformer_defaults
+  #   general:
+  #     <<: *DiffusionTransformer_general
+  #     seed: 1111
   
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 2222
+  # - <<: *DiffusionTransformer_defaults
+  #   general:
+  #     <<: *DiffusionTransformer_general
+  #     seed: 2222
   
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 3333
+  # - <<: *DiffusionTransformer_defaults
+  #   general:
+  #     <<: *DiffusionTransformer_general
+  #     seed: 3333
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 0
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 0
 
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 42
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 42
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 1111
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 1111
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 2222
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 2222
   
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 3333
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 3333
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 0
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 0
+
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 42
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 42
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 1111
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 1111
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 2222
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 2222
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 3333
   
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 3333
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 0
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 0
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 42
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 42
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 1111
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 1111
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 2222
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 2222
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 3333
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 3333
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 0
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 0
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 42
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 42
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 1111
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 1111
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 2222
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 2222
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 3333
   
-  - <<: *OrthoLinearTransformer_defaults
-    general:
-      <<: *OrthoLinearTransformer_general
-      seed: 3333
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 0
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 0
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 42
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 42
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 1111
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 1111
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 2222
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 2222
+  # - <<: *OrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *OrthoLinearTransformer_general
+  #     seed: 3333
   
-  - <<: *LinearTransformer_defaults
-    general:
-      <<: *LinearTransformer_general
-      seed: 3333
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 0
+  
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 42
+  
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 1111
+  
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 2222
+  
+  # - <<: *LinearTransformer_defaults
+  #   general:
+  #     <<: *LinearTransformer_general
+  #     seed: 3333
   

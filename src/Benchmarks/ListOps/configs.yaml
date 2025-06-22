@@ -1,11 +1,10 @@
 ### Global Configuration ###
 global:
   benchmark_name: ListOps
-  output_dir: src/Benchmarks/ListOps/checkpoints
+  checkpoint_dir: src/Benchmarks/ListOps/checkpoints
 
   logging:
     info_freq: 100
-    local_log_path: src/Benchmarks/ListOps/experiments.log
     wandb:
       entity: m24842
       project: Machine Learning

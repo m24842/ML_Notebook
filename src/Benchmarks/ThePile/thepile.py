@@ -1,7 +1,8 @@
+import math
 import torch
 import torch.nn.functional as F
 from ml.utils import get_available_device
-from ml.train import train_from_config_file
+from ml.train import *
 
 CONFIG_PATH = "src/Benchmarks/ThePile/configs.yaml"
 

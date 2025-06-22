@@ -2,12 +2,11 @@ import os
 import sys
 import torch
 from torchvision import datasets, transforms
-from torch.utils.data import IterableDataset, Dataset
+from torch.utils.data import Dataset
 from PIL import Image
 import math
 import re
 import bisect
-import random
 import pandas as pd
 from collections import defaultdict
 from transformers import AutoTokenizer

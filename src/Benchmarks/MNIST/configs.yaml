@@ -1,11 +1,10 @@
 ### Global Configuration ###
 global:
   benchmark_name: MNIST
-  output_dir: src/Benchmarks/MNIST/checkpoints
+  checkpoint_dir: src/Benchmarks/MNIST/checkpoints
 
   logging:
     info_freq: 100
-    local_log_path: src/Benchmarks/MNIST/experiments.log
     wandb:
       entity: m24842
       project: Machine Learning
@@ -205,60 +204,60 @@ FastTransformer_defaults: &FastTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *FastTransformer_defaults
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 0
+
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 42
+  
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 1111
+  
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 2222
+  
+  # - <<: *FastTransformer_defaults
+  #   general:
+  #     <<: *FastTransformer_general
+  #     seed: 3333
+
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 0
+
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 42
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 1111
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 2222
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 3333
+
+  - <<: *CompressionTransformer_defaults
     general:
-      <<: *FastTransformer_general
+      <<: *CompressionTransformer_general
       seed: 0
-
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 42
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 1111
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 2222
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 3333
-
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 0
-
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 42
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 1111
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 2222
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 3333
-
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 0
 
   # - <<: *CompressionTransformer_defaults
   #   general:
