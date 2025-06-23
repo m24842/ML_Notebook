@@ -217,6 +217,8 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
     use_data_fn: 0
+    batch_size: 16
+    accumulation_steps: 7
     train_steps: 1000000
   
   model: &DiffusionTransformer_model
@@ -235,10 +237,13 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   
   optimizer:
     <<: *optimizer_defaults
+    lr: 1e-4
   
   scheduler:
     <<: *scheduler_defaults
+    num_warmup_steps: 1000
     num_training_steps: 1000000
+    eta_min: 1e-6
 
 ### Experiments Configuration ###
 experiments:

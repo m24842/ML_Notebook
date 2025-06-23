@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn.functional as F
 from ml.utils import get_available_device
@@ -11,7 +10,7 @@ device = get_available_device()
 def loss_fn(output, target):
     return F.cross_entropy(output[:, -1], target)
 
-def log_fn(output, data, target):
+def log_fn(loss, output, data, target):
     pred = output[:, -1].argmax(dim=1)
     acc = 100 * (pred == target).sum().item() / len(target)
     return [

@@ -229,7 +229,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
         if scheduler: scheduler.step()
         
         # WandB logging
-        accumulated_batch_metrics.rescale_metrics(batch_idx + 1)
+        accumulated_batch_metrics.rescale_metrics((batch_idx % (accumulation_steps + 1)) + 1)
         lr = scheduler.get_last_lr()[0] if scheduler is not None else optimizer.param_groups[0]["lr"]
         accumulated_batch_metrics.add_metric(
             Metric(name="lr", prefix="misc/", value=lr, batch_avg=False),
