@@ -45,7 +45,7 @@ optimizer_defaults: &optimizer_defaults
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-5
-  num_warmup_steps: 1000
+  num_warmup_steps: 0
   num_training_steps: 10000
 
 Transformer_defaults: &Transformer_defaults
@@ -217,6 +217,7 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
     use_data_fn: 0
+    train_steps: 1000000
   
   model: &DiffusionTransformer_model
     name: DiffusionTransformer
@@ -230,13 +231,14 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
     mlp_bias: False
     attn_bias: False
     dropout: 0.0
-    pos_encoding: xpos
+    pos_encoding: rope
   
   optimizer:
     <<: *optimizer_defaults
   
   scheduler:
     <<: *scheduler_defaults
+    num_training_steps: 1000000
 
 ### Experiments Configuration ###
 experiments:

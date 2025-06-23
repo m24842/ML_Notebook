@@ -471,7 +471,6 @@ class DiffusionTransformer(nn.Module):
                  device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
-        assert input_dim == output_dim, "input_dim and output_dim must be the same for DiffusionTransformer"
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_layers = n_layers
@@ -518,24 +517,28 @@ class DiffusionTransformer(nn.Module):
         
         self.to(device)
     
-    def get_noise(self, x, profile_fn=None, scale=1.0, offset=0.0):
+    def get_noise(self, x, profile_fn=None, t_offset=0, t_range=(-1.0, 0.0), beta_range=(0.0001, 0.02)):
         """
         Args:
             x: input tensor of shape (batch_size, seq_len, emb_dim)
             profile_fn: function to apply to profile gaussian noise, defaults to identity
-            scale: scaling factor for profile step resolution, defaults to 1.0
-            offset: offset to apply the profile_fn from the end of the sequence, defaults to 0.0
+            t_offset: offset to apply to time axis, defaults to 0
+            t_range: tuple of (t_min, t_max) for time axis, defaults to (-1.0, 0.0)
+            beta_range: tuple of (beta_min, beta_max) for noise schedule, defaults to (0.0001, 0.02)
         """
         if profile_fn is None: profile_fn = lambda x: x
-        seq_len = x.size(1)
-        noise = torch.randn_like(x, device=x.device)
-        axis = offset + scale * torch.arange(-seq_len, 0, dtype=torch.float32, device=x.device).reshape(1, seq_len, 1)
-        profiled_noise = profile_fn(axis) * noise
-        return profiled_noise
+        t_min, t_max = t_range
+        beta_min, beta_max = beta_range
+        bsz, seq_len = x.shape[:2]
+        t_axis = torch.linspace(t_min-t_offset, t_max-t_offset, seq_len, dtype=torch.float32, device=x.device).reshape(1, -1, 1).expand(bsz, -1, 1)
+        profile = profile_fn(t_axis)
+        betas = profile * (beta_max - beta_min) + beta_min
+        alphas = 1.0 - betas
+        alphas_cumprod = torch.cumprod(alphas, dim=1)
+        return betas, alphas, alphas_cumprod
     
     def forward(self, x):
         seq_len = x.size(1)
-        x_orig = x.clone()
         x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
@@ -548,4 +551,4 @@ class DiffusionTransformer(nn.Module):
             x = x + layer.dropout2(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
-        return x_orig - x
+        return x

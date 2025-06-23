@@ -166,14 +166,15 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
                 if any_bad_params: raise RuntimeError("Invalid values detected in model parameters.")
             
             # Accumulate metrics
-            new_metrics = log_fn(
-                loss=loss.detach(),
-                output=output.detach(),
-                data=data.detach(),
-                target=target.detach(),
-            )
-            new_metrics.append(Metric(name="loss", value=loss.item(), reset_value=0.0, batch_avg=True))
-            accumulated_batch_metrics.accumulate_metrics(new_metrics)
+            with torch.no_grad():
+                new_metrics = log_fn(
+                    loss=loss,
+                    output=output,
+                    data=data,
+                    target=target,
+                )
+                new_metrics.append(Metric(name="loss", value=loss.item(), reset_value=0.0, batch_avg=True))
+                accumulated_batch_metrics.accumulate_metrics(new_metrics)
         
         # Backward pass and gradient accumulation if applicable
         loss = loss / (accumulation_steps + 1)
