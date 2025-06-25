@@ -138,11 +138,20 @@ def load_checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler
         if "_orig_mod." in list(state_dict.keys())[0]:
             state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
         model.load_state_dict(state_dict)
-        if optimizer: optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
-        if scheduler: scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
         print(f'\033[92mResuming from checkpoint\033[0m')
     except:
         print(f'\033[91mStarting from scratch\033[0m')
+    
+    if optimizer:
+        try:
+            optimizer.load_state_dict(torch.load(optimizer_path, weights_only=True, map_location=device))
+        except:
+            print(f'\033[91mFailed to load optimizer state dict\033[0m')
+    if scheduler:
+        try:
+            scheduler.load_state_dict(torch.load(scheduler_path, weights_only=True, map_location=device))
+        except:
+            print(f'\033[91mFailed to load scheduler state dict\033[0m')
     
     if model and not optimizer and not scheduler:
         output = model

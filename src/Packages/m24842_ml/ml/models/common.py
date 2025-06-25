@@ -4,6 +4,24 @@ import torch.nn.functional as F
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 
+class MLP(nn.Module):
+    def __init__(self, d_in, d_hidden, d_out, activation=F.relu, bias=True, device="cpu"):
+        super().__init__()
+        if d_hidden is None:
+            d_hidden = d_in
+        self.fc1 = nn.Linear(d_in, d_hidden, bias=bias, device=device)
+        self.fc2 = nn.Linear(d_hidden, d_out, bias=bias, device=device)
+        self.activation = activation
+        
+        nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
+        nn.init.xavier_uniform_(self.fc2.weight)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        return x
+
 class GatedRMSNorm(nn.Module):
     def __init__(self, d, eps=1e-5, device=None):
         """Gated Root Mean Square Layer Normalization

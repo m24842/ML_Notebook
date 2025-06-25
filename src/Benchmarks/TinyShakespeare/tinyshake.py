@@ -8,7 +8,9 @@ CONFIG_PATH = "src/Benchmarks/TinyShakespeare/configs.yaml"
 device = get_available_device()
 
 def loss_fn(output, target):
-    return F.mse_loss(output, target)
+    # return F.mse_loss(output, target)
+    data_p, target, betas, alphas, alphas_cumprod = target
+    output = (1.0 / torch.sqrt(alphas)) * (data_p - (betas / torch.sqrt(1.0 - alphas_cumprod)) * output)
     return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
 
 def log_fn(loss, output, data, target):
@@ -23,20 +25,15 @@ def log_fn(loss, output, data, target):
 def data_fn(data, target, model, dataset):
     bsz, seq_len = data.shape[:2]
     data_p = torch.zeros((bsz, seq_len, model.input_dim), device=device)
-    target_p = torch.zeros((bsz, seq_len, model.input_dim), device=device)
     
     batch_idx = torch.arange(bsz).unsqueeze(1).expand(bsz, seq_len)
     seq_len_idx = torch.arange(seq_len).unsqueeze(0).expand(bsz, seq_len)
     data_p[batch_idx, seq_len_idx, data] = 1.0
-    target_p[batch_idx, seq_len_idx, target] = 1.0
     
     betas, alphas, alphas_cumprod = model.get_noise(data_p, profile_fn=torch.sigmoid, t_range=(-16, 4), beta_range=(0.0001, 0.05))
-    target_p = data_p.clone()
-    data_p = torch.sqrt(alphas_cumprod) * data_p + torch.sqrt(1-alphas_cumprod) * torch.randn_like(data_p)
-    
-    betas, alphas, alphas_cumprod = model.get_noise(target_p, profile_fn=torch.sigmoid, t_range=(-16, 4), beta_range=(0.0001, 0.05), t_offset=1)
-    target_p = torch.sqrt(alphas_cumprod) * target_p + torch.sqrt(1-alphas_cumprod) * torch.randn_like(target_p)
-    return data_p, target_p - data_p
+    noise = torch.randn_like(data_p)
+    data_p = torch.sqrt(alphas_cumprod) * data_p + torch.sqrt(1-alphas_cumprod) * noise
+    return data_p, (data_p, target, betas, alphas, alphas_cumprod)
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, log_fn, data_fn=data_fn, device=device)

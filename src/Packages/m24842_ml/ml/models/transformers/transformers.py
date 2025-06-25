@@ -19,6 +19,7 @@ class Transformer(nn.Module):
                  device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.causal = causal
         self.n_layers = n_layers
@@ -50,12 +51,7 @@ class Transformer(nn.Module):
                     attention = MultiheadAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -126,12 +122,7 @@ class LinearTransformer(nn.Module):
                     attention = LinearAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attn_bias, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -200,12 +191,7 @@ class OrthoLinearTransformer(nn.Module):
                     attention = OrthoLinearAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attn_bias, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -275,12 +261,7 @@ class CompressionTransformer(nn.Module):
                     attention = CompressionAttention(emb_dim, self.n_heads, compressed_len=self.compressed_len, attn_sink=attn_sink, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -351,12 +332,7 @@ class SlidingWindowTransformer(nn.Module):
                     attention = SlidingWindowAttention(emb_dim, self.n_heads, window_len=window_len, masked_window=masked_window, attn_sink=attn_sink, dilation=dilation_factor**i if dilate else 1, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for i in range(self.n_layers)
         ])
@@ -428,12 +404,7 @@ class FastTransformer(nn.Module):
                     attention = FastAttention(emb_dim, self.n_heads, window_len=window_len, n_dilations=n_dilations, dilation_factor=dilation_factor, attn_sink=attn_sink, masked_window=masked_window, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for i in range(self.n_layers)
         ])
@@ -463,10 +434,9 @@ class FastTransformer(nn.Module):
         return x
 
 class DiffusionTransformer(nn.Module):
-    def __init__(self, emb_dim, input_dim, output_dim,
+    def __init__(self, emb_dim, input_dim, output_dim, use_embedding=True,
                  n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
-                 dropout=0.0, weight_tying=False,
-                 mlp_bias=True, attn_bias=True,
+                 dropout=0.0, mlp_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -477,8 +447,9 @@ class DiffusionTransformer(nn.Module):
         self.n_heads = n_heads
         self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
         
-        self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
-        
+        self.use_embedding = use_embedding
+        if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
+        else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
@@ -500,23 +471,18 @@ class DiffusionTransformer(nn.Module):
                     attention = MultiheadAttention(emb_dim, self.n_heads, attn_sink=attn_sink, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = nn.Sequential(
-                        nn.Linear(emb_dim, self.mlp_dim, bias=mlp_bias, device=device),
-                        nn.ReLU(),
-                        nn.Dropout(dropout),
-                        nn.Linear(self.mlp_dim, emb_dim, bias=mlp_bias, device=device)
-                    )
+                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
         self.norm_f = nn.RMSNorm(emb_dim, device=device)
         
         nn.init.xavier_uniform_(self.embedding.weight)
-        if weight_tying: self.out_proj.weight = self.embedding.weight
-        else: nn.init.xavier_uniform_(self.out_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
     
+    @torch.no_grad()
     def get_noise(self, x, profile_fn=None, t_offset=0, t_range=(-1.0, 0.0), beta_range=(0.0001, 0.02)):
         """
         Args:
@@ -530,16 +496,17 @@ class DiffusionTransformer(nn.Module):
         t_min, t_max = t_range
         beta_min, beta_max = beta_range
         bsz, seq_len = x.shape[:2]
-        t_axis = torch.linspace(t_min-t_offset, t_max-t_offset, seq_len, dtype=torch.float32, device=x.device).reshape(1, -1, 1).expand(bsz, -1, 1)
-        profile = profile_fn(t_axis)
+        t_axis = torch.linspace(t_min-t_offset, t_max-t_offset, seq_len, dtype=torch.float32, device=x.device).reshape(1, -1, 1)
+        profile = profile_fn(t_axis).clamp(0.0, 1.0)
         betas = profile * (beta_max - beta_min) + beta_min
         alphas = 1.0 - betas
         alphas_cumprod = torch.cumprod(alphas, dim=1)
         return betas, alphas, alphas_cumprod
     
     def forward(self, x):
-        seq_len = x.size(1)
-        x = self.embedding(x)
+        bsz, seq_len, d_model = x.shape
+        # if self.use_embedding: x = self.embedding(x.long())
+        # else: x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
             if layer.abs_pos_encoding is not None:

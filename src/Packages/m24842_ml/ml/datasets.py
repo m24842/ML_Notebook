@@ -243,7 +243,7 @@ class IMDb(Dataset):
         self.len = self.min_len
 
 class TinyShakespeare(Dataset):
-    def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0):
+    def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, vocab_size=256):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -253,12 +253,21 @@ class TinyShakespeare(Dataset):
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
 
         # Load and tokenize entire dataset
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         split = 'train' if train else 'test'
         text = load_dataset('tiny_shakespeare', split=split)['text'][0]
-
+        
         # Tokenize the full corpus
-        tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
+        if tokenizer == "char":
+            self.tokenizer = self.tokenize
+            self.vocab_size = vocab_size
+            self.pad_token_id = 0
+            tokens = self.tokenizer(text)
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
+            self.vocab_size = self.tokenizer.vocab_size
+            self.pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+            tokens = self.tokenizer(text, add_special_tokens=False)['input_ids']
+        
         self.tokenized = torch.tensor(tokens, dtype=torch.long)
 
     def __len__(self):
@@ -276,6 +285,14 @@ class TinyShakespeare(Dataset):
             y = torch.nn.functional.pad(y, (0, self.len - y.size(0)), value=-100)
         return x, y
 
+    def tokenize(self, text):
+        """
+        Tokenizes the input text for IMDb dataset.
+        0: PAD
+        1: UNKNOWN
+        """
+        return [0] + [(2 + ord(c)) if (2 + ord(c)) < self.vocab_size else 2 for c in text]
+    
     def step(self):
         if self.len + self.step_size <= self.max_len:
             self.len += self.step_size

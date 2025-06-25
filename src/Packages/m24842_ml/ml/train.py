@@ -154,6 +154,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
             data = data.to(device)
             target = target.to(device)
             data, target = data_fn(data, target, model=model, dataset=train_loader.dataset)
+            
             output = model(data)
             
             # Loss
