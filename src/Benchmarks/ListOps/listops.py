@@ -7,7 +7,7 @@ CONFIG_PATH = "src/Benchmarks/ListOps/configs.yaml"
 
 device = get_available_device()
 
-def loss_fn(output, target):
+def loss_fn(data, output, target):
     return F.cross_entropy(output[:, 0], target)
 
 def log_fn(loss, output, data, target):

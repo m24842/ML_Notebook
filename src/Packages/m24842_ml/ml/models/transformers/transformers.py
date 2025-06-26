@@ -505,8 +505,8 @@ class DiffusionTransformer(nn.Module):
     
     def forward(self, x):
         bsz, seq_len, d_model = x.shape
-        # if self.use_embedding: x = self.embedding(x.long())
-        # else: x = self.embedding(x)
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
         for layer in self.layers:
             x = layer.norm1(x)
             if layer.abs_pos_encoding is not None:

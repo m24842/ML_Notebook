@@ -46,8 +46,8 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
-  eta_min: 1e-5
-  num_warmup_steps: 0
+  eta_min: 1e-6
+  num_warmup_steps: 1000
   num_training_steps: 10000
 
 Transformer_defaults: &Transformer_defaults
@@ -219,8 +219,8 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
     use_data_fn: 0
-    batch_size: 64
-    accumulation_steps: 1
+    batch_size: 16
+    accumulation_steps: 0
     train_steps: 10000
     # load_checkpoint: True
   
@@ -230,8 +230,8 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
     mlp_dim: 256
     n_heads: 4
     n_layers: 6
-    input_dim: 256 #50277
-    output_dim: 256 #50277
+    input_dim: 256
+    output_dim: 256
     attn_sink: False
     mlp_bias: False
     attn_bias: False
@@ -244,9 +244,6 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   
   scheduler:
     <<: *scheduler_defaults
-    num_warmup_steps: 1000
-    num_training_steps: 10000
-    eta_min: 1e-6
 
 ### Experiments Configuration ###
 experiments:

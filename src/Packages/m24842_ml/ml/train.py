@@ -158,7 +158,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
             output = model(data)
             
             # Loss
-            loss = loss_fn(output, target)
+            loss = loss_fn(data, output, target)
             
             # Check for invalid loss and param values
             if loss_backoff.step(loss):
@@ -261,7 +261,7 @@ def val_epoch(model, val_loader, loss_fn, log_fn=default_log_fn, data_fn=default
         target = target.to(device)
         data, target = data_fn(data, target, model=model, dataset=val_loader.dataset)
         output = model(data)
-        loss = loss_fn(output, target)
+        loss = loss_fn(data, output, target)
         new_metrics = log_fn(
             loss=loss,
             output=output,
@@ -292,7 +292,7 @@ def test_epoch(model, test_loader, loss_fn, log_fn=default_log_fn, data_fn=defau
         target = target.to(device)
         data, target = data_fn(data, target, model=model, dataset=test_loader.dataset)
         output = model(data)
-        loss = loss_fn(output, target)
+        loss = loss_fn(data, output, target)
         new_metrics = log_fn(
             loss=loss,
             output=output,
