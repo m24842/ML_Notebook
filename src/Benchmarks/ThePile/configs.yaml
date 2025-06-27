@@ -203,64 +203,8 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   scheduler:
     <<: *scheduler_defaults
 
-FastTransformer_defaults: &FastTransformer_defaults
-  general: &FastTransformer_general
-    <<: *general_defaults
-  
-  model: &FastTransformer_model
-    name: FastTransformer
-    emb_dim: 128
-    mlp_dim: 128
-    window_len: 64
-    masked_window: True
-    n_dilations: 2
-    # dilation_factor: 64
-    n_heads: 12
-    n_layers: 12
-    input_dim: 50277
-    output_dim: 50277
-    attn_sink: False
-    mlp_bias: False
-    attn_bias: False
-    dropout: 0.1
-    causal: True
-    weight_tying: True
-    use_embedding: True
-    pos_encoding: xpos
-  
-  optimizer:
-    <<: *optimizer_defaults
-  
-  scheduler:
-    <<: *scheduler_defaults
-
 ### Experiments Configuration ###
 experiments:
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 0
-
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 42
-  
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 1111
-  
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 2222
-  
-  - <<: *FastTransformer_defaults
-    general:
-      <<: *FastTransformer_general
-      seed: 3333
-  
   # - <<: *SlidingWindowTransformer_defaults
   #   general:
   #     <<: *SlidingWindowTransformer_general

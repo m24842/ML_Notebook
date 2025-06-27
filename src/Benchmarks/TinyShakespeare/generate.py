@@ -8,9 +8,12 @@ from ml.utils import *
 from ml.models import initialize_model
 from ml.datasets import initialize_dataset
 
-plt.figure(figsize=(14, 6))
+torch.set_grad_enabled(False)
+
+plt.figure(figsize=(16, 6))
 
 device = "cpu"#get_available_device()
+bitmaps = torch.load("data/char-8.pt", map_location=device)
 
 # model_name = "Transformer"
 model_name = "DiffusionTransformer"
@@ -18,12 +21,12 @@ model_name = "DiffusionTransformer"
 if model_name == "DiffusionTransformer":
     model = initialize_model(
         name=model_name,
-        emb_dim=256,
-        mlp_dim=256,
+        emb_dim=128,
+        mlp_dim=128,
         n_heads=4,
         n_layers=6,
-        input_dim=256,
-        output_dim=256,
+        input_dim=64,
+        output_dim=64,
         attn_sink=False,
         mlp_bias=False,
         attn_bias=False,
@@ -79,15 +82,16 @@ def text_to_indices(text):
 
 sample, target = dataset[random.randint(0, len(dataset)-1)]
 
-sample = sample.unsqueeze(0).to(device)
+sample = sample.to(device)
 
-seq_len = sample.shape[1]
+seq_len = sample.shape[0]
 if model_name == "DiffusionTransformer":
     sample_p = torch.zeros((1, seq_len, model.input_dim), device=device)
     # target_p = torch.zeros((bsz, seq_len, model.input_dim), device=device)
     
-    seq_len_idx = torch.arange(seq_len).unsqueeze(0)
-    sample_p[0, seq_len_idx, sample] = 1.0
+    # seq_len_idx = torch.arange(seq_len).unsqueeze(0)
+    # sample_p[0, seq_len_idx, sample] = 1.0
+    sample_p = bitmaps[sample-2].unsqueeze(0).flatten(-2)
     betas, alphas, alphas_cumprod = model.get_noise(sample_p, profile_fn=lambda x: x, t_range=(0, 1), beta_range=(0.0001, 0.05))
     noise = torch.randn_like(sample_p)
     sample_p = torch.sqrt(alphas_cumprod) * sample_p + torch.sqrt(1-alphas_cumprod) * noise
@@ -95,75 +99,85 @@ if model_name == "DiffusionTransformer":
     # plt.plot((torch.sqrt(betas))[0].max(-1).values.cpu().numpy(), label='noise')
     # plt.plot((torch.sqrt(1-alphas_cumprod))[0].min(-1).values.cpu().numpy(), label='noise')
     
-    # plt.plot(sample[0].cpu().numpy(), label='clean')
+    # plt.plot(sample.cpu().numpy(), label='clean')
     # plt.plot(sample_p[0].argmax(dim=-1).cpu().numpy(), label='noisy')
     # plt.legend()
     # plt.show()
     # exit()
 
-with torch.no_grad():
-    if model_name == "DiffusionTransformer":
-        generated = torch.zeros_like(target)
-        for i in tqdm(range(seq_len), leave=False):
-            pred_noise = model(sample_p)
-            
-            sample_p = (1.0 / torch.sqrt(alphas)) * (sample_p - (betas / torch.sqrt(1.0 - alphas_cumprod)) * pred_noise)
-            sample_p = sample_p.softmax(dim=-1)
-            
-            generated[i] = sample_p[0, 0].argmax(dim=-1)
-            text = indices_to_text(generated[:i+1])
-            target_text = indices_to_text(target[:i+1])
-            acc = 100 * (generated[:i+1] == target[:i+1]).float().mean()
-            mask = (generated[:i+1] == target[:i+1]).tolist()
-            text_colored = "".join([f"{c}" if m else f"\033[91m{c}\033[0m" for c, m in zip(text, mask)])
-            # tqdm.write(f"{acc.item()}")
-            # tqdm.write(indices_to_text(sample_p[0].argmax(dim=-1)))
-            # exit()
-            tqdm.write("\033c"+text_colored)
-            
-            group_size = 1
-            multiple = math.ceil(model.input_dim / group_size)
-            grouped_sample_p = F.pad(sample_p, (0, group_size*multiple - model.input_dim), value=0.0)
-            grouped_sample_p = grouped_sample_p.reshape(1, seq_len, group_size, -1).max(dim=-2).values
-            
-            # grouped_pred_noise = F.pad(pred_noise, (0, group_size*multiple - model.input_dim), value=0.0)
-            # grouped_pred_noise = grouped_pred_noise.reshape(1, seq_len, group_size, -1).max(dim=-2).values
-            plt.clf()
-            plt.suptitle(f"Step: {i+1}/{seq_len} | Accuracy: {acc:.2f}%")
-            plt.subplot(1, 4, (1, 2))
-            plt.title("Token Visualization")
-            plt.xlabel('Time')
-            plt.ylabel('Token Dimension')
-            bound = grouped_sample_p[0].abs().max().item()
-            plt.imshow(grouped_sample_p[0].cpu().numpy().T, aspect='auto', origin='lower', cmap="hot")#, vmin=0, vmax=bound)
-            plt.colorbar()
-            
-            plt.subplot(1, 4, 3)
-            plt.title(f"Generated Text")
-            plt.axis('off')
-            plt.text(0.0, 1.0, text, ha='left', va='top', fontsize=10, wrap=True, clip_on=True)
-            
-            plt.subplot(1, 4, 4)
-            plt.title("Target Text")
-            plt.axis('off')
-            plt.text(0.0, 1.0, target_text, ha='left', va='top', fontsize=10, wrap=True, clip_on=True)
-            
-            plt.tight_layout()
-            plt.pause(0.01)
-            
-            noise = torch.randn_like(sample_p)
-            sample_p += torch.sqrt(betas) * noise
-            noise_token = torch.randn((1, 1, model.input_dim), device=device) * torch.sqrt(1-alphas_cumprod[:, -1])
-            sample_p = torch.cat((sample_p[:, 1:], noise_token), dim=1)
-        print(f"Baseline Accuracy: {100 * (sample_p_orig[0].argmax(dim=-1) == sample[0]).float().mean()}%")
-        print(f"Accuracy: {100 * (generated == target).float().mean()}%")
-    else:
-        sample = model(sample)
-        print("\033c"+indices_to_text(sample[0].argmax(-1)))
-        group_size = 500
-        multiple = math.ceil(model.input_dim / group_size)
-        grouped_sample = F.pad(sample, (0, group_size*multiple - model.input_dim), value=0.0)
-        grouped_sample = grouped_sample.reshape(1, seq_len, group_size, -1).max(dim=-2).values
-        plt.imshow(grouped_sample[0].softmax(-1).cpu().numpy().T, aspect='auto', origin='lower', cmap="hot")
-        plt.colorbar()
-    plt.show()
+if model_name == "DiffusionTransformer":
+    # generated = torch.zeros_like(sample)
+    generated = torch.zeros_like(sample_p)
+    for i in tqdm(range(seq_len), leave=False):
+        model_input = torch.cat((sample_p, generated[:, :i]), dim=1)
+        output = model(model_input)[:, :seq_len]
+        
+        pred_noise = output #(sample_p - torch.sqrt(alphas_cumprod) * output) / torch.sqrt(1 - alphas_cumprod)
+        sample_p = (1.0 / torch.sqrt(alphas)) * (sample_p - (betas / torch.sqrt(1.0 - alphas_cumprod)) * pred_noise)
+        generated[0, i] = sample_p[0, 0]
+        
+        # generated[i] = sample_p[0, 0].argmax(-1)
+        # text = indices_to_text(generated[:i+1])
+        # target_text = indices_to_text(sample[:i+1])
+        # acc = 100 * (generated[:i+1] == sample[:i+1]).float().mean()
+        # mask = (generated[:i+1] == sample[:i+1]).tolist()
+        # text_colored = "".join([f"{c}" if m else f"\033[91m{c}\033[0m" for c, m in zip(text, mask)])
+        # # tqdm.write(f"{(100 * (sample_p[0].argmax(-1) == sample).float().mean()).item()}")
+        # # tqdm.write(indices_to_text(sample_p[0].argmax(-1)))
+        # # exit()
+        # tqdm.write("\033c"+text_colored)
+        
+        # group_size = 1
+        # multiple = math.ceil(model.input_dim / group_size)
+        # grouped_sample_p = F.pad(sample_p, (0, group_size*multiple - model.input_dim), value=0.0)
+        # grouped_sample_p = grouped_sample_p.reshape(1, seq_len, group_size, -1).max(-2).values
+        
+        # # grouped_pred_noise = F.pad(pred_noise, (0, group_size*multiple - model.input_dim), value=0.0)
+        # # grouped_pred_noise = grouped_pred_noise.reshape(1, seq_len, group_size, -1).max(-2).values
+        # plt.clf()
+        # plt.suptitle(f"Step: {i+1}/{seq_len} | Accuracy: {acc:.2f}%")
+        # plt.subplot(1, 4, (1, 2))
+        # plt.title("Token Visualization")
+        # plt.xlabel('Time')
+        # plt.ylabel('Token Dimension')
+        # bound = grouped_sample_p[0].abs().max().item()
+        # plt.imshow(grouped_sample_p[0].cpu().numpy().T, aspect='auto', origin='lower', cmap="hot", vmin=0, vmax=bound)
+        # plt.colorbar()
+        
+        # plt.subplot(1, 4, 3)
+        # plt.title(f"Generated Text")
+        # plt.axis('off')
+        # plt.text(0.0, 1.0, text, ha='left', va='top', fontsize=10, wrap=True, clip_on=True)
+        
+        # plt.subplot(1, 4, 4)
+        # plt.title("Target Text")
+        # plt.axis('off')
+        # plt.text(0.0, 1.0, target_text, ha='left', va='top', fontsize=10, wrap=True, clip_on=True)
+        
+        # plt.tight_layout()
+        # plt.pause(0.01)
+        
+        plt.clf()
+        grid_shape = (8, 32)
+        img = sample_p[0].reshape(*grid_shape, 8, 8).permute(0, 2, 1, 3).reshape(grid_shape[0] * 8, grid_shape[1] * 8)
+        plt.imshow(img.cpu().numpy(), aspect="auto", cmap="hot", interpolation="nearest", vmin=0, vmax=1)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.pause(0.3)
+        
+        noise = torch.randn_like(sample_p)
+        sample_p += torch.sqrt(betas) * noise
+        noise_token = torch.randn((1, 1, model.input_dim), device=device) * torch.sqrt(1-alphas_cumprod[:, -1])
+        sample_p = torch.cat((sample_p[:, 1:], noise_token), dim=1)
+    print(f"Baseline Accuracy: {100 * (sample_p_orig[0].argmax(-1) == sample).float().mean()}%")
+    print(f"Accuracy: {100 * (generated == sample).float().mean()}%")
+else:
+    sample = model(sample)
+    print("\033c"+indices_to_text(sample[0].argmax(-1)))
+    group_size = 500
+    multiple = math.ceil(model.input_dim / group_size)
+    grouped_sample = F.pad(sample, (0, group_size*multiple - model.input_dim), value=0.0)
+    grouped_sample = grouped_sample.reshape(1, seq_len, group_size, -1).max(-2).values
+    plt.imshow(grouped_sample[0].softmax(-1).cpu().numpy().T, aspect='auto', origin='lower', cmap="hot")
+    plt.colorbar()
+plt.show()
