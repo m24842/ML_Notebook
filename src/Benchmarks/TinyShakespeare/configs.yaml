@@ -226,8 +226,8 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   
   model: &DiffusionTransformer_model
     name: DiffusionTransformer
-    emb_dim: 128
-    mlp_dim: 128
+    emb_dim: 256
+    mlp_dim: 256
     n_heads: 4
     n_layers: 6
     input_dim: 64
@@ -271,31 +271,6 @@ experiments:
   # - <<: *DiffusionTransformer_defaults
   #   general:
   #     <<: *DiffusionTransformer_general
-  #     seed: 3333
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 0
-
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 42
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 1111
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
-  #     seed: 2222
-  
-  # - <<: *FastTransformer_defaults
-  #   general:
-  #     <<: *FastTransformer_general
   #     seed: 3333
   
   # - <<: *SlidingWindowTransformer_defaults

@@ -36,8 +36,8 @@ class Metric:
 
     def __str__(self, prefixed_name=False):
         if prefixed_name:
-            return f"{capitalize(self.get_prefixed_name())}: {self.value:.4f}"
-        return f"{capitalize(self.name)}: {self.value:.4f}"
+            return f"{self.get_prefixed_name()}: {self.value:,.3g}"
+        return f"{self.name}: {self.value:,.3g}"
     
     def accumulate(self, value):
         if self.batch_avg:

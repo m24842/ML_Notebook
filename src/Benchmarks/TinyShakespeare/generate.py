@@ -21,8 +21,8 @@ model_name = "DiffusionTransformer"
 if model_name == "DiffusionTransformer":
     model = initialize_model(
         name=model_name,
-        emb_dim=128,
-        mlp_dim=128,
+        emb_dim=256,
+        mlp_dim=256,
         n_heads=4,
         n_layers=6,
         input_dim=64,
@@ -42,8 +42,8 @@ else:
         mlp_dim=128,
         n_heads=4,
         n_layers=6,
-        input_dim=50277,
-        output_dim=50277,
+        input_dim=256,
+        output_dim=256,
         attn_sink=False,
         mlp_bias=False,
         attn_bias=False,
@@ -86,13 +86,13 @@ sample = sample.to(device)
 
 seq_len = sample.shape[0]
 if model_name == "DiffusionTransformer":
-    sample_p = torch.zeros((1, seq_len, model.input_dim), device=device)
+    # sample_p = torch.zeros((1, seq_len, model.input_dim), device=device)
     # target_p = torch.zeros((bsz, seq_len, model.input_dim), device=device)
     
     # seq_len_idx = torch.arange(seq_len).unsqueeze(0)
     # sample_p[0, seq_len_idx, sample] = 1.0
     sample_p = bitmaps[sample-2].unsqueeze(0).flatten(-2)
-    betas, alphas, alphas_cumprod = model.get_noise(sample_p, profile_fn=lambda x: x, t_range=(0, 1), beta_range=(0.0001, 0.05))
+    betas, alphas, alphas_cumprod = model.get_noise(sample_p, profile_fn=torch.sigmoid, t_range=(-16, 4), beta_range=(0.0001, 0.05))
     noise = torch.randn_like(sample_p)
     sample_p = torch.sqrt(alphas_cumprod) * sample_p + torch.sqrt(1-alphas_cumprod) * noise
     sample_p_orig = sample_p.clone()
@@ -109,12 +109,11 @@ if model_name == "DiffusionTransformer":
     # generated = torch.zeros_like(sample)
     generated = torch.zeros_like(sample_p)
     for i in tqdm(range(seq_len), leave=False):
-        model_input = torch.cat((sample_p, generated[:, :i]), dim=1)
-        output = model(model_input)[:, :seq_len]
+        output = model.step(sample_p)
         
         pred_noise = output #(sample_p - torch.sqrt(alphas_cumprod) * output) / torch.sqrt(1 - alphas_cumprod)
         sample_p = (1.0 / torch.sqrt(alphas)) * (sample_p - (betas / torch.sqrt(1.0 - alphas_cumprod)) * pred_noise)
-        generated[0, i] = sample_p[0, 0]
+        generated[:, i] = sample_p[:, 0]
         
         # generated[i] = sample_p[0, 0].argmax(-1)
         # text = indices_to_text(generated[:i+1])
@@ -163,21 +162,26 @@ if model_name == "DiffusionTransformer":
         plt.imshow(img.cpu().numpy(), aspect="auto", cmap="hot", interpolation="nearest", vmin=0, vmax=1)
         plt.axis('off')
         plt.tight_layout()
-        plt.pause(0.3)
+        plt.pause(0.01)
         
         noise = torch.randn_like(sample_p)
         sample_p += torch.sqrt(betas) * noise
-        noise_token = torch.randn((1, 1, model.input_dim), device=device) * torch.sqrt(1-alphas_cumprod[:, -1])
+        noise_token = torch.randn((1, 1, model.input_dim), device=device)# * torch.sqrt(1-alphas_cumprod[:, -1])
         sample_p = torch.cat((sample_p[:, 1:], noise_token), dim=1)
-    print(f"Baseline Accuracy: {100 * (sample_p_orig[0].argmax(-1) == sample).float().mean()}%")
-    print(f"Accuracy: {100 * (generated == sample).float().mean()}%")
+    # print(f"Baseline Accuracy: {100 * (sample_p_orig[0].argmax(-1) == sample).float().mean()}%")
+    # print(f"Accuracy: {100 * (generated == sample).float().mean()}%")
+    plt.clf()
+    img = generated[0].reshape(*grid_shape, 8, 8).permute(0, 2, 1, 3).reshape(grid_shape[0] * 8, grid_shape[1] * 8)
+    plt.imshow(img.cpu().numpy(), aspect="auto", cmap="hot", interpolation="nearest", vmin=0, vmax=1)
+    plt.axis('off')
+    plt.tight_layout()
 else:
-    sample = model(sample)
+    sample = model(sample.unsqueeze(0)).softmax(-1)
     print("\033c"+indices_to_text(sample[0].argmax(-1)))
-    group_size = 500
+    group_size = 1
     multiple = math.ceil(model.input_dim / group_size)
     grouped_sample = F.pad(sample, (0, group_size*multiple - model.input_dim), value=0.0)
     grouped_sample = grouped_sample.reshape(1, seq_len, group_size, -1).max(-2).values
-    plt.imshow(grouped_sample[0].softmax(-1).cpu().numpy().T, aspect='auto', origin='lower', cmap="hot")
+    plt.imshow(grouped_sample[0].cpu().numpy().T, aspect='auto', origin='lower', cmap="hot")
     plt.colorbar()
 plt.show()

@@ -213,6 +213,3 @@ def try_to_float(dictionary):
             try: dictionary[key] = float(value)
             except: pass
     return dictionary
-
-def capitalize(s):
-    return s[0].upper() + s[1:]

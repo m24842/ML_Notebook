@@ -10,14 +10,14 @@ device = get_available_device()
 bitmaps = torch.load("data/char-8.pt", map_location=device)
 
 def loss_fn(data, output, target):
-    return F.mse_loss(output, target)
-    output = (data - torch.sqrt(1 - alphas_cumprod) * output) / torch.sqrt(alphas_cumprod)
+    output, true_noise, pred_noise = output
+    return F.mse_loss(pred_noise, true_noise)
     return F.cross_entropy(output.transpose(1, 2), target, ignore_index=0)
 
 def log_fn(loss, output, data, target):
     return []
-    noise, target, alphas_cumprod = target
-    output = (data - torch.sqrt(1 - alphas_cumprod) * output) / torch.sqrt(alphas_cumprod)
+    # noise, target, alphas_cumprod = target
+    # output = (data - torch.sqrt(1 - alphas_cumprod) * output) / torch.sqrt(alphas_cumprod)
     acc = 100 * (output.argmax(dim=-1) == target).float().mean()
     ppl = torch.exp(loss)
     return [
@@ -36,10 +36,10 @@ def data_fn(data, target, model, dataset):
     
     data_p = bitmaps[data-2].flatten(-2)
     
-    betas, alphas, alphas_cumprod = model.get_noise(data_p, profile_fn=lambda x: x, t_range=(0, 1), beta_range=(0.0001, 0.05))
+    betas, alphas, alphas_cumprod = model.get_noise(data_p, profile_fn=torch.sigmoid, t_range=(-16, 4), beta_range=(0.0001, 0.05))
     noise = torch.randn_like(data_p)
     data_p_noisy = torch.sqrt(alphas_cumprod) * data_p + torch.sqrt(1 - alphas_cumprod) * noise
-    return data_p_noisy, noise
+    return (data_p_noisy, noise, betas, alphas, alphas_cumprod), noise
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, log_fn, data_fn=data_fn, device=device)

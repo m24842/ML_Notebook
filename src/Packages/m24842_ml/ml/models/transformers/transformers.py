@@ -432,6 +432,7 @@ class DiffusionTransformer(nn.Module):
         return betas, alphas, alphas_cumprod
     
     def forward(self, x):
+        return self.generate(*x, its=1)
         bsz, seq_len, d_model = x.shape
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
@@ -448,14 +449,37 @@ class DiffusionTransformer(nn.Module):
         x = self.out_proj(x)
         return x
     
-    def generate(self, x, noise_0, betas, alphas, alphas_cumprod, its=1):
+    def step(self, x):
         bsz, seq_len, d_model = x.shape
-        total_added_noise = torch.zeros((its, bsz, seq_len, d_model), device=x.device)
-        total_pred_noise = torch.zeros((its, bsz, seq_len, d_model), device=x.device)
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
+        for layer in self.layers:
+            x = layer.norm1(x)
+            if layer.abs_pos_encoding is not None:
+                pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
+                x = x + layer.abs_pos_encoding(pos)
+            a_out = layer.attention(x, attn_mask=None, rope=self.rope if self.pos_encoding == "rope" else None)
+            x = layer.norm2(x + layer.dropout1(a_out))
+            ff_out = layer.feedforward(x)
+            x = x + layer.dropout2(ff_out)
+        x = self.norm_f(x)
+        x = self.out_proj(x)
+        return x
+    
+    def generate(self, x, noise, betas, alphas, alphas_cumprod, its=1):
+        bsz, seq_len, d_model = x.shape
+        true_noise = torch.zeros((its, bsz, seq_len, d_model), device=x.device)
+        pred_noise = torch.zeros((its, bsz, seq_len, d_model), device=x.device)
         for i in range(its):
-            pred_noise = self(x)
-            total_pred_noise[i, :, ]
-            x = (1.0 / torch.sqrt(alphas)) * (x - (betas / torch.sqrt(1.0 - alphas_cumprod)) * pred_noise)
-            noise = torch.randn_like(x)
-            x = x + torch.sqrt(betas) * noise
-            
+            output = self.step(x)
+            true_noise[i] = noise.clone()
+            pred_noise[i] = output.clone()
+            noise = noise - output
+            x = (1.0 / torch.sqrt(alphas)) * (x - (betas / torch.sqrt(1.0 - alphas_cumprod)) * output)
+            noise_i = torch.randn_like(x)
+            noise = noise + noise_i
+            x = x + torch.sqrt(betas) * noise_i
+            noise_token = torch.randn((bsz, 1, d_model), device=x.device)
+            x = torch.cat((x[:, 1:], noise_token * torch.sqrt(1-alphas_cumprod[:, -1])), dim=1)
+            noise = torch.cat((noise[:, 1:], noise_token), dim=1)
+        return x, true_noise, pred_noise
