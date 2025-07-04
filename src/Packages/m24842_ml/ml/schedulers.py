@@ -18,12 +18,14 @@ class CosineAnnealingLRWithWarmup(_LRScheduler):
                 base_lr * current_step / self.warmup_steps
                 for base_lr in self.base_lrs
             ]
-        else:
+        elif current_step >= self.warmup_steps and current_step < self.num_training_steps:
             progress = (current_step - self.warmup_steps) / (self.num_training_steps - self.warmup_steps)
             return [
                 self.eta_min + (base_lr - self.eta_min) * 0.5 * (1.0 + math.cos(2 * math.pi * self.num_cycles * progress))
                 for base_lr in self.base_lrs
             ]
+        else:
+            return [self.eta_min for _ in self.base_lrs]
 
 def initialize_scheduler(name, *args, **kwargs):
     scheduler_class = getattr(sys.modules[__name__], name, None)

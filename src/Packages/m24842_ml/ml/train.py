@@ -36,8 +36,8 @@ class Metric:
 
     def __str__(self, prefixed_name=False):
         if prefixed_name:
-            return f"{self.get_prefixed_name()}: {self.value:,.3g}"
-        return f"{self.name}: {self.value:,.3g}"
+            return f"{self.get_prefixed_name()}: {self.value:,.4g}"
+        return f"{self.name}: {self.value:,.4g}"
     
     def accumulate(self, value):
         if self.batch_avg:
@@ -580,129 +580,129 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
     successful_count = 0
     experiments = configs.get("experiments")
     for i, experiment in enumerate(experiments):
-        print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m\n')
-        
-        # Reset dataset sequence lengths if applicable
-        if hasattr(train_dataset, "reset"): train_dataset.reset()
-        if hasattr(val_dataset, "reset"): val_dataset.reset()
-        if hasattr(test_dataset, "reset"): test_dataset.reset()
-        
-        general_config = copy.deepcopy(experiment.get("general"))
-        general_config = try_to_float(general_config)
-        
-        # Set seed
-        seed = general_config.get("seed", 0)
-        torch.manual_seed(seed)
-        if device == "cuda":
-            torch.cuda.manual_seed_all(seed)
-        
-        batch_size = general_config.get("batch_size", 32)
-        accumulation_steps = general_config.get("accumulation_steps", 0)
-        epochs = general_config.get("epochs", None)
-        train_steps = general_config.get("train_steps", None)
-        assert not (train_steps is None and epochs is None), "Either train_steps or epochs must be specified."
-        assert not (train_steps is not None and epochs is not None), "Only one of train_steps or epochs can be specified."
-        
-        grad_clip_norm = general_config.get("grad_clip_norm", None)
-        mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
-        
-        loss_backoff_count = general_config.get("loss_backoff_count", 10)
-        loss_backoff_type = general_config.get("loss_backoff_type", "consecutive")
-        loss_backoff = InvalidLossBackoff(loss_backoff_count, loss_backoff_type)
-        
-        # Initialize dataloaders
-        num_workers = general_config.get("num_workers", 0)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
-        val_loader = None
-        test_loader = None
-        if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
-        if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
-        
-        # Choose loss function
-        loss_fn_index = general_config.get("use_loss_fn", 0)
-        assert 0 <= loss_fn_index < len(loss_fn), f"Invalid loss_fn index: {loss_fn_index}. Must be between 0 and {len(loss_fn) - 1}."
-        experiment_loss_fn = loss_fn[loss_fn_index]
-        
-        # Choose logging function
-        log_fn_index = general_config.get("use_log_fn", 0)
-        if log_fn_index == -1:
-            experiment_log_fn = default_log_fn
-        else:
-            assert 0 <= log_fn_index < len(log_fn), f"Invalid log_fn index: {log_fn_index}. Must be between 0 and {len(log_fn) - 1}."
-            experiment_log_fn = log_fn[log_fn_index]
-        
-        # Choose data function
-        data_fn_index = general_config.get("use_data_fn", -1)
-        if data_fn_index == -1:
-            experiment_data_fn = default_data_fn
-        else:
-            assert 0 <= data_fn_index < len(data_fn), f"Invalid data_fn index: {data_fn_index}. Must be between 0 and {len(data_fn) - 1}."
-            experiment_data_fn = data_fn[data_fn_index]
-        
-        model_config = copy.deepcopy(experiment.get("model"))
-        model_name = model_config.pop("name")
-        model_config = try_to_float(model_config)
-        model_args = model_config.copy()
-        model_args["device"] = device
-        
-        # Initialize model
-        model = initialize_model(model_name, **model_args)
-        
-        # Initialize optimizer
-        def initialize_optimizer(name, *args, **kwargs):
-            optimizer_class = getattr(sys.modules["torch.optim"], name, None)
-            return optimizer_class(*args, **kwargs)
-        optimizer_config = copy.deepcopy(experiment.get("optimizer"))
-        optimizer_name = optimizer_config.pop("name")
-        optimizer_config = try_to_float(optimizer_config)
-        weight_decay = float(optimizer_config.get("weight_decay", 0.0))
-        exclude_weight_decay = optimizer_config.pop("exclude_weight_decay", None)
-        apply_weight_decay_args = dict(
-            model=model,
-            weight_decay=weight_decay,
-        )
-        if exclude_weight_decay is not None: apply_weight_decay_args["exclude"] = exclude_weight_decay
-        optimizer_config["params"] = apply_weight_decay(**apply_weight_decay_args)
-        optimizer = initialize_optimizer(optimizer_name, **optimizer_config)
-        
-        # Initialize scheduler if specified
-        scheduler = None
-        scheduler_config = copy.deepcopy(experiment.get("scheduler", {}))
-        if scheduler_config:
-            scheduler_name = scheduler_config.pop("name")
-            scheduler_config = try_to_float(scheduler_config)
-            scheduler_config["optimizer"] = optimizer
-            scheduler = initialize_scheduler(scheduler_name, **scheduler_config)
-        
-        # Load model from checkpoint if specified
-        load_from_checkpoint = general_config.get("load_checkpoint", False)
-        if load_from_checkpoint:
-            model, optimizer, scheduler = load_checkpoint(
-                model_name=model_name, checkpoint_dir=checkpoint_dir,
-                model=model, optimizer=optimizer, scheduler=scheduler,
-                device=device
-            )
-        else: print(f'\033[91mStarting from scratch\033[0m')
-        
-        # Collect all training configurations for logging
-        train_config = model_config.copy()
-        train_config.update({
-            "benchmark": benchmark_name,
-            "model": model_name,
-            "seed": seed,
-            "bsz": batch_size,
-            "accumulation_steps": accumulation_steps,
-            "lr": optimizer_config.get("lr"),
-            "weight_decay": weight_decay,
-            "grad_clip_norm": grad_clip_norm,
-            "permuted": dataset_splits["train"].get("permuted"),
-            "min_len": train_loader.dataset.min_len if hasattr(train_loader.dataset, "min_len") else None,
-            "max_len": train_loader.dataset.max_len if hasattr(train_loader.dataset, "max_len") else None,
-        })
-        
-        # Train the model
         successful = True
         try:
+            print(f'\033[1mRunning Experiment [{i + 1}/{len(experiments)}]\033[0m\n')
+            
+            # Reset dataset sequence lengths if applicable
+            if hasattr(train_dataset, "reset"): train_dataset.reset()
+            if hasattr(val_dataset, "reset"): val_dataset.reset()
+            if hasattr(test_dataset, "reset"): test_dataset.reset()
+            
+            general_config = copy.deepcopy(experiment.get("general"))
+            general_config = try_to_float(general_config)
+            
+            # Set seed
+            seed = general_config.get("seed", 0)
+            torch.manual_seed(seed)
+            if device == "cuda":
+                torch.cuda.manual_seed_all(seed)
+            
+            batch_size = general_config.get("batch_size", 32)
+            accumulation_steps = general_config.get("accumulation_steps", 0)
+            epochs = general_config.get("epochs", None)
+            train_steps = general_config.get("train_steps", None)
+            assert not (train_steps is None and epochs is None), "Either train_steps or epochs must be specified."
+            assert not (train_steps is not None and epochs is not None), "Only one of train_steps or epochs can be specified."
+            
+            grad_clip_norm = general_config.get("grad_clip_norm", None)
+            mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
+            
+            loss_backoff_count = general_config.get("loss_backoff_count", 10)
+            loss_backoff_type = general_config.get("loss_backoff_type", "consecutive")
+            loss_backoff = InvalidLossBackoff(loss_backoff_count, loss_backoff_type)
+            
+            # Initialize dataloaders
+            num_workers = general_config.get("num_workers", 0)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+            val_loader = None
+            test_loader = None
+            if val_dataset: val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+            if test_dataset: test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=(num_workers>0), pin_memory=True, prefetch_factor=2 if num_workers > 0 else None)
+            
+            # Choose loss function
+            loss_fn_index = general_config.get("use_loss_fn", 0)
+            assert 0 <= loss_fn_index < len(loss_fn), f"Invalid loss_fn index: {loss_fn_index}. Must be between 0 and {len(loss_fn) - 1}."
+            experiment_loss_fn = loss_fn[loss_fn_index]
+            
+            # Choose logging function
+            log_fn_index = general_config.get("use_log_fn", 0)
+            if log_fn_index == -1:
+                experiment_log_fn = default_log_fn
+            else:
+                assert 0 <= log_fn_index < len(log_fn), f"Invalid log_fn index: {log_fn_index}. Must be between 0 and {len(log_fn) - 1}."
+                experiment_log_fn = log_fn[log_fn_index]
+            
+            # Choose data function
+            data_fn_index = general_config.get("use_data_fn", -1)
+            if data_fn_index == -1:
+                experiment_data_fn = default_data_fn
+            else:
+                assert 0 <= data_fn_index < len(data_fn), f"Invalid data_fn index: {data_fn_index}. Must be between 0 and {len(data_fn) - 1}."
+                experiment_data_fn = data_fn[data_fn_index]
+            
+            model_config = copy.deepcopy(experiment.get("model"))
+            model_name = model_config.pop("name")
+            model_config = try_to_float(model_config)
+            model_args = model_config.copy()
+            model_args["device"] = device
+            
+            # Initialize model
+            model = initialize_model(model_name, **model_args)
+            
+            # Initialize optimizer
+            def initialize_optimizer(name, *args, **kwargs):
+                optimizer_class = getattr(sys.modules["torch.optim"], name, None)
+                return optimizer_class(*args, **kwargs)
+            optimizer_config = copy.deepcopy(experiment.get("optimizer"))
+            optimizer_name = optimizer_config.pop("name")
+            optimizer_config = try_to_float(optimizer_config)
+            weight_decay = float(optimizer_config.get("weight_decay", 0.0))
+            exclude_weight_decay = optimizer_config.pop("exclude_weight_decay", None)
+            apply_weight_decay_args = dict(
+                model=model,
+                weight_decay=weight_decay,
+            )
+            if exclude_weight_decay is not None: apply_weight_decay_args["exclude"] = exclude_weight_decay
+            optimizer_config["params"] = apply_weight_decay(**apply_weight_decay_args)
+            optimizer = initialize_optimizer(optimizer_name, **optimizer_config)
+            
+            # Initialize scheduler if specified
+            scheduler = None
+            scheduler_config = copy.deepcopy(experiment.get("scheduler", {}))
+            if scheduler_config:
+                scheduler_name = scheduler_config.pop("name")
+                scheduler_config = try_to_float(scheduler_config)
+                scheduler_config["optimizer"] = optimizer
+                scheduler = initialize_scheduler(scheduler_name, **scheduler_config)
+            
+            # Load model from checkpoint if specified
+            load_from_checkpoint = general_config.get("load_checkpoint", False)
+            if load_from_checkpoint:
+                model, optimizer, scheduler = load_checkpoint(
+                    model_name=model_name, checkpoint_dir=checkpoint_dir,
+                    model=model, optimizer=optimizer, scheduler=scheduler,
+                    device=device
+                )
+            else: print(f'\033[91mStarting from scratch\033[0m')
+            
+            # Collect all training configurations for logging
+            train_config = model_config.copy()
+            train_config.update({
+                "benchmark": benchmark_name,
+                "model": model_name,
+                "seed": seed,
+                "bsz": batch_size,
+                "accumulation_steps": accumulation_steps,
+                "lr": optimizer_config.get("lr"),
+                "weight_decay": weight_decay,
+                "grad_clip_norm": grad_clip_norm,
+                "permuted": dataset_splits["train"].get("permuted"),
+                "min_len": train_loader.dataset.min_len if hasattr(train_loader.dataset, "min_len") else None,
+                "max_len": train_loader.dataset.max_len if hasattr(train_loader.dataset, "max_len") else None,
+            })
+        
+            # Train the model
             train(
                 epochs=epochs, train_steps=train_steps, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,

@@ -107,13 +107,14 @@ if model_name == "DiffusionTransformer":
 
 if model_name == "DiffusionTransformer":
     # generated = torch.zeros_like(sample)
-    generated = torch.zeros_like(sample_p)
-    for i in tqdm(range(seq_len), leave=False):
+    generated = []
+    n_generate = 1*seq_len
+    for i in tqdm(range(n_generate), leave=False):
         output = model.step(sample_p)
         
         pred_noise = output #(sample_p - torch.sqrt(alphas_cumprod) * output) / torch.sqrt(1 - alphas_cumprod)
         sample_p = (1.0 / torch.sqrt(alphas)) * (sample_p - (betas / torch.sqrt(1.0 - alphas_cumprod)) * pred_noise)
-        generated[:, i] = sample_p[:, 0]
+        generated.append(sample_p[:, 0:1])
         
         # generated[i] = sample_p[0, 0].argmax(-1)
         # text = indices_to_text(generated[:i+1])
@@ -156,23 +157,25 @@ if model_name == "DiffusionTransformer":
         # plt.tight_layout()
         # plt.pause(0.01)
         
-        plt.clf()
-        grid_shape = (8, 32)
-        img = sample_p[0].reshape(*grid_shape, 8, 8).permute(0, 2, 1, 3).reshape(grid_shape[0] * 8, grid_shape[1] * 8)
-        plt.imshow(img.cpu().numpy(), aspect="auto", cmap="hot", interpolation="nearest", vmin=0, vmax=1)
-        plt.axis('off')
-        plt.tight_layout()
-        plt.pause(0.01)
+        # plt.clf()
+        # grid_shape = (8, 32)
+        # img = sample_p[0].reshape(*grid_shape, 8, 8).permute(0, 2, 1, 3).reshape(grid_shape[0] * 8, grid_shape[1] * 8)
+        # plt.imshow(img.cpu().numpy(), cmap="hot", interpolation="nearest", vmin=0, vmax=1)
+        # plt.axis('off')
+        # plt.tight_layout()
+        # plt.pause(0.01)
         
         noise = torch.randn_like(sample_p)
         sample_p += torch.sqrt(betas) * noise
         noise_token = torch.randn((1, 1, model.input_dim), device=device)# * torch.sqrt(1-alphas_cumprod[:, -1])
         sample_p = torch.cat((sample_p[:, 1:], noise_token), dim=1)
-    # print(f"Baseline Accuracy: {100 * (sample_p_orig[0].argmax(-1) == sample).float().mean()}%")
-    # print(f"Accuracy: {100 * (generated == sample).float().mean()}%")
+    
+    generated = torch.cat(generated, dim=1)
     plt.clf()
+    grid_shape = ((seq_len+n_generate)//32, 32)
+    generated = torch.cat((generated, sample_p), dim=1)
     img = generated[0].reshape(*grid_shape, 8, 8).permute(0, 2, 1, 3).reshape(grid_shape[0] * 8, grid_shape[1] * 8)
-    plt.imshow(img.cpu().numpy(), aspect="auto", cmap="hot", interpolation="nearest", vmin=0, vmax=1)
+    plt.imshow(img.cpu().numpy(), cmap="hot", interpolation="nearest", vmin=0, vmax=1)
     plt.axis('off')
     plt.tight_layout()
 else:
