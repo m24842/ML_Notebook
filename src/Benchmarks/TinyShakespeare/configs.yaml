@@ -218,6 +218,8 @@ FastTransformer_defaults: &FastTransformer_defaults
 DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
+    use_loss_fn: 1
+    use_log_fn: 1
     use_data_fn: 0
     batch_size: 64
     accumulation_steps: 0
@@ -241,15 +243,13 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   
   optimizer:
     <<: *optimizer_defaults
-    lr: 1e-4
+    lr: 6e-4
+    weight_decay: 0.0
   
   scheduler:
-    # <<: *scheduler_defaults
-    name: CosineAnnealingWarmRestarts
-    T_0: 2000
-    T_mult: 1
-    eta_min: 0
-    # num_training_steps: 10000
+    <<: *scheduler_defaults
+    eta_min: 1e-6
+    num_training_steps: 10000
 
 ### Experiments Configuration ###
 experiments:
