@@ -138,7 +138,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
                 scheduler=None, device="cpu", completed_steps=0, train_steps=None,
                 checkpoint_dir="", model_name=None, val_loader=None,
                 wandb_logging=False, wandb_metrics=["acc", "loss"],
-                grad_clip_norm=None, accumulation_steps=0,
+                grad_clip_norm=None, accumulation_steps=1,
                 mixed_precision=False, loss_backoff=InvalidLossBackoff(10, "consecutive"),
                 checkpoint_freq=None, val_freq=None, info_freq=None):
     # Default model name
@@ -178,10 +178,10 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
                 accumulated_batch_metrics.accumulate_metrics(new_metrics)
         
         # Backward pass and gradient accumulation if applicable
-        loss = loss / (accumulation_steps + 1)
+        loss = loss / accumulation_steps
         loss.backward() if not mixed_precision else scaler.scale(loss).backward()
         
-        if (batch_idx + 1) % (accumulation_steps + 1) == 0:
+        if (batch_idx + 1) % accumulation_steps == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
             optimizer.step() if not mixed_precision else scaler.step(optimizer)
             if mixed_precision: scaler.update()
@@ -189,7 +189,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
             if scheduler: scheduler.step()
             
             # WandB logging
-            accumulated_batch_metrics.rescale_metrics(accumulation_steps + 1)
+            accumulated_batch_metrics.rescale_metrics(accumulation_steps)
             lr = scheduler.get_last_lr()[0] if scheduler is not None else optimizer.param_groups[0]["lr"]
             accumulated_batch_metrics.add_metric(
                 Metric(name="lr", prefix="misc/", value=lr, batch_avg=False),
@@ -221,7 +221,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
         if train_steps is not None and completed_steps >= train_steps: break
     
     # Account for last accumulated batch
-    if (batch_idx + 1) % (accumulation_steps + 1) != 0:
+    if (batch_idx + 1) % accumulation_steps != 0:
         completed_steps += 1
         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
         optimizer.step() if not mixed_precision else scaler.step(optimizer)
@@ -230,7 +230,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
         if scheduler: scheduler.step()
         
         # WandB logging
-        accumulated_batch_metrics.rescale_metrics((batch_idx % (accumulation_steps + 1)) + 1)
+        accumulated_batch_metrics.rescale_metrics((batch_idx % accumulation_steps) + 1)
         lr = scheduler.get_last_lr()[0] if scheduler is not None else optimizer.param_groups[0]["lr"]
         accumulated_batch_metrics.add_metric(
             Metric(name="lr", prefix="misc/", value=lr, batch_avg=False),
@@ -315,7 +315,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
           checkpoint_dir="", model_name=None,
           val_loader=None, test_loader=None,
           wandb_logging=True, wandb_entity=None, wandb_project=None,
-          grad_clip_norm=None, accumulation_steps=0,
+          grad_clip_norm=None, accumulation_steps=1,
           loss_backoff=InvalidLossBackoff(10, "consecutive"),
           checkpoint_freq=None, val_freq=None, info_freq=None):
     try:
@@ -452,7 +452,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                     
                     `batch_size` (default: 32): Batch size for training.
                     
-                    `accumulation_steps` (default: 0): Number of batches to accumulate gradients for.
+                    `accumulation_steps` (default: 1): Number of batches to accumulate gradients for.
                     
                     `train_steps` (optional): Number of training steps. **(Mutually exclusive with epochs)**
                     
@@ -599,7 +599,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                 torch.cuda.manual_seed_all(seed)
             
             batch_size = general_config.get("batch_size", 32)
-            accumulation_steps = general_config.get("accumulation_steps", 0)
+            accumulation_steps = general_config.get("accumulation_steps", 1)
             epochs = general_config.get("epochs", None)
             train_steps = general_config.get("train_steps", None)
             assert not (train_steps is None and epochs is None), "Either train_steps or epochs must be specified."

@@ -8,7 +8,6 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, lr]
   
   dataset: # 200,000 train samples
     name: Pathfinder
@@ -33,7 +32,7 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 64
-  epochs: 10
+  train_steps: 20000
   grad_clip_norm: 1.0
   mixed_precision: True
   num_workers: 16
@@ -45,7 +44,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 31250 # ceil(train_samples / batch_size) * epochs
+  T_max: 20000
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
@@ -158,7 +157,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     emb_dim: 128
     mlp_dim: 128
     window_len: 64
-    masked_window: False
+    masked_window: True
     dilate: True
     # dilation_factor: 64
     n_heads: 4

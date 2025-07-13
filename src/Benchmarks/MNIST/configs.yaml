@@ -8,7 +8,6 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, lr]
   
   dataset: # 60,000 train samples
     name: SequentialMNIST

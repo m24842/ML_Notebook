@@ -8,7 +8,6 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, ppl, seq_len, lr]
   
   dataset: # 4,869 train samples
     name: LAMBADA

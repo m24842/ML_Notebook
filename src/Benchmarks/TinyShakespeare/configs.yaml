@@ -8,7 +8,6 @@ global:
     wandb:
       entity: m24842
       project: Machine Learning
-      metrics: [acc, loss, ppl, seq_len, lr]
   
   dataset: # 304,141 train tokens
     name: TinyShakespeare
@@ -185,36 +184,6 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   scheduler:
     <<: *scheduler_defaults
 
-FastTransformer_defaults: &FastTransformer_defaults
-  general: &FastTransformer_general
-    <<: *general_defaults
-  
-  model: &FastTransformer_model
-    name: FastTransformer
-    emb_dim: 128
-    mlp_dim: 128
-    window_len: 64
-    masked_window: True
-    n_dilations: 2
-    # dilation_factor: 64
-    n_heads: 4
-    n_layers: 6
-    input_dim: 50277
-    output_dim: 50277
-    attn_sink: False
-    mlp_bias: False
-    attn_bias: False
-    dropout: 0.0
-    causal: True
-    use_embedding: True
-    pos_encoding: xpos
-  
-  optimizer:
-    <<: *optimizer_defaults
-  
-  scheduler:
-    <<: *scheduler_defaults
-
 DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
@@ -248,7 +217,6 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   
   scheduler:
     <<: *scheduler_defaults
-    eta_min: 1e-6
     num_training_steps: 10000
 
 ### Experiments Configuration ###
