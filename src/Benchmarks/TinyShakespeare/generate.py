@@ -108,7 +108,7 @@ if model_name == "DiffusionTransformer":
 if model_name == "DiffusionTransformer":
     # generated = torch.zeros_like(sample)
     generated = []
-    n_generate = 1*seq_len
+    n_generate = 4*seq_len
     for i in tqdm(range(n_generate), leave=False):
         output = model.step(sample_p)
         

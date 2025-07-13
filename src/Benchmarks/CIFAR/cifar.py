@@ -12,7 +12,10 @@ def loss_fn(data, output, target):
 
 def log_fn(loss, output, data, target):
     pred = output[:, -1].argmax(dim=1)
-    return 100 * (pred == target).sum().item() / len(target)
+    acc = 100 * (pred == target).sum().item() / len(target)
+    return [
+        Metric(name="acc", value=acc, reset_value=0.0, batch_avg=True),
+    ]
 
 if __name__ == "__main__":
     train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device=device)

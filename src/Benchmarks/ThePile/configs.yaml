@@ -59,7 +59,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
-  eta_min: 1e-5
+  eta_min: 1e-6
   num_warmup_steps: 500
   num_training_steps: 5000
 

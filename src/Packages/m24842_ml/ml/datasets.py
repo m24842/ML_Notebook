@@ -90,7 +90,7 @@ class Pathfinder(Dataset):
     def __init__(self, root, dim, train, subset="curv_baseline", split_idx=180, permuted=False):
         self.transform = [
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.view(-1, 1))
+            transforms.Lambda(lambda x: x.view(-1, 1) / 255.0)
         ]
         if permuted:
             random_permutation = torch.randperm(dim**2)
