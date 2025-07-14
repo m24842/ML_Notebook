@@ -143,6 +143,33 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   scheduler:
     <<: *scheduler_defaults
 
+ExpandedOrthoLinearTransformer_defaults: &ExpandedOrthoLinearTransformer_defaults
+  general: &ExpandedOrthoLinearTransformer_general
+    <<: *general_defaults
+  
+  model: &ExpandedOrthoLinearTransformer_model
+    name: ExpandedOrthoLinearTransformer
+    emb_dim: 128
+    mlp_dim: 128
+    tree_depth: 2
+    tree_size: 28
+    n_heads: 4
+    n_layers: 2
+    input_dim: 1
+    output_dim: 10
+    attn_sink: False
+    dropout: 0.0
+    causal: False
+    use_embedding: False
+    pos_encoding: abs
+    pos_encoding_max_len: 784
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   general: &SlidingWindowTransformer_general
     <<: *general_defaults
@@ -199,10 +226,10 @@ experiments:
   #     <<: *SlidingWindowTransformer_general
   #     seed: 3333
 
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 0
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 0
 
   # - <<: *CompressionTransformer_defaults
   #   general:
@@ -272,6 +299,31 @@ experiments:
   # - <<: *OrthoLinearTransformer_defaults
   #   general:
   #     <<: *OrthoLinearTransformer_general
+  #     seed: 3333
+
+  - <<: *ExpandedOrthoLinearTransformer_defaults
+    general:
+      <<: *ExpandedOrthoLinearTransformer_general
+      seed: 0
+  
+  # - <<: *ExpandedOrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *ExpandedOrthoLinearTransformer_general
+  #     seed: 42
+  
+  # - <<: *ExpandedOrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *ExpandedOrthoLinearTransformer_general
+  #     seed: 1111
+  
+  # - <<: *ExpandedOrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *ExpandedOrthoLinearTransformer_general
+  #     seed: 2222
+  
+  # - <<: *ExpandedOrthoLinearTransformer_defaults
+  #   general:
+  #     <<: *ExpandedOrthoLinearTransformer_general
   #     seed: 3333
   
   # - <<: *LinearTransformer_defaults

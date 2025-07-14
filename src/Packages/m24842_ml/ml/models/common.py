@@ -1,8 +1,8 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Function
-from torch.autograd.function import once_differentiable
+import torch.autograd as autograd
 
 class MLP(nn.Module):
     def __init__(self, d_in, d_hidden, d_out, activation=F.relu, bias=True, device="cpu"):
@@ -22,6 +22,230 @@ class MLP(nn.Module):
         x = self.fc2(x)
         return x
 
+class Butterfly(nn.Module):
+    def __init__(self, in_size, out_size, bias=True, complex=False,
+                 increasing_stride=True, init='randn', n_blocks=1,
+                 device="cpu"):
+        super().__init__()
+        self.in_size = in_size
+        self.log_n = log_n = int(math.ceil(math.log2(in_size)))
+        self.n = n = 1 << log_n
+        self.out_size = out_size
+        self.nstacks = int(math.ceil(out_size / self.n))
+        self.complex = complex
+        self.increasing_stride = increasing_stride
+        self.device = device
+        assert n_blocks >= 1
+        self.n_blocks = n_blocks
+        dtype = torch.get_default_dtype() if not self.complex else {torch.float32: torch.complex64, torch.float64: torch.complex128}[torch.get_default_dtype()]
+        twiddle_shape = (self.nstacks, n_blocks, log_n, n // 2, 2, 2)
+        if isinstance(init, torch.Tensor):
+            self.init = None
+            assert init.shape == twiddle_shape
+            assert init.dtype == dtype
+            self.twiddle = nn.Parameter(init.clone())
+        else:
+            assert init in ['empty', 'randn', 'ortho', 'identity', 'fft', 'ifft']
+            self.init = init
+            self.twiddle = nn.Parameter(torch.empty(twiddle_shape, dtype=dtype))
+        if bias:
+            self.bias = nn.Parameter(torch.empty(out_size, dtype=dtype))
+        else:
+            self.register_parameter('bias', None)
+        self.twiddle._is_structured = True  # Flag to avoid weight decay
+        self._reset_parameters()
+        self.to(device)
+
+    def _reset_parameters(self):
+        """Initialize bias the same way as torch.nn.Linear."""
+        if self.bias is not None:
+            bound = 1 / math.sqrt(self.in_size)
+            nn.init.uniform_(self.bias, -bound, bound)
+        twiddle = self.twiddle
+        if self.init is None or self.init == 'empty':
+            return
+        elif self.init == 'randn':
+            # complex randn already has the correct scaling of stddev=1.0
+            scaling = 1.0 / math.sqrt(2)
+            with torch.no_grad():
+                twiddle.copy_(torch.randn(twiddle.shape, dtype=twiddle.dtype) * scaling)
+        elif self.init == 'ortho':
+            twiddle_core_shape = twiddle.shape[:-2]
+            if not self.complex:
+                theta = torch.rand(twiddle_core_shape) * math.pi * 2
+                c, s = torch.cos(theta), torch.sin(theta)
+                det = torch.randint(0, 2, twiddle_core_shape, dtype=c.dtype) * 2 - 1  # Rotation (+1) or reflection (-1)
+                with torch.no_grad():
+                    twiddle.copy_(torch.stack((torch.stack((det * c, -det * s), dim=-1),
+                                               torch.stack((s, c), dim=-1)), dim=-2))
+            else:
+                # Sampling from the Haar measure on U(2) is a bit subtle.
+                # Using the parameterization here: http://home.lu.lv/~sd20008/papers/essays/Random%20unitary%20[paper].pdf
+                phi = torch.asin(torch.sqrt(torch.rand(twiddle_core_shape)))
+                c, s = torch.cos(phi), torch.sin(phi)
+                alpha, psi, chi = torch.rand((3, ) + twiddle_core_shape) * math.pi * 2
+                A = torch.exp(1j * (alpha + psi)) * c
+                B = torch.exp(1j * (alpha + chi)) * s
+                C = -torch.exp(1j * (alpha - chi)) * s
+                D = torch.exp(1j * (alpha - psi)) * c
+                with torch.no_grad():
+                    twiddle.copy_(torch.stack((torch.stack((A, B), dim=-1),
+                                               torch.stack((C, D), dim=-1)), dim=-2))
+        elif self.init == 'identity':
+            twiddle_eye = torch.eye(2, dtype=twiddle.dtype).reshape(1, 1, 1, 1, 2, 2)
+            twiddle_eye = twiddle_eye.expand(*twiddle.shape).contiguous()
+            with torch.no_grad():
+                twiddle.copy_(twiddle_eye)
+        elif self.init in ['fft', 'ifft']:
+            assert self.complex, 'fft/ifft init requires Butterfly to be complex'
+            special_fn = (self._fft if self.init == 'fft' else self._ifft)
+            b_fft = special_fn(self.n, normalized=True, br_first=self.increasing_stride)
+            with torch.no_grad():
+                twiddle[:, 0] = b_fft.twiddle
+            if self.n_blocks > 1:
+                twiddle_eye = torch.eye(2, dtype=twiddle.dtype).reshape(1, 1, 1, 1, 2, 2)
+                twiddle_eye = twiddle_eye.expand(*twiddle[:, 1:].shape).contiguous()
+                with torch.no_grad():
+                    twiddle[:, 1:] = twiddle_eye
+
+    def _complex_reshape(self, x, *shape):
+        if not x.is_complex():
+            return x.reshape(*shape)
+        else:
+            return torch.view_as_complex(torch.view_as_real(x).reshape(*shape, 2))
+        
+    def _fft(self, n, normalized=False, br_first=True):
+        """ Construct an nn.Module based on Butterfly that exactly performs the FFT.
+        Parameters:
+            n: size of the FFT. Must be a power of 2.
+            normalized: if True, corresponds to the unitary FFT (i.e. multiplied by 1/sqrt(n))
+            br_first: which decomposition of FFT. br_first=True corresponds to decimation-in-time.
+                    br_first=False corresponds to decimation-in-frequency.
+        """
+        log_n = int(math.ceil(math.log2(n)))
+        assert n == 1 << log_n, 'n must be a power of 2'
+        factors = []
+        for log_size in range(1, log_n + 1):
+            size = 1 << log_size
+            exp = torch.exp(-2j * math.pi * torch.arange(0.0, size // 2) / size)
+            o = torch.ones_like(exp)
+            twiddle_factor = torch.stack((torch.stack((o, exp), dim=-1),
+                                        torch.stack((o, -exp), dim=-1)), dim=-2)
+            factors.append(twiddle_factor.repeat(n // size, 1, 1))
+        twiddle = torch.stack(factors, dim=0).unsqueeze(0).unsqueeze(0)
+        if not br_first:  # Take conjugate transpose of the BP decomposition of ifft
+            twiddle = twiddle.transpose(-1, -2).flip([2])
+        # Divide the whole transform by sqrt(n) by dividing each factor by n^(1/2 log_n) = sqrt(2)
+        if normalized:
+            twiddle /= math.sqrt(2)
+        return Butterfly(n, n, bias=False, complex=True, increasing_stride=br_first, init=twiddle)
+
+    def _ifft(self, n, normalized=False, br_first=True):
+        """ Construct an nn.Module based on Butterfly that exactly performs the inverse FFT.
+        Parameters:
+            n: size of the iFFT. Must be a power of 2.
+            normalized: if True, corresponds to unitary iFFT (i.e. multiplied by 1/sqrt(n), not 1/n)
+            br_first: which decomposition of iFFT. True corresponds to decimation-in-frequency.
+                    False corresponds to decimation-in-time.
+        """
+        log_n = int(math.ceil(math.log2(n)))
+        assert n == 1 << log_n, 'n must be a power of 2'
+        factors = []
+        for log_size in range(1, log_n + 1):
+            size = 1 << log_size
+            exp = torch.exp(2j * math.pi * torch.arange(0.0, size // 2) / size)
+            o = torch.ones_like(exp)
+            twiddle_factor = torch.stack((torch.stack((o, exp), dim=-1),
+                                        torch.stack((o, -exp), dim=-1)), dim=-2)
+            factors.append(twiddle_factor.repeat(n // size, 1, 1))
+        twiddle = torch.stack(factors, dim=0).unsqueeze(0).unsqueeze(0)
+        if not br_first:  # Take conjugate transpose of the BP decomposition of fft
+            twiddle = twiddle.transpose(-1, -2).flip([2])
+        # Divide the whole transform by sqrt(n) by dividing each factor by n^(1/2 log_n) = sqrt(2)
+        if normalized:
+            twiddle /= math.sqrt(2)
+        else:
+            twiddle /= 2
+        return Butterfly(n, n, bias=False, complex=True, increasing_stride=br_first, init=twiddle)
+    
+    def _butterfly_multiply(self, twiddle, input, increasing_stride=True, output_size=None):
+        batch_size, nstacks, input_size = input.shape
+        n_blocks = twiddle.shape[1]
+        log_n = twiddle.shape[2]
+        n = 1 << log_n
+        assert twiddle.shape == (nstacks, n_blocks, log_n, n // 2, 2, 2)
+        # Pad or trim input to size n
+        input = F.pad(input, (0, n - input_size)) if input_size < n else input[:, :, :n]
+        output_size = n if output_size is None else output_size
+        assert output_size <= n
+        output = input.contiguous()
+        cur_increasing_stride = increasing_stride
+        for block in range(n_blocks):
+            for idx in range(log_n):
+                log_stride = idx if cur_increasing_stride else log_n - 1 - idx
+                stride = 1 << log_stride
+                # shape (nstacks, n // (2 * stride), 2, 2, stride)
+                t = twiddle[:, block, idx].view(
+                    nstacks, n // (2 * stride), stride, 2, 2).permute(0, 1, 3, 4, 2)
+                output_reshape = output.view(
+                    batch_size, nstacks, n // (2 * stride), 1, 2, stride)
+                output = (t * output_reshape).sum(dim=4)
+            cur_increasing_stride = not cur_increasing_stride
+        return output.view(batch_size, nstacks, n)[:, :, :output_size]
+    
+    def forward(self, input, transpose=False, conjugate=False, subtwiddle=False):
+        """
+        Parameters:
+            input: (batch, *, in_size)
+            transpose: whether the butterfly matrix should be transposed.
+            conjugate: whether the butterfly matrix should be conjugated.
+            subtwiddle: allow using only part of the parameters for smaller input.
+                Could be useful for weight sharing.
+                out_size is set to self.nstacks * self.n in this case
+        Return:
+            output: (batch, *, out_size)
+        """
+        twiddle = self.twiddle
+        output = self.pre_process(input)
+        output_size = self.out_size if self.nstacks == 1 else None
+        if subtwiddle:
+            log_n = int(math.ceil(math.log2(input.size(-1))))
+            n = 1 << log_n
+            twiddle = (twiddle[:, :, :log_n, :n // 2] if self.increasing_stride
+                       else twiddle[:, :, -log_n:, :n // 2])
+            output_size = None
+        if conjugate and self.complex:
+            twiddle = twiddle.conj()
+        if not transpose:
+            output = self._butterfly_multiply(twiddle, output, self.increasing_stride, output_size)
+        else:
+            twiddle = twiddle.transpose(-1, -2).flip([1, 2])
+            last_increasing_stride = self.increasing_stride != ((self.n_blocks - 1) % 2 == 1)
+            output = self._butterfly_multiply(twiddle, output, not last_increasing_stride, output_size)
+        if not subtwiddle:
+            return self.post_process(input, output)
+        else:
+            return self.post_process(input, output, out_size=output.size(-1))
+    
+    def pre_process(self, input):
+        # Reshape to (N, in_size)
+        input_size = input.size(-1)
+        output = self._complex_reshape(input, -1, input_size)
+        batch = output.shape[0]
+        output = output.unsqueeze(1).expand(batch, self.nstacks, input_size)
+        return output
+
+    def post_process(self, input, output, out_size=None):
+        if out_size is None:
+            out_size = self.out_size
+        batch = output.shape[0]
+        output = output.view(batch, self.nstacks * output.size(-1))
+        if out_size != output.shape[-1]:  # Take top rows
+            output = output[:, :out_size]
+        if self.bias is not None:
+            output = output + self.bias[:out_size]
+        return output.view(*input.size()[:-1], out_size)
+
 class GatedRMSNorm(nn.Module):
     def __init__(self, d, eps=1e-5, device=None):
         """Gated Root Mean Square Layer Normalization
@@ -37,7 +261,7 @@ class GatedRMSNorm(nn.Module):
             x = x * F.silu(z)
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
 
-class DilatedSlidingWindow(Function):
+class DilatedSlidingWindow(autograd.Function):
     @staticmethod
     def forward(ctx, x, size, stride, dilation, dim, pad):
         if torch.is_grad_enabled() and x.requires_grad:
@@ -88,7 +312,7 @@ class DilatedSlidingWindow(Function):
         return y
 
     @staticmethod
-    @once_differentiable
+    @autograd.function.once_differentiable
     def backward(ctx, grad_output):
         if not ctx.saved_tensors:
             return None, None, None, None, None, None
@@ -142,132 +366,3 @@ class DilatedSlidingWindow(Function):
 
 def dilated_sliding_window(x, size, stride=1, dilation=1, dim=-1, pad=(0, 0)):
     return DilatedSlidingWindow.apply(x, size, stride, dilation, dim, pad)
-
-class DilatedSlidingWindowNoPad(Function):
-    def _build_index(num_windows, size, stride, dilation, pad_left, N, device):
-        # pad_left in elements
-        # Compute "center offset" L in dilation-steps
-        L = pad_left // dilation
-        # window offsets relative to each window start
-        offsets = (torch.arange(size, device=device) - L) * dilation  # (size,)
-        # base start positions for each window
-        base = torch.arange(num_windows, device=device) * stride
-        # full index map: (num_windows, size)
-        idx = base.unsqueeze(1) + offsets.unsqueeze(0)
-        return idx
-    
-    @staticmethod
-    def forward(ctx, x, size, stride, dilation, dim, pad):
-        # Only stride>=1 supported
-        if torch.is_grad_enabled() and x.requires_grad:
-            ctx.size = size
-            ctx.stride = stride
-            ctx.dilation = dilation
-            ctx.dim = dim
-            ctx.pad = pad
-            ctx.x_shape = x.shape
-            ctx.save_for_backward(x)
-
-        # bring [batch, seq, ...] ordering
-        if dim < 0:
-            dim = x.dim() + dim
-        # permute to (B, N, D_flat)
-        orig_dims = list(range(x.dim()))
-        perm = [d for d in orig_dims if d not in (0, dim)]
-        perm = [0, dim] + perm
-        x_perm = x.permute(perm)
-        B, N = x_perm.shape[:2]
-        D_flat = torch.tensor(x_perm.shape[2:]).prod()
-        x_flat = x_perm.reshape(B, N, D_flat)
-
-        # compute padded length and number of windows
-        pad_left, pad_right = pad
-        eff = (size - 1) * dilation + 1
-        n_padded = N + pad_left + pad_right
-        num_windows = (n_padded - eff) // stride + 1
-        if num_windows <= 0:
-            return x.new_empty((B, 0, size) + tuple(x_perm.shape[2:]))
-
-        # build indices
-        idx = DilatedSlidingWindowNoPad._build_index(num_windows, size, stride, dilation, pad_left, N, x.device)
-        # mask out-of-bounds
-        mask = (idx < 0) | (idx >= N)
-        idx_clamped = idx.clamp(0, N-1)
-
-        # gather windows: (B, num_windows, size, D_flat)
-        idx_exp = idx_clamped.unsqueeze(0).unsqueeze(-1).expand(B, -1, -1, D_flat)
-        windows = x_flat.unsqueeze(1).expand(-1, num_windows, -1, -1)
-        windows = windows.gather(2, idx_exp)
-        # zero pad positions
-        windows = windows.masked_fill(mask.unsqueeze(0).unsqueeze(-1), 0)
-
-        # reshape feature dims
-        out = windows.view((B, num_windows, size) + tuple(x_perm.shape[2:]))
-
-        # permute back to original ordering: insert window dim after batch
-        # original perm rearranged dims: [0, dim, ...]
-        # we want [batch, num_windows, window_size, ...]
-        inv = []
-        # build inverse of perm: perm maps new->old; we want to map old->new
-        for i,p in enumerate(perm): inv.append(i)
-        # now inv gives for each old-axis its index in perm
-        # new_tensor dims are [0(batch),1:num_windows,2:size, then features]
-        # features are at positions 3...; they correspond to orig dims except 0,dim
-        # so output order = [0, 1, 2] + [inv[d] + (0 if inv[d]<2 else 1) for d in orig_dims if d not in (0,dim)]
-        feats = [inv[d] + 1 for d in orig_dims if d not in (0, dim)]
-        order = [0, 1, 2] + feats
-        out = out.permute(order)
-        return out
-
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, grad_out):
-        if not ctx.saved_tensors:
-            return None, None, None, None, None, None
-        
-        x, = ctx.saved_tensors
-        size = ctx.size
-        stride = ctx.stride
-        dilation = ctx.dilation
-        dim = ctx.dim
-        pad_left, pad_right = ctx.pad
-
-        # permute grad_out same as forward pre-permute
-        if dim < 0:
-            dim = x.dim() + dim
-        orig_dims = list(range(x.dim()))
-        perm = [d for d in orig_dims if d not in (0, dim)]
-        perm = [0, dim] + perm
-        # grad_out shape: (B, num_windows, size, *features)
-        grad_perm = grad_out.permute([0,1,2] + [i+3 for i in range(grad_out.dim()-3)])
-        B, num_windows, S = grad_perm.shape[:3]
-        D_flat = torch.tensor(grad_perm.shape[3:]).prod()
-        g_flat = grad_perm.reshape(B, num_windows, S, D_flat)
-
-        # build index and mask
-        N = x.size(dim)
-        idx = DilatedSlidingWindowNoPad._build_index(num_windows, size, stride, dilation, pad_left, N, x.device)
-        mask = (idx < 0) | (idx >= N)
-        idx_clamped = idx.clamp(0, N-1)
-
-        # mask grads
-        g_flat = g_flat.masked_fill(mask.unsqueeze(0).unsqueeze(-1), 0)
-
-        # scatter-add
-        grad_flat = torch.zeros((B, N, D_flat), device=x.device, dtype=x.dtype)
-        idx_exp = idx_clamped.unsqueeze(0).unsqueeze(-1).expand(B, -1, -1, D_flat)
-        grad_flat.scatter_add_(1,
-            idx_exp.reshape(B, num_windows * S, D_flat),
-            g_flat.reshape(B, num_windows * S, D_flat)
-        )
-
-        # reshape back
-        grad = grad_flat.view((B, N) + tuple(x.permute(perm).shape[2:]))
-        # inverse perm
-        inv = [0]*len(perm)
-        for i,p in enumerate(perm): inv[p] = i
-        grad = grad.permute(inv)
-        return grad, None, None, None, None, None
-
-def dilated_sliding_window_nopad(x, size, stride=1, dilation=1, dim=-1, pad=(0,0)):
-    return DilatedSlidingWindowNoPad.apply(x, size, stride, dilation, dim, pad)

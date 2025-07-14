@@ -597,7 +597,6 @@ class SlidingWindowAttention(nn.Module):
                 pad = (pad_amount, pad_amount)
 
             q = dilated_sliding_window(q, size=src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
-            # q = dilated_sliding_window_nopad(q, size=src_len, dim=1, stride=self.dilation, dilation=1, pad=pad)
 
             attn_output_weights = torch.einsum('zbsd, zsd -> zbs', q, k)  # (bsz * n_heads, n_bands, src_len)
             
@@ -631,3 +630,98 @@ class SlidingWindowAttention(nn.Module):
         if self.batch_first:
             return attn_output.transpose(0, 1)
         return attn_output
+
+class ExpandedOrthoLinearAttention(nn.Module):
+    """
+    Expanded Orthogonal Linear Attention.
+    A derivative of linear attention that both up-projects and orthogonalizes queries and keys for each head.
+    """
+    def __init__(self, d_model, n_heads, tree_depth, tree_size, bias=True, attn_sink=False, device="cpu"):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.tree_depth = tree_depth
+        self.tree_size = tree_size
+        self.n_bins = tree_size ** (tree_depth - 1)
+        self.d_head = d_model // n_heads
+        self.attn_sink = attn_sink
+        self.device = device
+        
+        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta._no_weight_decay = True
+        self.bin_proj = nn.Linear(d_model, tree_size*tree_depth, bias=bias, device=device)
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
+        
+        self._reset_parameters()
+    
+    def _reset_parameters(self):
+        nn.init.constant_(self.beta, 0.)
+        nn.init.xavier_uniform_(self.bin_proj.weight)
+        nn.init.xavier_uniform_(self.q_proj.weight)
+        nn.init.xavier_uniform_(self.k_proj.weight)
+        nn.init.xavier_uniform_(self.v_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        if self.bin_proj.bias is not None:
+            nn.init.constant_(self.bin_proj.bias, 0.)
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
+        if self.out_proj.bias is not None:
+            nn.init.constant_(self.out_proj.bias, 0.)
+    
+    def forward(self, x, rope=None, causal=True):
+        bsz, src_len, d_model = x.size()
+        tgt_len = src_len
+        q = self.q_proj(x)
+        q_branch_scores = self.bin_proj(q).reshape(bsz, src_len, self.tree_depth, self.tree_size)
+        q_bins = q_branch_scores[:, :, 0, :]
+        k = self.k_proj(x)
+        k_branch_scores = self.bin_proj(k).reshape(bsz, src_len, self.tree_depth, self.tree_size)
+        k_bins = k_branch_scores[:, :, 0, :]
+        for i in range(self.tree_depth-1):
+            q_bins = (q_bins.unsqueeze(-1) * q_branch_scores[:, :, i+1, :].unsqueeze(-2)).reshape(bsz, src_len, -1)
+            k_bins = (k_bins.unsqueeze(-1) * k_branch_scores[:, :, i+1, :].unsqueeze(-2)).reshape(bsz, src_len, -1)
+        v = self.v_proj(x)
+        q = rearrange(q, 'b s (h d) -> b h s d', h=self.n_heads)
+        k = rearrange(k, 'b s (h d) -> b h s d', h=self.n_heads)
+        v = rearrange(v, 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        
+        if self.attn_sink:
+            src_len += 1
+            k = torch.cat([k, torch.zeros((bsz, self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=2)
+            v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=1)
+        
+        if rope:
+            if rope.use_xpos:
+                q, k = rope.rotate_queries_and_keys(q, k)
+            else:
+                q = rope.rotate_queries_or_keys(q)
+                k = rope.rotate_queries_or_keys(k)
+        q = q.reshape(bsz * self.n_heads, tgt_len, -1).contiguous()
+        k = k.reshape(bsz * self.n_heads, src_len, -1).contiguous()
+        
+        beta = torch.exp(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        # beta = F.softplus(self.beta).reshape(self.n_heads, 1, 1).repeat(bsz, 1, 1)
+        q = q * beta
+        k = k * beta
+        
+        q = q.softmax(-1)
+        k = k.softmax(-1)
+        
+        if causal:
+            kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
+            kn = torch.cumsum(k, dim=1)
+        else:
+            kv = torch.einsum('zsD, zsd -> zDd', k, v).unsqueeze(1)
+            kn = k.sum(1, keepdim=True)
+        
+        out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / (q * kn).sum(-1, keepdim=True)
+        out = rearrange(out, '(b h) s d -> b s (h d)', h=self.n_heads)
+        return self.out_proj(out)

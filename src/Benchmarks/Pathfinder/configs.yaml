@@ -32,7 +32,8 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 64
-  train_steps: 20000
+  accumulation_steps: 8
+  train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: True
   num_workers: 16
@@ -44,7 +45,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 20000
+  T_max: 10000
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
