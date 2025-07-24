@@ -18,4 +18,4 @@ def log_fn(loss, output, data, target):
     ]
 
 if __name__ == "__main__":
-    train_from_config_file(CONFIG_PATH, loss_fn, acc_fn, device=device)
+    train_from_config_file(CONFIG_PATH, loss_fn, log_fn, device=device)
