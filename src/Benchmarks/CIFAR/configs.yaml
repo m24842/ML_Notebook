@@ -16,12 +16,12 @@ global:
         root: data
         train: True
         permuted: False
-        grayscale: False
+        grayscale: True
       test:
         root: data
         train: False
         permuted: False
-        grayscale: False
+        grayscale: True
   
   checkpoint_freq: 500
 
@@ -30,6 +30,7 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 64
+  accumulation_steps: 8
   epochs: 20
   grad_clip_norm: 1.0
   mixed_precision: True
@@ -154,7 +155,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     emb_dim: 128
     mlp_dim: 128
     window_len: 64
-    masked_window: False
+    use_flex_attn: False
     dilate: True
     # dilation_factor: 64
     n_heads: 4

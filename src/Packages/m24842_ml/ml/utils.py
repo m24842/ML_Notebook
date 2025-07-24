@@ -161,7 +161,7 @@ def load_checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler
         if scheduler: output += (scheduler,)
     return output
 
-def allocate_dynamic_memory(model, bsz, min_len, max_len, device="cpu"):
+def allocate_dynamic_memory(model, bsz, min_len, max_len, backend="auto", device="cpu"):
     """
     Allocate dynamic memory on the specified device.
     """
@@ -176,29 +176,45 @@ def allocate_dynamic_memory(model, bsz, min_len, max_len, device="cpu"):
     torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
     
     backends = ["inductor", "aot_eager", "eager"]
-    for backend in backends:
+    if backend == "auto":
+        for backend in backends:
+            try:
+                compiled_model = torch.compile(model, dynamic=True, backend=backend)
+                with torch.no_grad(): compiled_model(temp)
+                model = compiled_model
+                break
+            except:
+                pass
+    elif backend != "none":
         try:
             compiled_model = torch.compile(model, dynamic=True, backend=backend)
             with torch.no_grad(): compiled_model(temp)
             model = compiled_model
-            break
         except:
             pass
     
     return model
 
-def compile_model(model, input_shape, device="cpu"):
+def compile_model(model, input_shape, backend="auto", device="cpu"):
     """
     Allocate dynamic memory on the specified device.
     """
     temp = torch.zeros(input_shape, device=device)
     backends = ["inductor", "aot_eager", "eager"]
-    for backend in backends:
+    if backend == "auto":
+        for backend in backends:
+            try:
+                compiled_model = torch.compile(model, backend=backend)
+                with torch.no_grad(): compiled_model(temp)
+                model = compiled_model
+                break
+            except:
+                pass
+    elif backend != "none":
         try:
-            compiled_model = torch.compile(model, dynamic=True, backend=backend)
+            compiled_model = torch.compile(model, backend=backend)
             with torch.no_grad(): compiled_model(temp)
             model = compiled_model
-            break
         except:
             pass
     

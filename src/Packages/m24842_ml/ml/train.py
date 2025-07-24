@@ -183,8 +183,11 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
         
         if (batch_idx + 1) % accumulation_steps == 0:
             if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-            optimizer.step() if not mixed_precision else scaler.step(optimizer)
-            if mixed_precision: scaler.update()
+            if not mixed_precision:
+                optimizer.step()
+            else:
+                scaler.step(optimizer)
+                scaler.update()
             optimizer.zero_grad()
             if scheduler: scheduler.step()
             
@@ -224,8 +227,11 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
     if (batch_idx + 1) % accumulation_steps != 0:
         completed_steps += 1
         if grad_clip_norm is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
-        optimizer.step() if not mixed_precision else scaler.step(optimizer)
-        if mixed_precision: scaler.update()
+        if not mixed_precision:
+            optimizer.step()
+        else:
+            scaler.step(optimizer)
+            scaler.update()
         optimizer.zero_grad()
         if scheduler: scheduler.step()
         
@@ -310,7 +316,7 @@ def test_epoch(model, test_loader, loss_fn, log_fn=default_log_fn, data_fn=defau
         wandb.log(test_metrics.to_dict(prefix="test/"))
 
 def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
-          scheduler=None, device="cpu",
+          scheduler=None, device="cpu", compile_backend="aot_eager",
           train_config=None, mixed_precision=False,
           checkpoint_dir="", model_name=None,
           val_loader=None, test_loader=None,
@@ -346,13 +352,13 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
         # Use multiple GPUs if available
         if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
         
-        # Allocate dynamic memory if applicable for dataset
         if hasattr(train_loader.dataset, "seq_len_range"):
+            # Allocate dynamic memory if applicable for dataset
             min_len, max_len = train_loader.dataset.seq_len_range()
-            model = allocate_dynamic_memory(model, train_loader.batch_size, min_len, max_len, device)
+            model = allocate_dynamic_memory(model, train_loader.batch_size, min_len, max_len, compile_backend, device)
         else:
             # Compile the model for faster training
-            model = compile_model(model, train_loader.dataset[0][0].shape, device)
+            model = compile_model(model, train_loader.dataset[0][0].shape, compile_backend, device)
         
         # Train loop
         if epochs is not None:
@@ -475,6 +481,11 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                     `loss_backoff_count` (default: 10): Number of invalid loss backoffs before stopping training.
                     
                     `loss_backoff_type` (default: consecutive): Type of invalid loss backoff.
+                    
+                    `compile_backend` (default: auto):
+                        Backend to use for compiling the model.
+                        If "auto" the following backends will be tried in order: ["inductor", "aot_eager", "eager"]
+                        If "none" no compilation will occur.
                     
                     `load_checkpoint` (default: False): Whether to attempt loading model from checkpoint.
                     
@@ -607,6 +618,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
             
             grad_clip_norm = general_config.get("grad_clip_norm", None)
             mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
+            if torch.cuda.is_available(): torch.set_float32_matmul_precision('high')
             
             loss_backoff_count = general_config.get("loss_backoff_count", 10)
             loss_backoff_type = general_config.get("loss_backoff_type", "consecutive")
@@ -648,6 +660,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
             model_args["device"] = device
             
             # Initialize model
+            compile_backend = general_config.get("compile_backend", "auto")
             model = initialize_model(model_name, **model_args)
             
             # Initialize optimizer
@@ -708,7 +721,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 loss_fn=experiment_loss_fn, log_fn=experiment_log_fn, data_fn=experiment_data_fn,
                 train_config=train_config, mixed_precision=mixed_precision,
-                checkpoint_dir=checkpoint_dir,
+                compile_backend=compile_backend, checkpoint_dir=checkpoint_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
                 wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project,
                 grad_clip_norm=grad_clip_norm, accumulation_steps=accumulation_steps,
@@ -716,6 +729,8 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
                 device=device,
             )
+            
+            del general_config, model_config, optimizer_config, scheduler_config, train_config
         except KeyboardInterrupt:
             successful = False
             terminate = input('Terminate all experiments? (y/n): ').strip().lower()
@@ -727,7 +742,5 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
         if successful:
             successful_count += 1
             print(f'\033[92mExperiment [{i + 1}/{len(experiments)}] completed successfully\033[0m\n')
-        
-        del general_config, model_config, optimizer_config, scheduler_config, train_config
     
     print(f'\033[1m{successful_count}/{len(experiments)} experiments completed successfully\033[0m')

@@ -292,7 +292,7 @@ class CompressionTransformer(nn.Module):
 
 class SlidingWindowTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, window_len=64, masked_window=True,
+                 n_layers=1, n_heads=1, mlp_dim=None, window_len=64, use_flex_attn=True,
                  attn_sink=False, dilate=True, dilation_factor=None, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attn_bias=True,
@@ -329,7 +329,7 @@ class SlidingWindowTransformer(nn.Module):
                     norm1 = nn.RMSNorm(emb_dim, device=device),
                     dropout1 = nn.Dropout(dropout),
                     abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = SlidingWindowAttention(emb_dim, self.n_heads, window_len=window_len, masked_window=masked_window, attn_sink=attn_sink, dilation=dilation_factor**i if dilate else 1, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
+                    attention = SlidingWindowAttention(emb_dim, self.n_heads, window_len=window_len, use_flex_attn=use_flex_attn, attn_sink=attn_sink, dilation=dilation_factor**i if dilate else 1, dropout=dropout, bias=attn_bias, batch_first=True, device=device),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
                     feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
@@ -357,77 +357,6 @@ class SlidingWindowTransformer(nn.Module):
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x = x + layer.dropout2(ff_out)
-        x = self.norm_f(x)
-        x = self.out_proj(x)
-        return x
-
-class ExpandedOrthoLinearTransformer(nn.Module):
-    def __init__(self, emb_dim, input_dim, output_dim, tree_depth, tree_size,
-                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
-                 dropout=0.0, causal=True, use_embedding=True, weight_tying=False,
-                 mlp_bias=True, attn_bias=True,
-                 pos_encoding=None, pos_encoding_max_len=None,
-                 device="cpu"):
-        super().__init__()
-        self.emb_dim = emb_dim
-        self.output_dim = output_dim
-        self.tree_depth = tree_depth
-        self.tree_size = tree_size
-        self.causal = causal
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
-        
-        self.use_embedding = use_embedding
-        if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
-        else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
-        
-        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
-        
-        self.pos_encoding = pos_encoding
-        if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
-        elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
-        elif pos_encoding == "abs":
-            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
-            self.pos_encoding_max_len = pos_encoding_max_len
-        else: self.rope = None
-        
-        self.layers = nn.ModuleList([
-            nn.ModuleDict(
-                dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
-                    dropout1 = nn.Dropout(dropout),
-                    abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None,
-                    attention = ExpandedOrthoLinearAttention(emb_dim, self.n_heads, tree_depth=tree_depth, tree_size=tree_size, attn_sink=attn_sink, bias=attn_bias, device=device),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
-                    dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
-                )
-            ) for _ in range(self.n_layers)
-        ])
-        self.norm_f = nn.RMSNorm(emb_dim, device=device)
-        
-        nn.init.xavier_uniform_(self.embedding.weight)
-        if weight_tying: self.out_proj.weight = self.embedding.weight
-        else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
-        self.to(device)
-        
-    def forward(self, x):
-        seq_len = x.size(1)
-        if self.use_embedding: x = self.embedding(x.long())
-        else: x = self.embedding(x)
-        for layer in self.layers:
-            x = layer.norm1(x)
-            if layer.abs_pos_encoding is not None:
-                pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
-                x = x + layer.abs_pos_encoding(pos)
-            a_out = layer.attention(x, rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
-            x = layer.norm2(x + layer.dropout1(a_out))
-            ff_out = layer.feedforward(x)
-            x = x + layer.dropout1(ff_out)
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x

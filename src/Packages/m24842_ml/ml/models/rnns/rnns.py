@@ -28,7 +28,7 @@ class Mamba2Block(nn.Module):
             out_channels=conv_dim,
             kernel_size=self.d_conv,
             groups=conv_dim,
-            padding=self.d_conv - 1,
+            padding=self.d_conv-1,
             device=device,
         )
 
@@ -38,11 +38,9 @@ class Mamba2Block(nn.Module):
         self.norm = GatedRMSNorm(self.d_inner, device=device)
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=False, device=device)
         
-        self._init_weights()
+        self._reset_parameters()
 
-    def _init_weights(self):
-        """Proper weight initialization for stability and training efficiency."""
-
+    def _reset_parameters(self):
         # Xavier/Glorot for Linear layers
         nn.init.kaiming_uniform_(self.in_proj.weight, nonlinearity='relu')
         nn.init.xavier_uniform_(self.out_proj.weight)
@@ -61,19 +59,14 @@ class Mamba2Block(nn.Module):
         # Initialize D with small values (identity-like for residual connections)
         nn.init.uniform_(self.D, 0.9, 1.1)
 
-    def forward(self, u, h=None):
+    def forward(self, u):
         """
         Arguments
             u: (batch, seqlen, d_model) input. seqlen should be a multiple of chunk_size.
-            h: hidden states for inference step. Initialized to 0s if not present.
 
         Return (y, h)
             y: (batch, seqlen, d_model) output
-            h: updated inference cache after processing `u`
         """
-        if h:
-            return self.step(u, h)
-
         # Keep track of original sequence length
         seqlen = u.shape[1]
         
@@ -105,7 +98,13 @@ class Mamba2Block(nn.Module):
         xBC = F.silu(xBC)
         
         x, B, C = torch.split(
-            xBC, [self.d_inner, self.d_state, self.d_state], dim=-1
+            xBC,
+            [
+                self.d_inner,
+                self.d_state,
+                self.d_state,
+            ],
+            dim=-1
         )
         
         # Reshape x for the SSM operation
@@ -119,7 +118,6 @@ class Mamba2Block(nn.Module):
             B.unsqueeze(2),
             C.unsqueeze(2),
             self.chunk_size,
-            device=self.device,
         )
         
         y = y + x * self.D.unsqueeze(-1)
@@ -129,7 +127,7 @@ class Mamba2Block(nn.Module):
 
         return y
 
-    def segsum(self, x, device=None):
+    def segsum(self, x):
         """Stable segment sum calculation.
 
         `exp(segsum(A))` produces a 1-semiseparable matrix, which is equivalent to a scalar SSM.
@@ -138,14 +136,14 @@ class Mamba2Block(nn.Module):
         """
         T = x.size(-1)
         x = repeat(x, "... d -> ... d e", e=T)
-        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=device), diagonal=-1)
+        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=self.device), diagonal=-1)
         x = x.masked_fill(~mask, 0)
         x_segsum = torch.cumsum(x, dim=-2)
-        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=device), diagonal=0)
+        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=self.device), diagonal=0)
         x_segsum = x_segsum.masked_fill(~mask, -torch.inf)
         return x_segsum
 
-    def ssd(self, x, A, B, C, chunk_size, initial_states=None, device=None):
+    def ssd(self, x, A, B, C, chunk_size, initial_states=None):
         """Structed State Space Duality (SSD) - the core of Mamba-2
 
         This is almost the exact same minimal SSD code from the blog post.
@@ -176,7 +174,7 @@ class Mamba2Block(nn.Module):
         A_cumsum = torch.cumsum(A, dim=-1)
 
         # 1. Compute the output for each intra-chunk (diagonal blocks)
-        L = torch.exp(self.segsum(A, device=device))
+        L = torch.exp(self.segsum(A))
         Y_diag = torch.einsum("bclhn, bcshn, bhcls, bcshp -> bclhp", C, B, L, x)
 
         # 2. Compute the state for each intra-chunk
@@ -189,7 +187,7 @@ class Mamba2Block(nn.Module):
         if initial_states is None:
             initial_states = torch.zeros_like(states[:, :1])
         states = torch.cat([initial_states, states], dim=1)
-        decay_chunk = torch.exp(self.segsum(F.pad(A_cumsum[:, :, :, -1], (1, 0)), device=device))
+        decay_chunk = torch.exp(self.segsum(F.pad(A_cumsum[:, :, :, -1], (1, 0))))
         new_states = torch.einsum("bhzc, bchpn -> bzhpn", decay_chunk, states)
         states, final_state = new_states[:, :-1], new_states[:, -1]
 

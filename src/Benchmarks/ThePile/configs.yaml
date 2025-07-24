@@ -180,7 +180,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     emb_dim: 512
     mlp_dim: 1024
     window_len: 64
-    masked_window: False
+    use_flex_attn: False
     dilate: True
     # dilation_factor: 64
     n_heads: 12
