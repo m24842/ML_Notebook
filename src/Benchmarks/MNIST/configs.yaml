@@ -174,10 +174,10 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *SlidingWindowTransformer_defaults
-    general:
-      <<: *SlidingWindowTransformer_general
-      seed: 0
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 0
 
   # - <<: *SlidingWindowTransformer_defaults
   #   general:

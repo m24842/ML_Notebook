@@ -14,14 +14,14 @@ global:
     splits:
       train:
         train: True
-        tokenizer: char #EleutherAI/gpt-neox-20b
+        tokenizer: EleutherAI/gpt-neox-20b
         min_len: 256
         max_len: 256
         warmup_epochs: 0
         vocab_size: 256
       test:
         train: False
-        tokenizer: char #EleutherAI/gpt-neox-20b
+        tokenizer: EleutherAI/gpt-neox-20b
         max_len: 256
         vocab_size: 256
   
@@ -32,7 +32,7 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 16
-  accumulation_steps: 0
+  accumulation_steps: 1
   train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: True
@@ -184,6 +184,28 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   scheduler:
     <<: *scheduler_defaults
 
+Mamba2_defaults: &Mamba2_defaults
+  general: &Mamba2_general
+    <<: *general_defaults
+  
+  model: &Mamba2_model
+    name: Mamba2
+    emb_dim: 128
+    mlp_dim: 128
+    n_heads: 4
+    n_layers: 6
+    input_dim: 50277
+    output_dim: 50277
+    bidirectional: False
+    use_embedding: True
+    chunk_size: 256
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 DiffusionTransformer_defaults: &DiffusionTransformer_defaults
   general: &DiffusionTransformer_general
     <<: *general_defaults
@@ -191,7 +213,7 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
     use_log_fn: 1
     use_data_fn: 0
     batch_size: 64
-    accumulation_steps: 0
+    accumulation_steps: 1
     train_steps: 10000
     load_checkpoint: True
   
@@ -221,10 +243,35 @@ DiffusionTransformer_defaults: &DiffusionTransformer_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *DiffusionTransformer_defaults
+  - <<: *Mamba2_defaults
     general:
-      <<: *DiffusionTransformer_general
+      <<: *Mamba2_general
       seed: 0
+
+  - <<: *Mamba2_defaults
+    general:
+      <<: *Mamba2_general
+      seed: 42
+  
+  - <<: *Mamba2_defaults
+    general:
+      <<: *Mamba2_general
+      seed: 1111
+  
+  - <<: *Mamba2_defaults
+    general:
+      <<: *Mamba2_general
+      seed: 2222
+  
+  - <<: *Mamba2_defaults
+    general:
+      <<: *Mamba2_general
+      seed: 3333
+  
+  # - <<: *DiffusionTransformer_defaults
+  #   general:
+  #     <<: *DiffusionTransformer_general
+  #     seed: 0
 
   # - <<: *DiffusionTransformer_defaults
   #   general:
