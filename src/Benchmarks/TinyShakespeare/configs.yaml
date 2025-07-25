@@ -191,9 +191,8 @@ Mamba2_defaults: &Mamba2_defaults
   model: &Mamba2_model
     name: Mamba2
     emb_dim: 128
-    mlp_dim: 128
     n_heads: 4
-    n_layers: 6
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     bidirectional: False

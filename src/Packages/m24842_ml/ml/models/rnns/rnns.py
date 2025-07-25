@@ -204,57 +204,56 @@ class Mamba2Block(nn.Module):
 class Mamba2(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1,
+                 d_state=None, d_conv=4, expand=2,
                  use_embedding=True, weight_tying=False,
                  bidirectional=False,
-                 chunk_size=16, device="cpu"):
+                 chunk_size=64, device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
+        self.d_state = d_state if d_state is not None else emb_dim
+        self.d_conv = d_conv
+        self.expand = expand
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.bidirectional = bidirectional
+        self.use_embedding = use_embedding
         self.device = device
 
-        self.backbone = nn.ModuleDict(
-            dict(
-                embedding=nn.Embedding(input_dim, emb_dim, device=device) if use_embedding else nn.Linear(input_dim, emb_dim, bias=False, device=device),
-                layers=nn.ModuleList(
-                    [
-                        nn.ModuleDict(
-                            dict(
-                                mixer_f=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device),
-                                mixer_b=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=emb_dim, d_conv=4, expand=2, n_heads=n_heads, chunk_size=chunk_size, device=device) if bidirectional else None,
-                                norm=GatedRMSNorm(emb_dim, device=device),
-                            )
-                        )
-                        for _ in range(n_layers)
-                    ]
-                ),
-                norm_f=GatedRMSNorm(emb_dim, device=device),
-            )
+        if use_embedding:
+            self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
+        else:
+            self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
+        
+        self.layers = nn.ModuleList(
+            [
+                nn.ModuleDict(
+                    dict(
+                        mixer=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=self.d_state, d_conv=d_conv, expand=expand, n_heads=n_heads, chunk_size=chunk_size, device=device),
+                        norm=GatedRMSNorm(emb_dim, device=device),
+                    )
+                )
+                for _ in range(n_layers)
+            ]
         )
+        self.norm_f=GatedRMSNorm(emb_dim, device=device)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
-        nn.init.xavier_uniform_(self.backbone.embedding.weight)
-        if weight_tying: self.out_proj.weight = self.backbone.embedding.weight
+        nn.init.xavier_uniform_(self.embedding.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
         self.to(device)
 
     def forward(self, x):
         seqlen = x.shape[1]
-
-        x = ((self.input_dim-1)*x).long().squeeze(-1)
-        x = self.backbone.embedding(x)
-        for i, layer in enumerate(self.backbone.layers):
-            y_f = layer.mixer_f(layer.norm(x))
-            if self.bidirectional:
-                y_b = layer.mixer_b(layer.norm(x.flip(1)))
-                x = y_f + y_b + x
-            else:
-                x = y_f + x
-
-        x = self.backbone.norm_f(x)
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
+        for layer in self.layers:
+            y_f = layer.mixer(layer.norm(x))
+            y_b = layer.mixer(layer.norm(x.flip(1))) if self.bidirectional else 0.0
+            x = x + y_f + y_b
+        x = self.norm_f(x)
         logits = self.out_proj(x)
         return logits[:, :seqlen]
