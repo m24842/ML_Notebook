@@ -200,25 +200,25 @@ experiments:
       <<: *Mamba2_general
       seed: 0
 
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 42
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 42
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 1111
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 1111
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 2222
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 2222
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 3333
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 3333
 
   # - <<: *SlidingWindowTransformer_defaults
   #   general:

@@ -358,7 +358,7 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
             model = allocate_dynamic_memory(model, train_loader.batch_size, min_len, max_len, compile_backend, device)
         else:
             # Compile the model for faster training
-            model = compile_model(model, train_loader.dataset[0][0].shape, compile_backend, device)
+            model = compile_model(model, next(iter(train_loader))[0].shape, compile_backend, device)
         
         # Train loop
         if epochs is not None:

@@ -31,7 +31,7 @@ general_defaults: &general_defaults
   seed: 0
   batch_size: 64
   accumulation_steps: 8
-  epochs: 20
+  train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: True
 
@@ -42,7 +42,7 @@ optimizer_defaults: &optimizer_defaults
 
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLR
-  T_max: 15640 # ceil(train_samples / batch_size) * epochs
+  T_max: 10000
   eta_min: 1e-6
 
 Transformer_defaults: &Transformer_defaults
@@ -55,7 +55,7 @@ Transformer_defaults: &Transformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 3
+    input_dim: 1
     output_dim: 10
     attn_sink: False
     dropout: 0.0
@@ -81,7 +81,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     mem_dim: 64
     n_heads: 4
     n_layers: 4
-    input_dim: 3
+    input_dim: 1
     output_dim: 10
     attn_sink: False
     dropout: 0.0
@@ -106,7 +106,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 3
+    input_dim: 1
     output_dim: 10
     attn_sink: False
     dropout: 0.0
@@ -131,7 +131,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     mlp_dim: 128
     n_heads: 4
     n_layers: 4
-    input_dim: 3
+    input_dim: 1
     output_dim: 10
     attn_sink: False
     dropout: 0.0
@@ -160,7 +160,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     # dilation_factor: 64
     n_heads: 4
     n_layers: 4
-    input_dim: 3
+    input_dim: 1
     output_dim: 10
     attn_sink: False
     dropout: 0.0
