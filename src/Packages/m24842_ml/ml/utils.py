@@ -175,7 +175,7 @@ def allocate_dynamic_memory(model, bsz, min_len, max_len, backend="auto", device
     
     torch._dynamo.mark_dynamic(temp, 1, min=min_len, max=max_len)
     
-    backends = ["inductor", "aot_eager", "eager"]
+    backends = ["inductor", "aot_eager", "eager"] if device != "mps" else ["aot_eager", "eager"]
     if backend == "auto":
         for backend in backends:
             try:
@@ -200,7 +200,7 @@ def compile_model(model, input_shape, backend="auto", device="cpu"):
     Allocate dynamic memory on the specified device.
     """
     temp = torch.zeros(input_shape, device=device)
-    backends = ["inductor", "aot_eager", "eager"]
+    backends = ["inductor", "aot_eager", "eager"] if device != "mps" else ["aot_eager", "eager"]
     if backend == "auto":
         for backend in backends:
             try:

@@ -254,7 +254,7 @@ def train_epoch(epoch, train_loader, model, optimizer, loss_fn, log_fn=default_l
     
     return completed_steps
 
-@ torch.no_grad()
+@ torch.inference_mode()
 def val_epoch(model, val_loader, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
               device="cpu",
               wandb_logging=False,):
@@ -284,7 +284,7 @@ def val_epoch(model, val_loader, loss_fn, log_fn=default_log_fn, data_fn=default
     if wandb_logging:
         wandb.log(val_metrics.to_dict(prefix="val/"))
 
-@ torch.no_grad()
+@ torch.inference_mode()
 def test_epoch(model, test_loader, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
                device="cpu",
                wandb_logging=False,):

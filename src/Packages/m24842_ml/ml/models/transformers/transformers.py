@@ -67,14 +67,12 @@ class Transformer(nn.Module):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.causal: mask = torch.triu(torch.full((seq_len, seq_len), float('-inf'), device=x.device), diagonal=1)
-        else: mask = None
         for layer in self.layers:
             x = layer.norm1(x)
             if layer.abs_pos_encoding is not None:
                 pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
                 x = x + layer.abs_pos_encoding(pos)
-            a_out = layer.attention(x, attn_mask=mask, rope=self.rope if self.pos_encoding == "rope" else None)
+            a_out = layer.attention(x, causal=self.causal, rope=self.rope if self.pos_encoding == "rope" else None)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x + layer.dropout2(ff_out)
@@ -440,7 +438,7 @@ class DiffusionTransformer(nn.Module):
             if layer.abs_pos_encoding is not None:
                 pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
                 x = x + layer.abs_pos_encoding(pos)
-            a_out = layer.attention(x, attn_mask=None, rope=self.rope if self.pos_encoding == "rope" else None)
+            a_out = layer.attention(x, causal=False, rope=self.rope if self.pos_encoding == "rope" else None)
             x = layer.norm2(x + layer.dropout1(a_out))
             ff_out = layer.feedforward(x)
             x = x + layer.dropout2(ff_out)

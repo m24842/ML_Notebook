@@ -152,7 +152,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     emb_dim: 128
     mlp_dim: 128
     window_len: 64
-    use_flex_attn: True
+    use_flex_attn: False
     dilate: True
     # dilation_factor: 64
     n_heads: 4
@@ -195,60 +195,60 @@ Mamba2_defaults: &Mamba2_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *Mamba2_defaults
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 0
+
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 42
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 1111
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 2222
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 3333
+
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 0
+
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 42
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 1111
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 2222
+  
+  # - <<: *SlidingWindowTransformer_defaults
+  #   general:
+  #     <<: *SlidingWindowTransformer_general
+  #     seed: 3333
+
+  - <<: *CompressionTransformer_defaults
     general:
-      <<: *Mamba2_general
+      <<: *CompressionTransformer_general
       seed: 0
-
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 42
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 1111
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 2222
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 3333
-
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 0
-
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 42
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 1111
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 2222
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 3333
-
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 0
 
   # - <<: *CompressionTransformer_defaults
   #   general:
