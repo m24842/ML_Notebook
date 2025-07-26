@@ -228,17 +228,14 @@ class Mamba2(nn.Module):
         else:
             self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
         
-        self.layers = nn.ModuleList(
-            [
-                nn.ModuleDict(
-                    dict(
-                        mixer=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=self.d_state, d_conv=d_conv, expand=expand, n_heads=n_heads, chunk_size=chunk_size, device=device),
-                        norm=GatedRMSNorm(emb_dim, device=device),
-                    )
+        self.layers = nn.ModuleList([
+            nn.ModuleDict(
+                dict(
+                    mixer=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=self.d_state, d_conv=d_conv, expand=expand, n_heads=n_heads, chunk_size=chunk_size, device=device),
+                    norm=GatedRMSNorm(emb_dim, device=device),
                 )
-                for _ in range(n_layers)
-            ]
-        )
+            ) for _ in range(n_layers)
+        ])
         self.norm_f=GatedRMSNorm(emb_dim, device=device)
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         

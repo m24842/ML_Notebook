@@ -39,7 +39,6 @@ class MultiheadAttention(nn.Module):
         self._reset_parameters()
         
     def _reset_parameters(self):
-        # Initialize projections using Xavier uniform
         nn.init.constant_(self.beta, 0.)
         nn.init.xavier_uniform_(self.q_proj.weight)
         nn.init.xavier_uniform_(self.k_proj.weight)
@@ -50,27 +49,21 @@ class MultiheadAttention(nn.Module):
             nn.init.constant_(self.out_proj.bias, 0.)
         
     def forward(self, x, causal=False, rope=None):
-        # Handle batch_first option
         if self.batch_first:
             x = x.transpose(0, 1)
         
         tgt_len, bsz, d_model = x.shape
         src_len = x.shape[0]
         
-        # Apply linear projections
         q = self.q_proj(x)  # (tgt_len, batch_size, d_model)
         k = self.k_proj(x)  # (src_len, batch_size, d_model)
         v = self.v_proj(x)  # (src_len, batch_size, d_model)
         
-        # Add zero attention if requested
         if self.attn_sink:
             src_len += 1
             k = torch.cat([k, torch.zeros((1, bsz, d_model), dtype=k.dtype, device=k.device)], dim=0)
             v = torch.cat([v, torch.zeros((1, bsz, d_model), dtype=v.dtype, device=v.device)], dim=0)
-            if attn_mask is not None:
-                attn_mask = F.pad(attn_mask, (0, 1))
         
-        # Reshape q, k, v for multi-head attention
         q = rearrange(q, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, tgt_len, d_head)
         k = rearrange(k, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
         v = rearrange(v, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
@@ -82,7 +75,6 @@ class MultiheadAttention(nn.Module):
                 q = rope.rotate_queries_or_keys(q)
                 k = rope.rotate_queries_or_keys(k)
         
-        # Calculate attention scores
         beta = torch.exp(self.beta).reshape(1, self.n_heads, 1, 1)
         # beta = F.softplus(self.beta).reshape(1, self.n_heads, 1, 1)
         q = q / (math.sqrt(self.d_head) * beta)
@@ -93,7 +85,6 @@ class MultiheadAttention(nn.Module):
         
         attn_output = F.scaled_dot_product_attention(q, k, v, scale=1.0, dropout_p=self.dropout, is_causal=causal)  # (bsz * n_heads, src_len, d_head)
         
-        # Reshape output
         attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads).contiguous()  # (tgt_len, bsz, d_model)
         attn_output = self.out_proj(attn_output)
         
@@ -309,10 +300,9 @@ class CompressionAttention(nn.Module):
         self._reset_parameters()
         
         if device == "mps":
-            warnings.warn("Kernelized attention with q_dim != v_dim is broken on MPS. Falling back to PyTorch implementation", UserWarning)
+            warnings.warn("Kernelized attention with q_dim != v_dim is broken on MPS. Falling back to PyTorch implementation")
         
     def _reset_parameters(self):
-        # Initialize projections using Xavier uniform
         nn.init.constant_(self.beta, 0.)
         nn.init.xavier_uniform_(self.q_c)
         nn.init.xavier_uniform_(self.q_proj.weight)
@@ -352,7 +342,7 @@ class CompressionAttention(nn.Module):
         q_s = rearrange(q_s, 's b (h d) -> b h s d', h=self.n_heads).contiguous()
         k_s = rearrange(k_s, 's b (h d) -> b h s d', h=self.n_heads).contiguous()
         v_s = rearrange(v_s, 's b (h d) -> b h s d', h=self.n_heads).contiguous()
-                
+        
         if rope:
             if rope.use_xpos:
                 q_s, k_s = rope.rotate_queries_and_keys(q_s, k_s)
@@ -377,13 +367,12 @@ class CompressionAttention(nn.Module):
             c_attn_weights = torch.exp(c_attn_weights - torch.max(c_attn_weights, dim=-1, keepdim=True).values)  # (bsz * n_heads, cmprs_len, src_len)
             c_attn_weights = F.dropout(c_attn_weights, p=self.dropout, training=self.training)
             
-            # Calculate attention scores for compressed output
-            kv_c = torch.cumsum((c_attn_weights.unsqueeze(-1) * kv_s.unsqueeze(1)), dim=-2) / torch.cumsum(c_attn_weights, dim=-1).unsqueeze(-1)  # (bsz * n_heads, cmprs_len, src_len, 2*d_head)
+            # Generate compressed keys and values
+            kv_c = torch.cumsum((c_attn_weights.unsqueeze(-1) * kv_s.unsqueeze(1)), dim=-2) / torch.cumsum(c_attn_weights.unsqueeze(-1), dim=-2)  # (bsz * n_heads, cmprs_len, src_len, 2*d_head)
             
             k_c, v_c = kv_c.transpose(1, 2).split([self.d_head, self.d_head], dim=-1)  # (bsz, n_heads, cmprs_len, src_len, d_head)
             s_attn_output = F.scaled_dot_product_attention(q_s.unsqueeze(-2), k_c, v_c, scale=1.0, dropout_p=self.dropout, is_causal=False).squeeze(-2)  # (bsz * n_heads, tgt_len, d_head)
         else:
-            # Calculate attention scores for compressed output
             if self.device == "mps":
                 c_attn_weights = torch.matmul(q_c, k_s.transpose(-2, -1))  # (bsz * n_heads, cmprs_len, src_len)
                 c_attn_weights = F.softmax(c_attn_weights, dim=-1)
@@ -393,10 +382,7 @@ class CompressionAttention(nn.Module):
             k_c, v_c = kv_c.split([self.d_head, self.d_head], dim=-1)  # (bsz * n_heads, cmprs_len, d_head)
             s_attn_output = F.scaled_dot_product_attention(q_s, k_c, v_c, scale=1.0, dropout_p=self.dropout, is_causal=False)  # (bsz * n_heads, tgt_len, d_head)
         
-        # Reshape output
-        s_attn_output = rearrange(s_attn_output, '(b h) s d -> s b (h d)', h=self.n_heads).contiguous()  # (tgt_len, bsz, d_model)
-        
-        # Apply final projection
+        s_attn_output = rearrange(s_attn_output, '(b h) s d -> s b (h d)', h=self.n_heads).contiguous()  # (tgt_len, bsz, d_model)        
         s_attn_output = self.out_proj(s_attn_output)
         
         if self.batch_first:
@@ -519,7 +505,6 @@ class SlidingWindowAttention(nn.Module):
         k = self.k_proj(x)  # (src_len, batch_size, d_model)
         v = self.v_proj(x)  # (src_len, batch_size, d_model)
         
-        # Reshape for multi-head attention
         q = rearrange(q, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, tgt_len, d_head)
         k = rearrange(k, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
         v = rearrange(v, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
@@ -576,9 +561,8 @@ class SlidingWindowAttention(nn.Module):
 
             attn_output = flex_attention(q, k, v, block_mask=block_mask, scale=1.0)
             
-            attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads).contiguous().to(self.device)
+            attn_output = rearrange(attn_output, 'b h s d -> s b (h d)', h=self.n_heads).to(self.device)
         
-        # Apply final projection
         attn_output = self.out_proj(attn_output)
         
         if self.batch_first:

@@ -729,8 +729,6 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                 checkpoint_freq=checkpoint_freq, val_freq=val_freq, info_freq=info_freq,
                 device=device,
             )
-            
-            del general_config, model_config, optimizer_config, scheduler_config, train_config
         except KeyboardInterrupt:
             successful = False
             terminate = input('Terminate all experiments? (y/n): ').strip().lower()
