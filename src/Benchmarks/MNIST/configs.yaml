@@ -130,6 +130,8 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_layers: 2
     input_dim: 1
     output_dim: 10
+    # qk_dim: 2
+    # matrix_qk: True
     attn_sink: False
     dropout: 0.0
     causal: False
@@ -245,10 +247,10 @@ experiments:
   #     <<: *SlidingWindowTransformer_general
   #     seed: 3333
 
-  - <<: *CompressionTransformer_defaults
-    general:
-      <<: *CompressionTransformer_general
-      seed: 0
+  # - <<: *CompressionTransformer_defaults
+  #   general:
+  #     <<: *CompressionTransformer_general
+  #     seed: 0
 
   # - <<: *CompressionTransformer_defaults
   #   general:
