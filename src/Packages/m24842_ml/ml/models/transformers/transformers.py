@@ -92,8 +92,8 @@ class Transformer(nn.Module):
 class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None,
-                 qk_dim=None, matrix_qk=False, attn_sink=False,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 qk_dim=None, attn_sink=False, dropout=0.0,
+                 causal=True, use_embedding=True,
                  weight_tying=False, mlp_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
@@ -131,7 +131,6 @@ class LinearTransformer(nn.Module):
                         emb_dim,
                         self.n_heads,
                         qk_dim=qk_dim,
-                        matrix_qk=matrix_qk,
                         attn_sink=attn_sink,
                         bias=attn_bias,
                         batch_first=True,
@@ -171,8 +170,7 @@ class LinearTransformer(nn.Module):
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
-                 qk_dim=None, matrix_qk=False,
-                 dropout=0.0, causal=True, use_embedding=True,
+                 qk_dim=None, dropout=0.0, causal=True, use_embedding=True,
                  weight_tying=False, mlp_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
@@ -210,7 +208,6 @@ class OrthoLinearTransformer(nn.Module):
                         emb_dim,
                         self.n_heads,
                         qk_dim=qk_dim,
-                        matrix_qk=matrix_qk,
                         attn_sink=attn_sink,
                         bias=attn_bias,
                         batch_first=True,

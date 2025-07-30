@@ -96,26 +96,23 @@ class MultiheadAttention(nn.Module):
 class LinearAttention(nn.Module):
     """
     Vanilla Linear Attention.
-    Kernel function is softplus.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 qk_dim=None, matrix_qk=False, attn_sink=False,
+                 qk_dim=None, attn_sink=False,
                  batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.qk_dim = d_model if qk_dim is None else qk_dim
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.matrix_qk = matrix_qk
-        self.qk_proj_dim = d_model * self.qk_dim if matrix_qk else self.qk_dim
         self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
-        self.q_proj = nn.Linear(d_model, self.qk_proj_dim, bias=bias, device=device)
-        self.k_proj = nn.Linear(d_model, self.qk_proj_dim, bias=bias, device=device)
+        self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
@@ -166,30 +163,16 @@ class LinearAttention(nn.Module):
         q = q.flatten(0, 1).contiguous()
         k = k.flatten(0, 1).contiguous()
         
-        # q = torch.exp(q)
-        # k = torch.exp(k)
-        # q = F.elu(q) + 1
-        # k = F.elu(k) + 1
-        q = F.softplus(q)
-        k = F.softplus(k)
+        q = torch.exp(q)
+        k = torch.exp(k)
         
-        if self.matrix_qk:
-            if causal:
-                kv = torch.cumsum(k * v.unsqueeze(-2))
-                kn = torch.cumsum(k, dim=1)
-            else:
-                kv = torch.einsum('zskv, zsv -> zkv', k, v).unsqueeze(1)
-                kn = k.sum(1, keepdim=True)
-            out = torch.sum((q * kv) / (q * kn), dim=-2)
+        if causal:
+            kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
+            kn = torch.cumsum(k, dim=1)
         else:
-            if causal:
-                kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
-                kn = torch.cumsum(k, dim=1)
-            else:
-                kv = torch.einsum('zsk, zsv -> zkv', k, v).unsqueeze(1)
-                kn = k.sum(dim=1, keepdim=True)
-            out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / torch.matmul(q.unsqueeze(-2), kn.unsqueeze(-1)).squeeze(-1)
-        
+            kv = torch.einsum('zsk, zsv -> zkv', k, v).unsqueeze(1)
+            kn = k.sum(dim=1, keepdim=True)
+        out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / torch.matmul(q.unsqueeze(-2), kn.unsqueeze(-1)).squeeze(-1)
         out = rearrange(out, '(b h) s d -> s b (h d)', h=self.n_heads)
         out = self.out_proj(out)
         
@@ -203,23 +186,21 @@ class OrthoLinearAttention(nn.Module):
     A derivative of linear attention that orthogonalizes queries and keys for each head to reduce crossterm interference.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 qk_dim=None, matrix_qk=False, attn_sink=False,
+                 qk_dim=None, attn_sink=False,
                  batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.qk_dim = d_model if qk_dim is None else qk_dim
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.matrix_qk = matrix_qk
-        self.qk_proj_dim = d_model * self.qk_dim if matrix_qk else self.qk_dim
         self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
         self.beta._no_weight_decay = True
-        self.q_proj = nn.Linear(d_model, self.qk_proj_dim, bias=bias, device=device)
-        self.k_proj = nn.Linear(d_model, self.qk_proj_dim, bias=bias, device=device)
+        self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
+        self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         
@@ -267,33 +248,19 @@ class OrthoLinearAttention(nn.Module):
         q = q * beta
         k = k * beta
         
-        if self.matrix_qk:
-            q = rearrange(q, 'b h s (k v) -> b h s k v', k=self.qk_dim)
-            k = rearrange(k, 'b h s (k v) -> b h s k v', k=self.qk_dim)
-        
         q = q.flatten(0, 1).contiguous()
         k = k.flatten(0, 1).contiguous()
         
         q = q.softmax(2)
         k = k.softmax(2)
         
-        if self.matrix_qk:
-            if causal:
-                kv = torch.cumsum(k * v.unsqueeze(-2))
-                kn = torch.cumsum(k, dim=1)
-            else:
-                kv = torch.einsum('zskv, zsv -> zkv', k, v).unsqueeze(1)
-                kn = k.sum(1, keepdim=True)
-            out = torch.sum((q * kv) / (q * kn), dim=-2)
+        if causal:
+            kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
+            kn = torch.cumsum(k, dim=1)
         else:
-            if causal:
-                kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
-                kn = torch.cumsum(k, dim=1)
-            else:
-                kv = torch.einsum('zsk, zsv -> zkv', k, v).unsqueeze(1)
-                kn = k.sum(1, keepdim=True)
-            out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / torch.matmul(q.unsqueeze(-2), kn.unsqueeze(-1)).squeeze(-1)
-        
+            kv = torch.einsum('zsk, zsv -> zkv', k, v).unsqueeze(1)
+            kn = k.sum(1, keepdim=True)
+        out = torch.matmul(q.unsqueeze(-2), kv).squeeze(-2) / torch.matmul(q.unsqueeze(-2), kn.unsqueeze(-1)).squeeze(-1)
         out = rearrange(out, '(b h) s d -> s b (h d)', h=self.n_heads)
         out = self.out_proj(out)
         
