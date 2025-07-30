@@ -163,8 +163,8 @@ class LinearAttention(nn.Module):
         q = q.flatten(0, 1).contiguous()
         k = k.flatten(0, 1).contiguous()
         
-        q = torch.exp(q)
-        k = torch.exp(k)
+        q = F.softplus(q)
+        k = F.softplus(k)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
@@ -251,8 +251,8 @@ class OrthoLinearAttention(nn.Module):
         q = q.flatten(0, 1).contiguous()
         k = k.flatten(0, 1).contiguous()
         
-        q = q.softmax(2)
-        k = k.softmax(2)
+        q = q.softmax(-1)
+        k = k.softmax(-1)
         
         if causal:
             kv = torch.cumsum(torch.matmul(k.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
