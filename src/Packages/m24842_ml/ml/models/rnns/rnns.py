@@ -335,8 +335,7 @@ class SeqLinear(nn.Module):
         u = u * dt
         v = v * dt
         
-        uv = torch.matmul(u.unsqueeze(-1), v.unsqueeze(-2))
-        W = torch.cumsum(uv, dim=1)
+        W = torch.cumsum(torch.matmul(u.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
         if W_0 is not None: W = W + rearrange(W_0, 'b h d e -> (b h) d e').unsqueeze(1)
         elif self.W_0 is not None: W = W + self.W_0.unsqueeze(1).repeat(bsz, 1, 1, 1)
         

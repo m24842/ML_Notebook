@@ -186,7 +186,31 @@ Mamba2_defaults: &Mamba2_defaults
     output_dim: 10
     bidirectional: True
     use_embedding: True
-    chunk_size: 256
+    chunk_size: 64
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+SeqMLP_defaults: &SeqMLP_defaults
+  general: &SeqMLP_general
+    <<: *general_defaults
+  
+  model: &SeqMLP_model
+    name: SeqMLP
+    emb_dim: 128
+    expand: 1
+    bias: True
+    W_0: True
+    W_bias: True
+    n_heads: 4
+    n_layers: 8
+    input_dim: 17
+    output_dim: 10
+    bidirectional: True
+    use_embedding: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -196,6 +220,31 @@ Mamba2_defaults: &Mamba2_defaults
 
 ### Experiments Configuration ###
 experiments:
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 0
+
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 42
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 1111
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 2222
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 3333
+
   - <<: *Mamba2_defaults
     general:
       <<: *Mamba2_general

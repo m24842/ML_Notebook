@@ -204,7 +204,7 @@ Mamba2_defaults: &Mamba2_defaults
     output_dim: 50277
     bidirectional: False
     use_embedding: True
-    chunk_size: 256
+    chunk_size: 64
   
   optimizer:
     <<: *optimizer_defaults
