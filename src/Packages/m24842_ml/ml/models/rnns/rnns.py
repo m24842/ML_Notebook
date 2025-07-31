@@ -4,6 +4,10 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from ..common import *
 
+cuda_causal_conv1d = None
+try: from causal_conv1d import causal_conv1d_fn as cuda_causal_conv1d
+except: pass
+
 class Mamba2Block(nn.Module):
     def __init__(self, d_model, d_state=128, d_conv=4,
                  expand=2, n_heads=4, chunk_size=64, device="cpu"):
@@ -266,20 +270,30 @@ class SeqLinear(nn.Module):
     Linear layer with weights derived from a weighted sum of rank-1 sequential updates.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 expand_in=1, expand_out=1,
-                 batch_first=False, device="cpu"):
+                 expand=1, W_bias=True,
+                 W_0=False, d_conv=4,
+                 device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.batch_first = batch_first
+        self.expand = expand
+        self.bias = bias
         self.device = device
         
+        self.conv = nn.Conv1d(
+            in_channels=d_model,
+            out_channels=d_model,
+            kernel_size=d_conv,
+            groups=d_model,
+            padding=d_conv-1,
+            device=device,
+        )
+        self.W_0 = nn.Parameter(torch.empty(n_heads, self.d_head, self.d_head * expand, device=device)) if W_0 else None
+        self.u_proj = nn.Linear(d_model, d_model, bias=W_bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model * expand, bias=W_bias, device=device)
         self.dt_proj = nn.Linear(d_model, n_heads, bias=True, device=device)
-        self.u_proj = nn.Linear(d_model, d_model * expand_in, bias=bias, device=device)
-        self.v_proj = nn.Linear(d_model, d_model * expand_out, bias=bias, device=device)
-        self.b_proj = nn.Linear(d_model, d_model * expand_out, bias=bias, device=device)
-        self.out_proj = nn.Linear(d_model * expand_out, d_model, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model * expand, d_model, bias=False, device=device)
         
         self._reset_parameters()
     
@@ -288,51 +302,55 @@ class SeqLinear(nn.Module):
         nn.init.uniform_(self.dt_proj.bias, -0.5, 0.5)
         nn.init.xavier_uniform_(self.u_proj.weight)
         nn.init.xavier_uniform_(self.v_proj.weight)
-        nn.init.xavier_uniform_(self.b_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
         if self.u_proj.bias is not None:
             nn.init.constant_(self.u_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        if self.b_proj.bias is not None:
-            nn.init.constant_(self.b_proj.bias, 0.)
         if self.out_proj.bias is not None:
             nn.init.constant_(self.out_proj.bias, 0.)
-    
-    def forward(self, x, rope=None, causal=True):
-        if self.batch_first:
-            x = x.transpose(0, 1)
         
-        src_len, bsz, d_model = x.size()
-        dt = rearrange(self.dt_proj(x), 's b h -> (b h) s').unsqueeze(-1).contiguous()
-        u = rearrange(self.u_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
-        v = rearrange(self.v_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
-        b = self.b_proj(x)
+        if self.W_0 is not None: nn.init.constant_(self.W_0, 0.)
+    
+    def forward(self, x, W_0=None):
+        bsz, src_len, d_model = x.size()
+        if cuda_causal_conv1d is not None:
+            x = cuda_causal_conv1d(
+                x.transpose(1, 2),
+                rearrange(self.conv.weight, "d 1 w -> d w"),
+                bias=self.conv.bias,
+                activation="silu",
+            ).transpose(1, 2)
+        else:
+            x = F.silu(self.conv(x.transpose(1, 2)).transpose(1, 2)[:, :src_len])
+        
+        x_h = rearrange(x, 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        dt = rearrange(self.dt_proj(x), 'b s h -> (b h) s').unsqueeze(-1).contiguous()
+        u = rearrange(self.u_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v = rearrange(self.v_proj(x), 'b s (h d) -> (b h) s d', h=self.n_heads).contiguous()
         
         dt = F.softplus(dt)
         
         u = u * dt
         v = v * dt
         
-        if causal:
-            W = torch.cumsum(torch.matmul(u.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
-            norm = torch.cumsum(dt, dim=1)
-        else:
-            W = torch.einsum('zsu, zsv -> zuv', u, v).unsqueeze(1)
-            norm = torch.sum(dt, dim=1, keepdim=True)
-        out = torch.matmul(x.unsqueeze(-2), W).squeeze(-2) / norm
-        out = rearrange(out, '(b h) s d -> s b (h d)', h=self.n_heads)
-        out = self.out_proj(out)
+        uv = torch.matmul(u.unsqueeze(-1), v.unsqueeze(-2))
+        W = torch.cumsum(uv, dim=1)
+        if W_0 is not None: W = W + rearrange(W_0, 'b h d e -> (b h) d e').unsqueeze(1)
+        elif self.W_0 is not None: W = W + self.W_0.unsqueeze(1).repeat(bsz, 1, 1, 1)
         
-        if self.batch_first:
-            out = out.transpose(0, 1)
+        norm = torch.cumsum(dt, dim=1)
+        
+        out = torch.matmul(x_h.unsqueeze(-2), W).squeeze(-2) / norm
+        out = rearrange(out, '(b h) s d -> b s (h d)', h=self.n_heads)
+        out = self.out_proj(out)
         return out
 
 class SeqMLP(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1,
-                 expand_in=1, expand_out=1,
+                 n_layers=1, n_heads=1, dropout=0.0,
+                 expand=1, W_bias=True, W_0=False,
                  use_embedding=True, weight_tying=False,
                  bidirectional=True,
                  bias=True, device="cpu"):
@@ -357,12 +375,13 @@ class SeqMLP(nn.Module):
                     mixer=SeqLinear(
                         d_model=emb_dim,
                         n_heads=n_heads,
-                        expand_in=expand_in,
-                        expand_out=expand_out,
+                        expand=expand,
+                        W_bias=W_bias,
+                        W_0=W_0,
                         bias=bias,
-                        batch_first=True,
                         device=device
                     ),
+                    dropout = nn.Dropout(dropout),
                     norm=nn.RMSNorm(emb_dim, device=device),
                 )
             ) for _ in range(n_layers)
@@ -377,11 +396,13 @@ class SeqMLP(nn.Module):
         self.to(device)
 
     def forward(self, x):
+        seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
         for layer in self.layers:
-            y_f = layer.mixer(layer.norm(x))
-            y_b = layer.mixer(layer.norm(x.flip(1))) if self.bidirectional else 0.0
+            x = layer.norm(x)
+            y_f = layer.dropout(layer.mixer(x))
+            y_b = layer.dropout(layer.mixer(x.flip(1))) if self.bidirectional else 0.0
             x = x + y_f + y_b
         x = self.norm_f(x)
         x = self.out_proj(x)

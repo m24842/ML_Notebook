@@ -200,13 +200,15 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    expand_in: 1
-    expand_out: 1
+    expand: 1
+    bias: True
+    W_0: True
+    W_bias: True
     n_heads: 4
-    n_layers: 4
+    n_layers: 2
     input_dim: 1
     output_dim: 10
-    bidirectional: True
+    bidirectional: False
     use_embedding: False
   
   optimizer:
