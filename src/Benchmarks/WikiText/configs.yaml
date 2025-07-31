@@ -41,7 +41,7 @@ general_defaults: &general_defaults
   accumulation_steps: 3
   train_steps: 20000
   grad_clip_norm: 1.0
-  mixed_precision: True
+  mixed_precision: False
   num_workers: 64
 
 optimizer_defaults: &optimizer_defaults

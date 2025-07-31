@@ -33,7 +33,7 @@ general_defaults: &general_defaults
   accumulation_steps: 3
   epochs: 20
   grad_clip_norm: 1.0
-  mixed_precision: True
+  mixed_precision: False
 
 optimizer_defaults: &optimizer_defaults
   name: AdamW

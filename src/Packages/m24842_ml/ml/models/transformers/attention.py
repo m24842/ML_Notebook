@@ -12,8 +12,7 @@ from ..common import *
 
 class MultiheadAttention(nn.Module):
     """
-    Vanilla Multihead Attention.
-    Slight difference: the typical 1/sqrt(d_model) attention score scale is now a per head learnable parameter beta initialized at 1/sqrt(d_model).
+    Vanilla Softmax Attention.
     """
     def __init__(self, d_model, n_heads, bias=True,
                  qk_dim=None, dropout=0.0, attn_sink=False,
@@ -25,18 +24,15 @@ class MultiheadAttention(nn.Module):
         self.dropout = dropout
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
+        self.attn_sink = attn_sink
         self.device = device
-        
-        assert self.d_head * n_heads == self.d_model, "d_model must be divisible by n_heads"
-        
-        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+                
+        self.beta = nn.Parameter(torch.empty(n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.v_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias, device=device)
-        
-        self.attn_sink = attn_sink
         
         self._reset_parameters()
         
@@ -109,7 +105,7 @@ class LinearAttention(nn.Module):
         self.batch_first = batch_first
         self.device = device
         
-        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta = nn.Parameter(torch.empty(n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
@@ -197,7 +193,7 @@ class OrthoLinearAttention(nn.Module):
         self.batch_first = batch_first
         self.device = device
         
-        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta = nn.Parameter(torch.empty(n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
@@ -272,7 +268,7 @@ class CompressionAttention(nn.Module):
     """
     Compression Attention.
     A derivative of softmax attention that compresses input sequences to a fixed length before expanding back to the original length.
-    Achieved by two linear with sequence length attention operations.
+    Achieved by two attention operations of linear complexity with respect to sequence length.
     """
     def __init__(self, d_model, n_heads, compressed_len,
                  qk_dim=None, attn_sink=False, dropout=0.0,
@@ -290,7 +286,7 @@ class CompressionAttention(nn.Module):
         
         self.q_c = nn.Parameter(torch.empty((compressed_len, self.qk_dim), device=device))
         self.q_c._no_weight_decay = True
-        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta = nn.Parameter(torch.empty(n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
@@ -406,7 +402,7 @@ class SlidingWindowAttention(nn.Module):
         self.attn_sink = attn_sink
         self.device = device
         
-        self.beta = nn.Parameter(torch.empty(self.n_heads, device=device))
+        self.beta = nn.Parameter(torch.empty(n_heads, device=device))
         self.beta._no_weight_decay = True
         self.q_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)
         self.k_proj = nn.Linear(d_model, self.qk_dim, bias=bias, device=device)

@@ -211,9 +211,6 @@ class Mamba2(nn.Module):
                  chunk_size=64, device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
-        self.d_state = d_state if d_state is not None else emb_dim
-        self.d_conv = d_conv
-        self.expand = expand
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_layers = n_layers
@@ -230,7 +227,15 @@ class Mamba2(nn.Module):
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    mixer=Mamba2Block(d_model=emb_dim, n_layers=n_layers, d_state=self.d_state, d_conv=d_conv, expand=expand, n_heads=n_heads, chunk_size=chunk_size, device=device),
+                    mixer=Mamba2Block(
+                        d_model=emb_dim,
+                        d_state=self.d_state,
+                        d_conv=d_conv,
+                        expand=expand,
+                        n_heads=n_heads,
+                        chunk_size=chunk_size,
+                        device=device
+                    ),
                     norm=GatedRMSNorm(emb_dim, device=device),
                 )
             ) for _ in range(n_layers)
@@ -253,5 +258,131 @@ class Mamba2(nn.Module):
             y_b = layer.mixer(layer.norm(x.flip(1))) if self.bidirectional else 0.0
             x = x + y_f + y_b
         x = self.norm_f(x)
-        logits = self.out_proj(x)
-        return logits[:, :seq_len]
+        x = self.out_proj(x)
+        return x[:, :seq_len]
+
+class SeqLinear(nn.Module):
+    """
+    Linear layer with weights derived from a weighted sum of rank-1 sequential updates.
+    """
+    def __init__(self, d_model, n_heads, bias=True,
+                 expand_in=1, expand_out=1,
+                 batch_first=False, device="cpu"):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.batch_first = batch_first
+        self.device = device
+        
+        self.dt_proj = nn.Linear(d_model, n_heads, bias=True, device=device)
+        self.u_proj = nn.Linear(d_model, d_model * expand_in, bias=bias, device=device)
+        self.v_proj = nn.Linear(d_model, d_model * expand_out, bias=bias, device=device)
+        self.b_proj = nn.Linear(d_model, d_model * expand_out, bias=bias, device=device)
+        self.out_proj = nn.Linear(d_model * expand_out, d_model, bias=bias, device=device)
+        
+        self._reset_parameters()
+    
+    def _reset_parameters(self):
+        nn.init.xavier_uniform_(self.dt_proj.weight)
+        nn.init.uniform_(self.dt_proj.bias, -0.5, 0.5)
+        nn.init.xavier_uniform_(self.u_proj.weight)
+        nn.init.xavier_uniform_(self.v_proj.weight)
+        nn.init.xavier_uniform_(self.b_proj.weight)
+        nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        if self.u_proj.bias is not None:
+            nn.init.constant_(self.u_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
+        if self.b_proj.bias is not None:
+            nn.init.constant_(self.b_proj.bias, 0.)
+        if self.out_proj.bias is not None:
+            nn.init.constant_(self.out_proj.bias, 0.)
+    
+    def forward(self, x, rope=None, causal=True):
+        if self.batch_first:
+            x = x.transpose(0, 1)
+        
+        src_len, bsz, d_model = x.size()
+        dt = rearrange(self.dt_proj(x), 's b h -> (b h) s').unsqueeze(-1).contiguous()
+        u = rearrange(self.u_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        v = rearrange(self.v_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
+        b = self.b_proj(x)
+        
+        dt = F.softplus(dt)
+        
+        u = u * dt
+        v = v * dt
+        
+        if causal:
+            W = torch.cumsum(torch.matmul(u.unsqueeze(-1), v.unsqueeze(-2)), dim=1)
+            norm = torch.cumsum(dt, dim=1)
+        else:
+            W = torch.einsum('zsu, zsv -> zuv', u, v).unsqueeze(1)
+            norm = torch.sum(dt, dim=1, keepdim=True)
+        out = torch.matmul(x.unsqueeze(-2), W).squeeze(-2) / norm
+        out = rearrange(out, '(b h) s d -> s b (h d)', h=self.n_heads)
+        out = self.out_proj(out)
+        
+        if self.batch_first:
+            out = out.transpose(0, 1)
+        return out
+
+class SeqMLP(nn.Module):
+    def __init__(self, emb_dim, input_dim, output_dim,
+                 n_layers=1, n_heads=1,
+                 expand_in=1, expand_out=1,
+                 use_embedding=True, weight_tying=False,
+                 bidirectional=True,
+                 bias=True, device="cpu"):
+        super().__init__()
+        self.emb_dim = emb_dim
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.bidirectional = bidirectional
+        self.use_embedding = use_embedding
+        self.device = device
+
+        if use_embedding:
+            self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
+        else:
+            self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
+        
+        self.layers = nn.ModuleList([
+            nn.ModuleDict(
+                dict(
+                    mixer=SeqLinear(
+                        d_model=emb_dim,
+                        n_heads=n_heads,
+                        expand_in=expand_in,
+                        expand_out=expand_out,
+                        bias=bias,
+                        batch_first=True,
+                        device=device
+                    ),
+                    norm=nn.RMSNorm(emb_dim, device=device),
+                )
+            ) for _ in range(n_layers)
+        ])
+        self.norm_f=nn.RMSNorm(emb_dim, device=device)
+        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
+        
+        nn.init.xavier_uniform_(self.embedding.weight)
+        if weight_tying: self.out_proj.weight = self.embedding.weight
+        else: nn.init.xavier_uniform_(self.out_proj.weight)
+        
+        self.to(device)
+
+    def forward(self, x):
+        if self.use_embedding: x = self.embedding(x.long())
+        else: x = self.embedding(x)
+        for layer in self.layers:
+            y_f = layer.mixer(layer.norm(x))
+            y_b = layer.mixer(layer.norm(x.flip(1))) if self.bidirectional else 0.0
+            x = x + y_f + y_b
+        x = self.norm_f(x)
+        x = self.out_proj(x)
+        return x

@@ -75,8 +75,8 @@ def cleanup_wandb(entity, project):
         if wandb.run and not wandb.run._is_finished:
             run_id = wandb.run.id
             wandb.finish()
-            delete_run = input("Delete WandB run? (y/n): ").strip().lower()
-            if delete_run == "y": wandb.Api().run(f'{entity}/{project}/{run_id}').delete()
+            delete_run = input("Delete WandB run? (y/n): ").strip().lower() == "y"
+            if online() and delete_run: wandb.Api().run(f'{entity}/{project}/{run_id}').delete()
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

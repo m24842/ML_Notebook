@@ -36,7 +36,7 @@ general_defaults: &general_defaults
   batch_size: 64
   epochs: 10
   grad_clip_norm: 1.0
-  mixed_precision: True
+  mixed_precision: False
 
 optimizer_defaults: &optimizer_defaults
   name: AdamW
