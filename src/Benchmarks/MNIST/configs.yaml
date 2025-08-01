@@ -200,12 +200,10 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    expand: 1
-    bias: True
-    W_0: True
-    W_bias: True
+    zu_dim: 128
+    v_dim: 128
     n_heads: 4
-    n_layers: 4
+    n_layers: 1
     input_dim: 1
     output_dim: 10
     bidirectional: True
@@ -319,10 +317,10 @@ experiments:
   #     <<: *CompressionTransformer_general
   #     seed: 3333
   
-  - <<: *Transformer_defaults
-    general:
-      <<: *Transformer_general
-      seed: 0
+  # - <<: *Transformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 0
   
   # - <<: *Transformer_defaults
   #   general:

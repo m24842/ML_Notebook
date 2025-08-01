@@ -37,12 +37,12 @@ global:
 general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
-  batch_size: 16
-  accumulation_steps: 3
+  batch_size: 128
+  accumulation_steps: 1
   train_steps: 20000
   grad_clip_norm: 1.0
   mixed_precision: False
-  num_workers: 64
+  num_workers: 8
 
 optimizer_defaults: &optimizer_defaults
   name: AdamW
@@ -212,8 +212,55 @@ Mamba2_defaults: &Mamba2_defaults
   scheduler:
     <<: *scheduler_defaults
 
+SeqMLP_defaults: &SeqMLP_defaults
+  general: &SeqMLP_general
+    <<: *general_defaults
+  
+  model: &SeqMLP_model
+    name: SeqMLP
+    emb_dim: 128
+    zu_dim: 128
+    v_dim: 128
+    n_heads: 4
+    n_layers: 12
+    input_dim: 50277
+    output_dim: 50277
+    bidirectional: False
+    use_embedding: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 ### Experiments Configuration ###
 experiments:
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 0
+
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 42
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 1111
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 2222
+  
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 3333
+
   - <<: *Mamba2_defaults
     general:
       <<: *Mamba2_general

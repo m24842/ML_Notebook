@@ -254,7 +254,7 @@ class TinyShakespeare(Dataset):
 
         # Load and tokenize entire dataset
         split = 'train' if train else 'test'
-        text = load_dataset('tiny_shakespeare', split=split)['text'][0]
+        text = load_dataset('tiny_shakespeare', split=split, trust_remote_code=True)['text'][0]
         
         # Tokenize the full corpus
         if tokenizer == "char":
