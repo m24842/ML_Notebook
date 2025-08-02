@@ -312,7 +312,7 @@ class SeqLinear(nn.Module):
     def _reset_parameters(self):
         nn.init.xavier_uniform_(self.in_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
-        nn.init.kaiming_uniform_(self.conv.weight, nonlinearity='relu')
+        nn.init.xavier_uniform_(self.conv.weight)
         nn.init.uniform_(self.dt_bias, -0.5, 0.5)
         nn.init.uniform_(self.dt_rate, -0.1, 0.1)
         
@@ -344,17 +344,17 @@ class SeqLinear(nn.Module):
                 x.transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
-                activation="silu",
+                activation=None,
             ).transpose(1, 2)
             x_b = cuda_causal_conv1d(
                 x.flip(1).transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
-                activation="silu",
+                activation=None,
             ).transpose(1, 2)
         else:
-            x_f = F.silu(self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
-            x_b = F.silu(self.conv(x.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
+            x_f = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
+            x_b = self.conv(x.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
         
         z_f, u_f, v_f = torch.split(
             x_f,
@@ -398,6 +398,7 @@ class SeqLinear(nn.Module):
         
         out_f = torch.matmul(z_f.unsqueeze(-2), W_f).squeeze(-2) / norm_f
         out_b = torch.matmul(z_b.unsqueeze(-2), W_b).squeeze(-2) / norm_b
+        
         out = rearrange(out_f + out_b, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
         return out
@@ -422,10 +423,10 @@ class SeqLinear(nn.Module):
                 x.transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
-                activation="silu",
+                activation=None,
             ).transpose(1, 2)
         else:
-            x = F.silu(self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
+            x = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
         
         z, u, v = torch.split(
             x,
@@ -444,13 +445,13 @@ class SeqLinear(nn.Module):
         v = rearrange(v, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         
         if mode == "causal":
+            norm = torch.cumsum(dt, dim=1).unsqueeze(-1)
             W = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u, v), dim=1)
         elif mode == "noncausal":
+            norm = torch.sum(dt, dim=1, keepdim=True).unsqueeze(-1)
             W = torch.einsum('bsh, bshd, bshe -> bhde', dt, u, v).unsqueeze(1)
         
         if self.W_0 is not None: W = W + self.W_0.unsqueeze(1)
-        
-        norm = torch.cumsum(dt, dim=1).unsqueeze(-1)
         
         out = torch.matmul(z.unsqueeze(-2), W).squeeze(-2) / norm
         out = rearrange(out, 'b s h d -> b s (h d)')

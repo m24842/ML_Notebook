@@ -55,7 +55,7 @@ Transformer_defaults: &Transformer_defaults
   model: &Transformer_model
     name: Transformer
     emb_dim: 128
-    mlp_dim: 128
+    ff_dim: 128
     n_heads: 4
     n_layers: 4
     input_dim: 17
@@ -79,7 +79,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   model: &CompressionTransformer_model
     name: CompressionTransformer
     emb_dim: 128
-    mlp_dim: 128
+    ff_dim: 128
     mem_dim: 16
     n_heads: 4
     n_layers: 4
@@ -104,7 +104,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   model: &LinearTransformer_model
     name: LinearTransformer
     emb_dim: 128
-    mlp_dim: 128
+    ff_dim: 128
     n_heads: 4
     n_layers: 4
     input_dim: 17
@@ -128,7 +128,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
     emb_dim: 128
-    mlp_dim: 128
+    ff_dim: 128
     n_heads: 4
     n_layers: 4
     input_dim: 17
@@ -152,7 +152,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   model: &SlidingWindowTransformer_model
     name: SlidingWindowTransformer
     emb_dim: 128
-    mlp_dim: 128
+    ff_dim: 128
     window_len: 64
     use_flex_attn: False
     dilate: True

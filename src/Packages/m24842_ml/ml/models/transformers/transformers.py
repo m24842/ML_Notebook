@@ -12,7 +12,7 @@ class Transformer(nn.Module):
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  attn_sink=False, dropout=0.0, causal=True,
                  use_embedding=True, weight_tying=False,
-                 mlp_bias=True, attn_bias=True,
+                 ff_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -58,7 +58,7 @@ class Transformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -91,7 +91,7 @@ class LinearTransformer(nn.Module):
                  n_layers=1, n_heads=1, ff_dim=None,
                  qk_dim=None, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True,
-                 weight_tying=False, mlp_bias=True, attn_bias=True,
+                 weight_tying=False, ff_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -136,7 +136,7 @@ class LinearTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -168,7 +168,7 @@ class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, attn_sink=False,
                  qk_dim=None, dropout=0.0, causal=True, use_embedding=True,
-                 weight_tying=False, mlp_bias=True, attn_bias=True,
+                 weight_tying=False, ff_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -213,7 +213,7 @@ class OrthoLinearTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -246,7 +246,7 @@ class CompressionTransformer(nn.Module):
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  mem_dim=16, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
-                 mlp_bias=True, attn_bias=True,
+                 ff_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -294,7 +294,7 @@ class CompressionTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -328,7 +328,7 @@ class SlidingWindowTransformer(nn.Module):
                  window_len=64, dilate=True,dilation_factor=None,
                  use_flex_attn=True, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
-                 mlp_bias=True, attn_bias=True,
+                 ff_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -378,7 +378,7 @@ class SlidingWindowTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
                 )
             ) for i in range(self.n_layers)
         ])

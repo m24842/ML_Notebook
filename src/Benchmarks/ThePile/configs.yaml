@@ -69,13 +69,13 @@ Transformer_defaults: &Transformer_defaults
   model: &Transformer_model
     name: Transformer
     emb_dim: 512
-    mlp_dim: 1024
+    ff_dim: 1024
     n_heads: 12
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
-    mlp_bias: False
+    ff_bias: False
     attn_bias: False
     dropout: 0.1
     causal: True
@@ -96,14 +96,14 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   model: &CompressionTransformer_model
     name: CompressionTransformer
     emb_dim: 512
-    mlp_dim: 1024
+    ff_dim: 1024
     mem_dim: 16
     n_heads: 12
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
-    mlp_bias: False
+    ff_bias: False
     attn_bias: False
     dropout: 0.1
     causal: True
@@ -124,13 +124,13 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   model: &LinearTransformer_model
     name: LinearTransformer
     emb_dim: 512
-    mlp_dim: 1024
+    ff_dim: 1024
     n_heads: 12
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
-    mlp_bias: False
+    ff_bias: False
     attn_bias: False
     dropout: 0.1
     causal: True
@@ -151,13 +151,13 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
     emb_dim: 512
-    mlp_dim: 1024
+    ff_dim: 1024
     n_heads: 12
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
-    mlp_bias: False
+    ff_bias: False
     attn_bias: False
     dropout: 0.1
     causal: True
@@ -178,7 +178,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   model: &SlidingWindowTransformer_model
     name: SlidingWindowTransformer
     emb_dim: 512
-    mlp_dim: 1024
+    ff_dim: 1024
     window_len: 64
     use_flex_attn: False
     dilate: True
@@ -188,7 +188,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     input_dim: 50277
     output_dim: 50277
     attn_sink: False
-    mlp_bias: False
+    ff_bias: False
     attn_bias: False
     dropout: 0.1
     causal: True
