@@ -53,7 +53,7 @@ optimizer_defaults: &optimizer_defaults
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-6
-  num_warmup_steps: 2000
+  num_warmup_steps: 1000
   num_training_steps: 20000
 
 Transformer_defaults: &Transformer_defaults
@@ -219,13 +219,13 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    zu_dim: 128
+    u_dim: 128
     v_dim: 128
     n_heads: 4
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    bidirectional: False
+    mode: causal
     use_embedding: True
   
   optimizer:

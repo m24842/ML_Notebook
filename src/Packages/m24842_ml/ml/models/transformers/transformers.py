@@ -3,16 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.linalg as LA
 import torch.autograd as AG
-import math
-from einops import rearrange
-import opt_einsum
 from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
 from ..common import *
 
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, qk_dim=None,
+                 n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  attn_sink=False, dropout=0.0, causal=True,
                  use_embedding=True, weight_tying=False,
                  mlp_bias=True, attn_bias=True,
@@ -25,7 +22,7 @@ class Transformer(nn.Module):
         self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -43,8 +40,7 @@ class Transformer(nn.Module):
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         self.layers = nn.ModuleList([
             nn.ModuleDict(
@@ -62,7 +58,7 @@ class Transformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -92,7 +88,7 @@ class Transformer(nn.Module):
 
 class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None,
+                 n_layers=1, n_heads=1, ff_dim=None,
                  qk_dim=None, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True,
                  weight_tying=False, mlp_bias=True, attn_bias=True,
@@ -104,7 +100,7 @@ class LinearTransformer(nn.Module):
         self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -122,8 +118,7 @@ class LinearTransformer(nn.Module):
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         self.layers = nn.ModuleList([
             nn.ModuleDict(
@@ -141,7 +136,7 @@ class LinearTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -171,7 +166,7 @@ class LinearTransformer(nn.Module):
 
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, attn_sink=False,
+                 n_layers=1, n_heads=1, ff_dim=None, attn_sink=False,
                  qk_dim=None, dropout=0.0, causal=True, use_embedding=True,
                  weight_tying=False, mlp_bias=True, attn_bias=True,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -182,7 +177,7 @@ class OrthoLinearTransformer(nn.Module):
         self.causal = causal
         self.n_heads = n_heads
         self.n_layers = n_layers
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -200,8 +195,7 @@ class OrthoLinearTransformer(nn.Module):
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         self.layers = nn.ModuleList([
             nn.ModuleDict(
@@ -219,7 +213,7 @@ class OrthoLinearTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -249,7 +243,7 @@ class OrthoLinearTransformer(nn.Module):
 
 class CompressionTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, qk_dim=None,
+                 n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  mem_dim=16, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  mlp_bias=True, attn_bias=True,
@@ -261,7 +255,7 @@ class CompressionTransformer(nn.Module):
         self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         self.compressed_len = mem_dim
         
         self.use_embedding = use_embedding
@@ -280,8 +274,7 @@ class CompressionTransformer(nn.Module):
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         self.layers = nn.ModuleList([
             nn.ModuleDict(
@@ -301,7 +294,7 @@ class CompressionTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -331,7 +324,7 @@ class CompressionTransformer(nn.Module):
 
 class SlidingWindowTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, mlp_dim=None, qk_dim=None,
+                 n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  window_len=64, dilate=True,dilation_factor=None,
                  use_flex_attn=True, attn_sink=False, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
@@ -344,7 +337,7 @@ class SlidingWindowTransformer(nn.Module):
         self.causal = causal
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.mlp_dim = mlp_dim if mlp_dim is not None else 2*emb_dim
+        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -362,8 +355,7 @@ class SlidingWindowTransformer(nn.Module):
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device) if pos_encoding == "abs" else None
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         dilation_factor = window_len if dilation_factor is None else dilation_factor
         self.layers = nn.ModuleList([
@@ -386,7 +378,7 @@ class SlidingWindowTransformer(nn.Module):
                     ),
                     norm2 = nn.RMSNorm(emb_dim, device=device),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = MLP(emb_dim, self.mlp_dim, emb_dim, bias=mlp_bias, device=device),
+                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=mlp_bias, device=device),
                 )
             ) for i in range(self.n_layers)
         ])

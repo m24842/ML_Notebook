@@ -91,13 +91,13 @@ class Mamba2Block(nn.Module):
         # Apply convolution
         if cuda_causal_conv1d is not None:
             xBC = cuda_causal_conv1d(
-                xBC.transpose(1, 2),
+                xBC.transpose(1, 2).contiguous(),
                 rearrange(self.conv1d.weight, "d 1 w -> d w"),
                 bias=self.conv1d.bias,
                 activation="silu",
             ).transpose(1, 2)
         else:
-            xBC = F.silu(self.conv1d(xBC.transpose(1, 2)).transpose(1, 2)[:, :padded_seq_len])
+            xBC = F.silu(self.conv1d(xBC.transpose(1, 2).contiguous()).transpose(1, 2)[:, :padded_seq_len])
         
         x, B, C = torch.split(
             xBC,
@@ -209,6 +209,7 @@ class Mamba2(nn.Module):
                  d_state=None, d_conv=4, expand=2,
                  use_embedding=True, weight_tying=False,
                  bidirectional=False,
+                 pos_encoding=False, pos_encoding_max_len=None,
                  chunk_size=64, device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
@@ -225,6 +226,12 @@ class Mamba2(nn.Module):
             self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
         else:
             self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
+        
+        self.abs_pos_encoding = None
+        if pos_encoding:
+            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
+            self.pos_encoding_max_len = pos_encoding_max_len
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
         self.layers = nn.ModuleList([
             nn.ModuleDict(
@@ -252,9 +259,12 @@ class Mamba2(nn.Module):
         self.to(device)
 
     def forward(self, x):
-        seq_len = x.shape[1]
+        seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
+        if self.abs_pos_encoding is not None:
+            pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
+            x = x + self.abs_pos_encoding(pos)
         for layer in self.layers:
             x_norm = layer.norm(x)
             y_f = layer.mixer(x_norm)
@@ -269,30 +279,32 @@ class SeqLinear(nn.Module):
     Linear layer with weights derived from a weighted sum of rank-1 sequential updates.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 W_0=False, d_conv=4, split_zu=False,
-                 zu_dim=None, v_dim=None,
+                 W_0=False, d_conv=4,
+                 u_dim=None, v_dim=None,
                  device="cpu"):
         super().__init__()
         self.d_model = d_model
-        self.zu_dim = zu_dim if zu_dim is not None else d_model
+        self.u_dim = u_dim if u_dim is not None else d_model
         self.v_dim = v_dim if v_dim is not None else d_model
         self.n_heads = n_heads
-        self.split_zu = split_zu
         self.bias = bias
         self.device = device
         
-        d_in_proj = 2 * self.zu_dim + self.v_dim + self.n_heads
-        self.in_proj = nn.Linear(d_model, d_in_proj, bias=bias, device=device)
-        self.dt_bias = nn.Parameter(torch.empty(n_heads, device=device))
+        d_in_proj = 2 * self.u_dim + self.v_dim + self.n_heads
+        self.in_proj = nn.Linear(d_model, d_in_proj, bias=False, device=device)
+        d_conv_c = 2 * self.u_dim + self.v_dim
         self.conv = nn.Conv1d(
-            in_channels=d_in_proj,
-            out_channels=d_in_proj,
+            in_channels=d_conv_c,
+            out_channels=d_conv_c,
             kernel_size=d_conv,
-            groups=d_in_proj,
+            groups=d_conv_c,
             padding=d_conv-1,
+            bias=bias,
             device=device,
         )
-        self.W_0 = nn.Parameter(torch.empty(n_heads, self.zu_dim, self.v_dim // n_heads, device=device)) if W_0 else None
+        self.dt_rate = nn.Parameter(torch.empty(n_heads, device=device))
+        self.dt_bias = nn.Parameter(torch.empty(n_heads, device=device))
+        self.W_0 = nn.Parameter(torch.empty(n_heads, self.u_dim // n_heads, self.v_dim // n_heads, device=device)) if W_0 else None
         self.out_proj = nn.Linear(self.v_dim, d_model, bias=False, device=device)
         
         self._reset_parameters()
@@ -302,6 +314,7 @@ class SeqLinear(nn.Module):
         nn.init.xavier_uniform_(self.out_proj.weight)
         nn.init.kaiming_uniform_(self.conv.weight, nonlinearity='relu')
         nn.init.uniform_(self.dt_bias, -0.5, 0.5)
+        nn.init.uniform_(self.dt_rate, -0.1, 0.1)
         
         if self.conv.bias is not None:
             nn.init.constant_(self.conv.bias, 0.)
@@ -312,44 +325,130 @@ class SeqLinear(nn.Module):
         
         if self.W_0 is not None: nn.init.constant_(self.W_0, 0.)
     
-    def forward(self, x, W_0=None):
+    def bidirectional(self, x):
         bsz, src_len, d_model = x.size()
         
         x = self.in_proj(x)
         
-        if cuda_causal_conv1d is not None:
-            x = cuda_causal_conv1d(
-                x.transpose(1, 2),
-                rearrange(self.conv.weight, "d 1 w -> d w"),
-                bias=self.conv.bias,
-                activation="silu",
-            ).transpose(1, 2)
-        else:
-            x = F.silu(self.conv(x.transpose(1, 2)).transpose(1, 2)[:, :src_len])
-        
-        z, u, v, dt = torch.split(
+        x, dt = torch.split(
             x,
             [
-                self.zu_dim,
-                self.zu_dim,
-                self.v_dim,
+                2 * self.u_dim + self.v_dim,
                 self.n_heads,
             ],
             dim=-1
         )
         
-        dt = F.softplus(dt + self.dt_bias)
-        if self.split_zu:
-            z = rearrange(z, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-            u = rearrange(u, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        if cuda_causal_conv1d is not None:
+            x_f = cuda_causal_conv1d(
+                x.transpose(1, 2).contiguous(),
+                self.conv.weight.squeeze(1),
+                bias=self.conv.bias,
+                activation="silu",
+            ).transpose(1, 2)
+            x_b = cuda_causal_conv1d(
+                x.flip(1).transpose(1, 2).contiguous(),
+                self.conv.weight.squeeze(1),
+                bias=self.conv.bias,
+                activation="silu",
+            ).transpose(1, 2)
         else:
-            z = z.unsqueeze(-2)
-            u = u.unsqueeze(-2)
+            x_f = F.silu(self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
+            x_b = F.silu(self.conv(x.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
+        
+        z_f, u_f, v_f = torch.split(
+            x_f,
+            [
+                self.u_dim,
+                self.u_dim,
+                self.v_dim,
+            ],
+            dim=-1
+        )
+        z_b, u_b, v_b = torch.split(
+            x_b,
+            [
+                self.u_dim,
+                self.u_dim,
+                self.v_dim,
+            ],
+            dim=-1
+        )
+        
+        t = torch.exp(torch.linspace(0, 1, src_len, device=self.device).unsqueeze(-1) * self.dt_rate)
+        dt_f = F.softplus(dt + self.dt_bias) * t
+        z_f = rearrange(z_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        u_f = rearrange(u_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        v_f = rearrange(v_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        
+        dt_b = F.softplus(dt + self.dt_bias).flip(1) * t
+        z_b = rearrange(z_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        u_b = rearrange(u_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        v_b = rearrange(v_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        
+        W_f = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u_f, v_f), dim=1)
+        W_b = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt_b, u_b, v_b), dim=1)
+        
+        if self.W_0 is not None:
+            W_f = W_f + self.W_0.unsqueeze(1)
+            W_b = W_b + self.W_0.unsqueeze(1)
+        
+        norm_f = torch.cumsum(dt_f, dim=1).unsqueeze(-1)
+        norm_b = torch.cumsum(dt_b, dim=1).unsqueeze(-1)
+        
+        out_f = torch.matmul(z_f.unsqueeze(-2), W_f).squeeze(-2) / norm_f
+        out_b = torch.matmul(z_b.unsqueeze(-2), W_b).squeeze(-2) / norm_b
+        out = rearrange(out_f + out_b, 'b s h d -> b s (h d)')
+        out = self.out_proj(out)
+        return out
+    
+    def forward(self, x, mode="causal"):
+        if mode == "bidirectional": return self.bidirectional(x)
+        bsz, src_len, d_model = x.size()
+        
+        x = self.in_proj(x)
+        
+        x, dt = torch.split(
+            x,
+            [
+                2 * self.u_dim + self.v_dim,
+                self.n_heads,
+            ],
+            dim=-1
+        )
+        
+        if cuda_causal_conv1d is not None:
+            x = cuda_causal_conv1d(
+                x.transpose(1, 2).contiguous(),
+                self.conv.weight.squeeze(1),
+                bias=self.conv.bias,
+                activation="silu",
+            ).transpose(1, 2)
+        else:
+            x = F.silu(self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len])
+        
+        z, u, v = torch.split(
+            x,
+            [
+                self.u_dim,
+                self.u_dim,
+                self.v_dim,
+            ],
+            dim=-1
+        )
+        
+        t = torch.exp(torch.linspace(0, 1, src_len, device=self.device).unsqueeze(-1) * self.dt_rate)
+        dt = F.softplus(dt + self.dt_bias) * t
+        z = rearrange(z, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        u = rearrange(u, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         v = rearrange(v, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         
-        W = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u, v), dim=1)
-        if W_0 is not None: W = W + W_0.unsqueeze(1)
-        elif self.W_0 is not None: W = W + self.W_0.unsqueeze(1)
+        if mode == "causal":
+            W = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u, v), dim=1)
+        elif mode == "noncausal":
+            W = torch.einsum('bsh, bshd, bshe -> bhde', dt, u, v).unsqueeze(1)
+        
+        if self.W_0 is not None: W = W + self.W_0.unsqueeze(1)
         
         norm = torch.cumsum(dt, dim=1).unsqueeze(-1)
         
@@ -361,18 +460,17 @@ class SeqLinear(nn.Module):
 class SeqMLP(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, dropout=0.0,
-                 zu_dim=None, v_dim=None, W_0=False,
-                 d_conv=4,
+                 u_dim=None, v_dim=None, W_0=False,
+                 d_conv=4, pos_encoding=False, pos_encoding_max_len=None,
                  use_embedding=True, weight_tying=False,
-                 bidirectional=True,
-                 bias=True, device="cpu"):
+                 mode="causal", bias=True, device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.bidirectional = bidirectional
+        self.mode = mode
         self.use_embedding = use_embedding
         self.device = device
 
@@ -381,13 +479,19 @@ class SeqMLP(nn.Module):
         else:
             self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
         
+        self.abs_pos_encoding = None
+        if pos_encoding:
+            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
+            self.pos_encoding_max_len = pos_encoding_max_len
+            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
+        
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
                     mixer=SeqLinear(
                         d_model=emb_dim,
                         n_heads=n_heads,
-                        zu_dim=zu_dim,
+                        u_dim=u_dim,
                         v_dim=v_dim,
                         W_0=W_0,
                         d_conv=d_conv,
@@ -412,11 +516,13 @@ class SeqMLP(nn.Module):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
+        if self.abs_pos_encoding is not None:
+            pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
+            x = x + self.abs_pos_encoding(pos)
         for layer in self.layers:
             x_norm = layer.norm(x)
-            y_f = layer.dropout(layer.mixer(x_norm))
-            y_b = layer.dropout(layer.mixer(x_norm.flip(1))) if self.bidirectional else 0.0
-            x = x + y_f + y_b
+            y = layer.dropout(layer.mixer(x_norm, mode=self.mode))
+            x = x + y
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x

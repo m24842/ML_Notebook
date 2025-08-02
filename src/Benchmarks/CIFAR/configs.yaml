@@ -189,6 +189,8 @@ Mamba2_defaults: &Mamba2_defaults
     bidirectional: True
     use_embedding: False
     chunk_size: 64
+    pos_encoding: True
+    pos_encoding_max_len: 1024
   
   optimizer:
     <<: *optimizer_defaults
@@ -207,7 +209,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     n_layers: 8
     input_dim: 1
     output_dim: 10
-    bidirectional: True
+    mode: bidirectional
     use_embedding: False
   
   optimizer:

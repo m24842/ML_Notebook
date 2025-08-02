@@ -223,37 +223,84 @@ Mamba2_defaults: &Mamba2_defaults
   scheduler:
     <<: *scheduler_defaults
 
+SeqMLP_defaults: &SeqMLP_defaults
+  general: &SeqMLP_general
+    <<: *general_defaults
+  
+  model: &SeqMLP_model
+    name: SeqMLP
+    emb_dim: 512
+    u_dim: 512
+    v_dim: 512
+    n_heads: 12
+    n_layers: 24
+    input_dim: 50277
+    output_dim: 50277
+    mode: causal
+    use_embedding: True
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 ### Experiments Configuration ###
 experiments:
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 0
+
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 42
+  
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 1111
+  
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 2222
+  
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 3333
+
   - <<: *Mamba2_defaults
     general:
       <<: *Mamba2_general
       seed: 0
 
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 42
-  
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 1111
-  
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 2222
-  
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 3333
-  
-  # - <<: *SlidingWindowTransformer_defaults
+  # - <<: *Mamba2_defaults
   #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 0
+  #     <<: *Mamba2_general
+  #     seed: 42
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 1111
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 2222
+  
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 3333
+  
+  - <<: *SlidingWindowTransformer_defaults
+    general:
+      <<: *SlidingWindowTransformer_general
+      seed: 0
 
   # - <<: *SlidingWindowTransformer_defaults
   #   general:

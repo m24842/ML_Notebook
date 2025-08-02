@@ -212,13 +212,13 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    zu_dim: 128
+    u_dim: 128
     v_dim: 128
     n_heads: 4
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    bidirectional: False
+    mode: causal
     use_embedding: True
   
   optimizer:

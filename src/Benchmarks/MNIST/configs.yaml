@@ -186,6 +186,8 @@ Mamba2_defaults: &Mamba2_defaults
     bidirectional: True
     use_embedding: False
     chunk_size: 64
+    pos_encoding: True
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults
@@ -200,14 +202,16 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    zu_dim: 128
+    u_dim: 128
     v_dim: 128
     n_heads: 4
-    n_layers: 1
+    n_layers: 4
     input_dim: 1
     output_dim: 10
-    bidirectional: True
+    mode: bidirectional
     use_embedding: False
+    pos_encoding: True
+    pos_encoding_max_len: 784
   
   optimizer:
     <<: *optimizer_defaults

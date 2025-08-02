@@ -21,6 +21,23 @@ class MLP(nn.Module):
         x = self.fc2(x)
         return x
 
+class SwiGLU(nn.Module):
+    def __init__(self, d_in, d_hidden, d_out, bias=True, device="cpu"):
+        super().__init__()
+        if d_hidden is None:
+            d_hidden = d_in
+        self.fc1 = nn.Linear(d_in, 2 * d_hidden, bias=bias, device=device)
+        self.fc2 = nn.Linear(d_hidden, d_out, bias=bias, device=device)
+        
+        nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
+        nn.init.xavier_uniform_(self.fc2.weight)
+
+    def forward(self, x):
+        x, g = torch.chunk(self.fc1(x), 2, dim=-1)
+        x = F.silu(g) * x
+        x = self.fc2(x)
+        return x
+
 class Butterfly(nn.Module):
     def __init__(self, in_size, out_size, bias=True, complex=False,
                  increasing_stride=True, init='randn', n_blocks=1,

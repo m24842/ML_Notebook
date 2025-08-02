@@ -5,7 +5,6 @@ import torch.linalg as LA
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 import math
 import warnings
-import opt_einsum
 from functools import lru_cache
 from einops import rearrange
 from ..common import *
