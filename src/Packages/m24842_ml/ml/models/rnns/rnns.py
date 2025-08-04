@@ -8,6 +8,10 @@ cuda_causal_conv1d = None
 try: from causal_conv1d import causal_conv1d_fn as cuda_causal_conv1d
 except: pass
 
+cuda_mamba2 = None
+try: from mamba_ssm import Mamba2 as cuda_mamba2
+except: pass
+
 class Mamba2Block(nn.Module):
     def __init__(self, d_model, d_state=128, d_conv=4,
                  expand=2, n_heads=4, chunk_size=64, device="cpu"):
@@ -242,6 +246,15 @@ class Mamba2(nn.Module):
                         d_conv=d_conv,
                         expand=expand,
                         n_heads=n_heads,
+                        chunk_size=chunk_size,
+                        device=device
+                    ) if cuda_mamba2 is None else
+                    cuda_mamba2(
+                        d_model=emb_dim,
+                        d_state=self.d_state,
+                        d_conv=d_conv,
+                        expand=expand,
+                        headdim=emb_dim//n_heads,
                         chunk_size=chunk_size,
                         device=device
                     ),

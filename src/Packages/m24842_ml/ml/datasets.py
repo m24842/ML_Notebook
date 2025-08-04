@@ -6,11 +6,14 @@ from torch.utils.data import Dataset
 from PIL import Image
 import math
 import re
+import shutil
 import bisect
 import pandas as pd
+import zstandard as zstd
 from collections import defaultdict
 from transformers import AutoTokenizer
 from datasets import load_dataset, load_from_disk
+from huggingface_hub import hf_hub_download
 
 class SequentialMNIST(datasets.MNIST):
     def __init__(self, root, train, download=True, permuted=False):
@@ -358,7 +361,7 @@ class LAMBADA(Dataset):
         self.len = self.min_len
 
 class ThePile(Dataset):
-    def __init__(self, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, root=None, shard_size=10_000_000):
+    def __init__(self, root, split, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, num_proc=4, shard_size=10_000_000):
         """
         splits: ["train", "val", "test"]
         
@@ -376,7 +379,9 @@ class ThePile(Dataset):
         self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
         # cache directory for this split
-        cache_dir = os.path.expanduser(os.path.join(root, "ThePile", f"{split}_cache"))
+        root = os.path.expanduser(root)
+        pile_dir = os.path.join(root, "ThePile")
+        cache_dir = os.path.join(pile_dir, f"{split}_cache")
         os.makedirs(cache_dir, exist_ok=True)
 
         # find or create shards on disk
@@ -389,9 +394,21 @@ class ThePile(Dataset):
             if split == "train":
                 raw = load_dataset("monology/pile-uncopyrighted", split="train")
             elif split == "val":
-                raw = load_dataset("json", data_files=f"{root}/ThePile/val.jsonl", split="train")
+                path = os.path.join(pile_dir, "val.jsonl")
+                download_path = hf_hub_download(repo_type="dataset", repo_id="monology/pile-uncopyrighted", filename="val.jsonl.zst", cache_dir=pile_dir)
+                with open(download_path, "rb") as compressed, open(path, "wb") as out_f:
+                    dctx = zstd.ZstdDecompressor()
+                    reader = dctx.stream_reader(compressed)
+                    shutil.copyfileobj(reader, out_f)
+                raw = load_dataset("json", data_files=path, split="train")
             else:
-                raw = load_dataset("json", data_files=f"{root}/ThePile/test.jsonl", split="train")
+                path = os.path.join(pile_dir, "test.jsonl")
+                download_path = hf_hub_download(repo_type="dataset", repo_id="monology/pile-uncopyrighted", filename="test.jsonl.zst", cache_dir=pile_dir)
+                with open(download_path, "rb") as compressed, open(path, "wb") as out_f:
+                    dctx = zstd.ZstdDecompressor()
+                    reader = dctx.stream_reader(compressed)
+                    shutil.copyfileobj(reader, out_f)
+                raw = load_dataset("json", data_files=path, split="train")
 
             num_examples = len(raw)
             num_shards = math.ceil(num_examples / shard_size)
@@ -400,7 +417,7 @@ class ThePile(Dataset):
                 if os.path.exists(shard_path):
                     continue
 
-                print(f"Tokenizing shard {i+1}/{num_shards}…")
+                print(f"Tokenizing shard {i+1}/{num_shards}")
                 shard = raw.shard(num_shards=num_shards, index=i)
                 def tokenize(ex):
                     return {"input_ids": self.tokenizer(ex["text"], return_attention_mask=False)["input_ids"]}
@@ -446,6 +463,11 @@ class ThePile(Dataset):
 
         # fetch token ids
         input_ids = self.shard_ds[shard_idx][inner_idx]["input_ids"][: self.len]
+        seq_len = input_ids.size(0)
+        if seq_len > self.len:
+            start = torch.randint(0, seq_len - self.len, (1,))
+            input_ids = input_ids[start : start + self.len]
+
         x = input_ids[:-1]
         y = input_ids[1:]
 
@@ -467,10 +489,10 @@ class ThePile(Dataset):
         self.len = self.min_len
 
 class WikiText(Dataset):
-    def __init__(self, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0, num_proc=4):
+    def __init__(self, root, version, split, tokenizer, min_len=1, max_len=1024, warmup_epochs=0, num_proc=4):
         """
         Args:
-            version: one of ['wikitext-2-raw-v1', 'wikitext-103-raw-v1']
+            version: either 2 or 103
             split: 'train', 'validation', or 'test'
             tokenizer: any pretrained tokenizer name
         """
@@ -485,11 +507,17 @@ class WikiText(Dataset):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         self.pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
 
-        self.data = load_dataset("wikitext", version, split=split)
-
-        # Tokenize full corpus
-        tokenized_samples = self.data.map(lambda x: self.tokenizer(x['text'], add_special_tokens=False), batched=True, num_proc=num_proc)['input_ids']
-        self.tokenized = torch.tensor([token for sample in tokenized_samples for token in sample], dtype=torch.long)
+        root = os.path.expanduser(root)
+        wikitext_dir = os.path.join(root, f"wikitext-{version}")
+        cache_path = os.path.join(wikitext_dir, f"{split}_tokenized_{tokenizer}.pt")
+        if os.path.exists(cache_path):
+            self.tokenized = torch.load(cache_path)
+        else:
+            os.makedirs(wikitext_dir, exist_ok=True)
+            self.data = load_dataset("wikitext", f"wikitext-{version}-raw-v1", split=split)
+            tokenized_samples = self.data.map(lambda x: self.tokenizer(x['text'], add_special_tokens=False), batched=True, num_proc=num_proc)['input_ids']
+            self.tokenized = torch.tensor([token for sample in tokenized_samples for token in sample], dtype=torch.long)
+            torch.save(self.tokenized, cache_path)
 
     def __len__(self):
         return len(self.tokenized) // self.min_len
