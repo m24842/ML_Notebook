@@ -509,7 +509,7 @@ class WikiText(Dataset):
 
         root = os.path.expanduser(root)
         wikitext_dir = os.path.join(root, f"wikitext-{version}")
-        cache_path = os.path.join(wikitext_dir, f"{split}_tokenized_{tokenizer}.pt")
+        cache_path = os.path.join(wikitext_dir, f"{split}_tokenized.pt")
         if os.path.exists(cache_path):
             self.tokenized = torch.load(cache_path)
         else:
