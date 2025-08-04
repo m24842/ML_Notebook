@@ -16,39 +16,39 @@ global:
         root: data
         split: train
         tokenizer: EleutherAI/gpt-neox-20b
-        min_len: 256
-        max_len: 256
+        min_len: 1024
+        max_len: 1024
         warmup_epochs: 0
-        num_proc: 64
+        num_proc: 8
         shard_size: 10000000
       val:
         root: data
         split: val
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 256
-        num_proc: 64
+        max_len: 1024
+        num_proc: 8
         shard_size: 10000000
       test:
         root: data
         split: test
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 256
-        num_proc: 64
+        max_len: 2048
+        num_proc: 8
         shard_size: 10000000
   
-  val_freq: 1000000
-  checkpoint_freq: 500
+  val_freq: 100000
+  checkpoint_freq: 100000
 
 ### Defaults ###
 general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
-  batch_size: 16
-  accumulation_steps: 31
-  train_steps: 5000
+  batch_size: 64
+  accumulation_steps: 1
+  train_steps: 1000000
   grad_clip_norm: 1.0
   mixed_precision: False
-  num_workers: 64
+  num_workers: 8
 
 optimizer_defaults: &optimizer_defaults
   name: AdamW
@@ -59,8 +59,8 @@ optimizer_defaults: &optimizer_defaults
 scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-6
-  num_warmup_steps: 500
-  num_training_steps: 5000
+  num_warmup_steps: 1000
+  num_training_steps: 1000000
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -68,9 +68,9 @@ Transformer_defaults: &Transformer_defaults
   
   model: &Transformer_model
     name: Transformer
-    emb_dim: 512
+    emb_dim: 256
     ff_dim: 1024
-    n_heads: 12
+    n_heads: 8
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
@@ -95,10 +95,10 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
   
   model: &CompressionTransformer_model
     name: CompressionTransformer
-    emb_dim: 512
+    emb_dim: 256
     ff_dim: 1024
     mem_dim: 16
-    n_heads: 12
+    n_heads: 8
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
@@ -123,9 +123,9 @@ LinearTransformer_defaults: &LinearTransformer_defaults
   
   model: &LinearTransformer_model
     name: LinearTransformer
-    emb_dim: 512
+    emb_dim: 256
     ff_dim: 1024
-    n_heads: 12
+    n_heads: 8
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
@@ -150,9 +150,9 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
   
   model: &OrthoLinearTransformer_model
     name: OrthoLinearTransformer
-    emb_dim: 512
+    emb_dim: 256
     ff_dim: 1024
-    n_heads: 12
+    n_heads: 8
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
@@ -177,13 +177,13 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
   
   model: &SlidingWindowTransformer_model
     name: SlidingWindowTransformer
-    emb_dim: 512
+    emb_dim: 256
     ff_dim: 1024
     window_len: 64
     use_flex_attn: False
     dilate: True
     # dilation_factor: 64
-    n_heads: 12
+    n_heads: 8
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
@@ -208,14 +208,15 @@ Mamba2_defaults: &Mamba2_defaults
   
   model: &Mamba2_model
     name: Mamba2
-    emb_dim: 512
-    n_heads: 12
+    emb_dim: 256
+    n_heads: 8
     n_layers: 24
     input_dim: 50277
     output_dim: 50277
     bidirectional: False
     use_embedding: True
     chunk_size: 64
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -229,15 +230,16 @@ SeqMLP_defaults: &SeqMLP_defaults
   
   model: &SeqMLP_model
     name: SeqMLP
-    emb_dim: 512
-    u_dim: 512
-    v_dim: 512
-    n_heads: 12
+    emb_dim: 256
+    d_state: 256
+    d_inner: 256
+    n_heads: 8
     n_layers: 24
     input_dim: 50277
     output_dim: 50277
     mode: causal
     use_embedding: True
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults

@@ -42,8 +42,12 @@ class MultiheadAttention(nn.Module):
         nn.init.xavier_uniform_(self.v_proj.weight)
         nn.init.xavier_uniform_(self.out_proj.weight)
         
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
+        if self.q_proj.bias is not None:
+            nn.init.constant_(self.q_proj.bias, 0.)
+        if self.k_proj.bias is not None:
+            nn.init.constant_(self.k_proj.bias, 0.)
+        if self.v_proj.bias is not None:
+            nn.init.constant_(self.v_proj.bias, 0.)
         
     def forward(self, x, causal=False, rope=None):
         if self.batch_first:
@@ -126,8 +130,6 @@ class LinearAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -214,8 +216,6 @@ class OrthoLinearAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -308,8 +308,6 @@ class CompressionAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -423,8 +421,6 @@ class SlidingWindowAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
     
     @lru_cache(maxsize=2)
     def causal_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):

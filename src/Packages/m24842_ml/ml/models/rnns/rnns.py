@@ -278,126 +278,113 @@ class SeqLinear(nn.Module):
     """
     Linear layer with weights derived from a weighted sum of rank-1 sequential updates.
     """
-    def __init__(self, d_model, n_heads, bias=True,
-                 W_0=False, d_conv=4,
-                 u_dim=None, v_dim=None,
+    def __init__(self, d_model, n_heads,
+                 d_conv=4, d_state=None, d_inner=None,
                  device="cpu"):
         super().__init__()
         self.d_model = d_model
-        self.u_dim = u_dim if u_dim is not None else d_model
-        self.v_dim = v_dim if v_dim is not None else d_model
+        self.d_state = d_state if d_state is not None else d_model
+        self.d_inner = d_inner if d_inner is not None else d_model
         self.n_heads = n_heads
-        self.bias = bias
         self.device = device
         
-        d_in_proj = 2 * self.u_dim + self.v_dim + self.n_heads
+        d_in_proj = 2 * self.d_state + self.d_inner + self.n_heads
         self.in_proj = nn.Linear(d_model, d_in_proj, bias=False, device=device)
-        d_conv_c = 2 * self.u_dim + self.v_dim
+        conv_dim = 2 * self.d_state + self.d_inner
         self.conv = nn.Conv1d(
-            in_channels=d_conv_c,
-            out_channels=d_conv_c,
+            in_channels=conv_dim,
+            out_channels=conv_dim,
             kernel_size=d_conv,
-            groups=d_conv_c,
+            groups=conv_dim,
             padding=d_conv-1,
-            bias=bias,
             device=device,
         )
-        self.dt_rate = nn.Parameter(torch.empty(n_heads, device=device))
-        self.dt_bias = nn.Parameter(torch.empty(n_heads, device=device))
-        self.W_0 = nn.Parameter(torch.empty(n_heads, self.u_dim // n_heads, self.v_dim // n_heads, device=device)) if W_0 else None
-        self.out_proj = nn.Linear(self.v_dim, d_model, bias=False, device=device)
+        self.w_base = nn.Parameter(torch.empty(n_heads, device=device))
+        self.out_proj = nn.Linear(self.d_inner, d_model, bias=False, device=device)
         
         self._reset_parameters()
     
     def _reset_parameters(self):
         nn.init.xavier_uniform_(self.in_proj.weight)
-        nn.init.xavier_uniform_(self.out_proj.weight)
         nn.init.xavier_uniform_(self.conv.weight)
-        nn.init.uniform_(self.dt_bias, -0.5, 0.5)
-        nn.init.uniform_(self.dt_rate, -0.1, 0.1)
+        nn.init.uniform_(self.w_base, -0.5, 0.5)
+        nn.init.xavier_uniform_(self.out_proj.weight)
         
         if self.conv.bias is not None:
             nn.init.constant_(self.conv.bias, 0.)
-        if self.in_proj.bias is not None:
-            nn.init.constant_(self.in_proj.bias, 0.)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.)
-        
-        if self.W_0 is not None: nn.init.constant_(self.W_0, 0.)
     
     def bidirectional(self, x):
         bsz, src_len, d_model = x.size()
         
-        x = self.in_proj(x)
+        xIOw = self.in_proj(x)
         
-        x, dt = torch.split(
-            x,
+        xIO, w = torch.split(
+            xIOw,
             [
-                2 * self.u_dim + self.v_dim,
+                2 * self.d_state + self.d_inner,
                 self.n_heads,
             ],
             dim=-1
         )
-        
+
         if cuda_causal_conv1d is not None:
-            x_f = cuda_causal_conv1d(
-                x.transpose(1, 2).contiguous(),
+            xIO_f = cuda_causal_conv1d(
+                xIO.transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
                 activation=None,
             ).transpose(1, 2)
-            x_b = cuda_causal_conv1d(
-                x.flip(1).transpose(1, 2).contiguous(),
+            xIO_b = cuda_causal_conv1d(
+                xIO.flip(1).transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
                 activation=None,
             ).transpose(1, 2)
         else:
-            x_f = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
-            x_b = self.conv(x.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
+            xIO_f = self.conv(xIO.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
+            xIO_b = self.conv(xIO.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
         
-        z_f, u_f, v_f = torch.split(
-            x_f,
+        x_f, I_f, O_f = torch.split(
+            xIO_f,
             [
-                self.u_dim,
-                self.u_dim,
-                self.v_dim,
+                self.d_state,
+                self.d_state,
+                self.d_inner,
             ],
             dim=-1
         )
-        z_b, u_b, v_b = torch.split(
-            x_b,
+        x_b, I_b, O_b = torch.split(
+            xIO_b,
             [
-                self.u_dim,
-                self.u_dim,
-                self.v_dim,
+                self.d_state,
+                self.d_state,
+                self.d_inner,
             ],
             dim=-1
         )
         
-        t = torch.exp(torch.linspace(0, 1, src_len, device=self.device).unsqueeze(-1) * self.dt_rate)
-        dt_f = F.softplus(dt + self.dt_bias) * t
-        z_f = rearrange(z_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        u_f = rearrange(u_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        v_f = rearrange(v_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        x_f = rearrange(x_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        I_f = rearrange(I_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        O_f = rearrange(O_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         
-        dt_b = F.softplus(dt + self.dt_bias).flip(1) * t
-        z_b = rearrange(z_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        u_b = rearrange(u_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        v_b = rearrange(v_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        
-        W_f = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u_f, v_f), dim=1)
-        W_b = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt_b, u_b, v_b), dim=1)
-        
-        if self.W_0 is not None:
-            W_f = W_f + self.W_0.unsqueeze(1)
-            W_b = W_b + self.W_0.unsqueeze(1)
-        
-        norm_f = torch.cumsum(dt_f, dim=1).unsqueeze(-1)
-        norm_b = torch.cumsum(dt_b, dim=1).unsqueeze(-1)
-        
-        out_f = torch.matmul(z_f.unsqueeze(-2), W_f).squeeze(-2) / norm_f
-        out_b = torch.matmul(z_b.unsqueeze(-2), W_b).squeeze(-2) / norm_b
+        x_b = rearrange(x_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        I_b = rearrange(I_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        O_b = rearrange(O_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+
+        decay_f = F.silu(w * self.w_base).transpose(1, 2).unsqueeze(-2).repeat(1, 1, src_len, 1)
+        decay_b = decay_f.flip(1)
+        mask = torch.tril(torch.ones(src_len, src_len, dtype=torch.bool, device=self.device), diagonal=-1)
+        decay_f = decay_f.masked_fill(~mask, 0.0)
+        decay_b = decay_b.masked_fill(~mask, 0.0)
+        decay_f = -decay_f.flip(-1).cumsum(-1).flip(-1)
+        decay_b = -decay_b.flip(-1).cumsum(-1).flip(-1)
+        mask = torch.tril(torch.ones(src_len, src_len, dtype=torch.bool, device=self.device), diagonal=0)
+        decay_f = decay_f.masked_fill(~mask, float('-inf'))
+        decay_b = decay_b.masked_fill(~mask, float('-inf'))
+        decay_f = F.softmax(decay_f, dim=-1)
+        decay_b = F.softmax(decay_b, dim=-1)
+        out_f = torch.einsum('bthd, bhts, bshd, bshe -> bthe', x_f, decay_f, I_f, O_f)
+        out_b = torch.einsum('bthd, bhts, bshd, bshe -> bthe', x_b, decay_b, I_b, O_b)
         
         out = rearrange(out_f + out_b, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
@@ -406,65 +393,66 @@ class SeqLinear(nn.Module):
     def forward(self, x, mode="causal"):
         if mode == "bidirectional": return self.bidirectional(x)
         bsz, src_len, d_model = x.size()
+
+        xIOw = self.in_proj(x)
         
-        x = self.in_proj(x)
-        
-        x, dt = torch.split(
-            x,
+        xIO, w = torch.split(
+            xIOw,
             [
-                2 * self.u_dim + self.v_dim,
+                2 * self.d_state + self.d_inner,
                 self.n_heads,
             ],
             dim=-1
         )
         
         if cuda_causal_conv1d is not None:
-            x = cuda_causal_conv1d(
-                x.transpose(1, 2).contiguous(),
+            xIO = cuda_causal_conv1d(
+                xIO.transpose(1, 2).contiguous(),
                 self.conv.weight.squeeze(1),
                 bias=self.conv.bias,
                 activation=None,
             ).transpose(1, 2)
         else:
-            x = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
+            xIO = self.conv(xIO.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
         
-        z, u, v = torch.split(
-            x,
+        x, I, O = torch.split(
+            xIO,
             [
-                self.u_dim,
-                self.u_dim,
-                self.v_dim,
+                self.d_state,
+                self.d_state,
+                self.d_inner,
             ],
             dim=-1
         )
         
-        t = torch.exp(torch.linspace(0, 1, src_len, device=self.device).unsqueeze(-1) * self.dt_rate)
-        dt = F.softplus(dt + self.dt_bias) * t
-        z = rearrange(z, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        u = rearrange(u, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        v = rearrange(v, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        x = rearrange(x, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        I = rearrange(I, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
+        O = rearrange(O, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         
         if mode == "causal":
-            norm = torch.cumsum(dt, dim=1).unsqueeze(-1)
-            W = torch.cumsum(torch.einsum('bsh, bshd, bshe -> bshde', dt, u, v), dim=1)
+            decay = F.silu(w * self.w_base).transpose(1, 2).unsqueeze(-2).repeat(1, 1, src_len, 1)
+            mask = torch.tril(torch.ones(src_len, src_len, dtype=torch.bool, device=self.device), diagonal=-1)
+            decay = decay.masked_fill(~mask, 0.0)
+            decay = -decay.flip(-1).cumsum(-1).flip(-1)
+            mask = torch.tril(torch.ones(src_len, src_len, dtype=torch.bool, device=self.device), diagonal=0)
+            decay = decay.masked_fill(~mask, float('-inf'))
+            decay = F.softmax(decay, dim=-1)
+            out = torch.einsum('bthd, bhts, bshd, bshe -> bthe', x, decay, I, O)
         elif mode == "noncausal":
-            norm = torch.sum(dt, dim=1, keepdim=True).unsqueeze(-1)
-            W = torch.einsum('bsh, bshd, bshe -> bhde', dt, u, v).unsqueeze(1)
-        
-        if self.W_0 is not None: W = W + self.W_0.unsqueeze(1)
-        
-        out = torch.matmul(z.unsqueeze(-2), W).squeeze(-2) / norm
+            decay = F.softmax(-F.silu(w * self.w_base), dim=1)
+            out = torch.einsum('bthd, bsh, bshd, bshe -> bthe', x, decay, I, O)
+
         out = rearrange(out, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
         return out
 
 class SeqMLP(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
+                 d_state=None, d_inner=None, d_conv=4,
                  n_layers=1, n_heads=1, dropout=0.0,
-                 u_dim=None, v_dim=None, W_0=False,
-                 d_conv=4, pos_encoding=False, pos_encoding_max_len=None,
+                 pos_encoding=False, pos_encoding_max_len=None,
                  use_embedding=True, weight_tying=False,
-                 mode="causal", bias=True, device="cpu"):
+                 mode="causal", device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
         self.input_dim = input_dim
@@ -491,12 +479,10 @@ class SeqMLP(nn.Module):
                 dict(
                     mixer=SeqLinear(
                         d_model=emb_dim,
-                        n_heads=n_heads,
-                        u_dim=u_dim,
-                        v_dim=v_dim,
-                        W_0=W_0,
+                        d_state=d_state,
+                        d_inner=d_inner,
                         d_conv=d_conv,
-                        bias=bias,
+                        n_heads=n_heads,
                         device=device
                     ),
                     dropout = nn.Dropout(dropout),
@@ -522,8 +508,8 @@ class SeqMLP(nn.Module):
             x = x + self.abs_pos_encoding(pos)
         for layer in self.layers:
             x_norm = layer.norm(x)
-            y = layer.dropout(layer.mixer(x_norm, mode=self.mode))
-            x = x + y
+            y = layer.mixer(x_norm, mode=self.mode)
+            x = x + layer.dropout(y)
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x

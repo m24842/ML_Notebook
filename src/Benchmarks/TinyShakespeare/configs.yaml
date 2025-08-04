@@ -68,6 +68,7 @@ Transformer_defaults: &Transformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -95,6 +96,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -121,6 +123,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -147,6 +150,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -177,6 +181,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -198,6 +203,7 @@ Mamba2_defaults: &Mamba2_defaults
     bidirectional: False
     use_embedding: True
     chunk_size: 64
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -212,14 +218,15 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    u_dim: 128
-    v_dim: 128
+    d_state: 128
+    d_inner: 128
     n_heads: 4
-    n_layers: 12
+    n_layers: 1
     input_dim: 50277
     output_dim: 50277
     mode: causal
     use_embedding: True
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -233,26 +240,27 @@ experiments:
     general:
       <<: *SeqMLP_general
       seed: 0
+      # load_checkpoint: True
 
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 42
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 42
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 1111
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 1111
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 2222
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 2222
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 3333
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 3333
   
   # - <<: *Mamba2_defaults
   #   general:

@@ -16,30 +16,30 @@ global:
         version: wikitext-103-raw-v1
         split: train
         tokenizer: EleutherAI/gpt-neox-20b
-        min_len: 256
-        max_len: 256
+        min_len: 512
+        max_len: 512
         warmup_epochs: 0
       val:
         version: wikitext-103-raw-v1
         split: validation
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 256
+        max_len: 512
       test:
         version: wikitext-103-raw-v1
         split: test
         tokenizer: EleutherAI/gpt-neox-20b
-        max_len: 256
+        max_len: 512
   
-  val_freqL: 500
+  val_freqL: 1000
   checkpoint_freq: 500
 
 ### Defaults ###
 general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
-  batch_size: 128
+  batch_size: 64
   accumulation_steps: 1
-  train_steps: 20000
+  train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: False
   num_workers: 8
@@ -54,7 +54,7 @@ scheduler_defaults: &scheduler_defaults
   name: CosineAnnealingLRWithWarmup
   eta_min: 1e-6
   num_warmup_steps: 1000
-  num_training_steps: 20000
+  num_training_steps: 10000
 
 Transformer_defaults: &Transformer_defaults
   general: &Transformer_general
@@ -75,6 +75,7 @@ Transformer_defaults: &Transformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -102,6 +103,7 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -128,6 +130,7 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -154,6 +157,7 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -184,6 +188,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     causal: True
     use_embedding: True
     pos_encoding: xpos
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -205,6 +210,7 @@ Mamba2_defaults: &Mamba2_defaults
     bidirectional: False
     use_embedding: True
     chunk_size: 64
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults
@@ -219,14 +225,15 @@ SeqMLP_defaults: &SeqMLP_defaults
   model: &SeqMLP_model
     name: SeqMLP
     emb_dim: 128
-    u_dim: 128
-    v_dim: 128
+    d_state: 128
+    d_inner: 128
     n_heads: 4
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
     mode: causal
     use_embedding: True
+    weight_tying: True
   
   optimizer:
     <<: *optimizer_defaults

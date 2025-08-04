@@ -14,6 +14,7 @@ from datasets import load_dataset, load_from_disk
 
 class SequentialMNIST(datasets.MNIST):
     def __init__(self, root, train, download=True, permuted=False):
+        root = os.path.expanduser(root)
         self.transform = [
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.view(-1, 1))
@@ -26,6 +27,7 @@ class SequentialMNIST(datasets.MNIST):
 
 class SequentialEMNIST(datasets.EMNIST):
     def __init__(self, root, train, split, download=True, permuted=False):
+        root = os.path.expanduser(root)
         self.transform = [
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.view(-1, 1))
@@ -38,6 +40,7 @@ class SequentialEMNIST(datasets.EMNIST):
 
 class SequentialFashionMNIST(datasets.FashionMNIST):
     def __init__(self, root, train, download=True, permuted=False):
+        root = os.path.expanduser(root)
         self.transform = [
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.view(-1, 1))
@@ -50,6 +53,7 @@ class SequentialFashionMNIST(datasets.FashionMNIST):
 
 class SequentialCIFAR10(datasets.CIFAR10):
     def __init__(self, root, train, download=True, grayscale=True, permuted=False):
+        root = os.path.expanduser(root)
         if grayscale:
             self.transform = [
                 transforms.Grayscale(num_output_channels=1),
@@ -69,6 +73,7 @@ class SequentialCIFAR10(datasets.CIFAR10):
 
 class SequentialCIFAR100(datasets.CIFAR100):
     def __init__(self, root, train, download=True, grayscale=True, permuted=False):
+        root = os.path.expanduser(root)
         if grayscale:
             self.transform = [
                 transforms.Grayscale(num_output_channels=1),
@@ -100,6 +105,7 @@ class Pathfinder(Dataset):
         
         min_idx = 0 if train else split_idx
         max_idx = split_idx if train else 200
+        root = os.path.expanduser(root)
         dataset_root = os.path.join(root, f"pathfinder{dim}", subset)
         metadata_root = os.path.join(root, f"pathfinder{dim}", subset, 'metadata')
         for i in range(min_idx, max_idx):
@@ -138,7 +144,8 @@ class ListOps(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-        self.data = pd.read_csv(f"{root}/listops/basic_{split}.tsv", sep="\t")
+        path = os.path.expanduser(os.path.join(root, "listops", f"basic_{split}.tsv"))
+        self.data = pd.read_csv(path, sep="\t")
         
         if balance: self._balance_data()
     
@@ -369,7 +376,7 @@ class ThePile(Dataset):
         self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
         # cache directory for this split
-        cache_dir = os.path.join(root, "ThePile", f"{split}_cache")
+        cache_dir = os.path.expanduser(os.path.join(root, "ThePile", f"{split}_cache"))
         os.makedirs(cache_dir, exist_ok=True)
 
         # find or create shards on disk
