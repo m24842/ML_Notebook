@@ -22,3 +22,9 @@ dependencies = [
     "tqdm",
     "zstandard",
 ]
+
+[project.optional-dependencies]
+cuda = [
+  "mamba-ssm",
+  "causal-conv1d",
+]
