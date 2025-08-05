@@ -208,7 +208,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     n_layers: 4
     input_dim: 1
     output_dim: 10
-    mode: bidirectional
+    bidirectional: True
     use_embedding: False
     pos_encoding: True
     pos_encoding_max_len: 784
@@ -250,31 +250,51 @@ experiments:
     general:
       <<: *DecayNet_general
       seed: 0
+    
+  - <<: *DecayNet_defaults
+    general:
+      <<: *DecayNet_general
+      seed: 42
+  
+  - <<: *DecayNet_defaults
+    general:
+      <<: *DecayNet_general
+      seed: 1111
 
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 0
+  - <<: *DecayNet_defaults
+    general:
+      <<: *DecayNet_general
+      seed: 2222
+  
+  - <<: *DecayNet_defaults
+    general:
+      <<: *DecayNet_general
+      seed: 3333
 
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 42
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 0
+
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 42
   
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 1111
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 1111
   
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 2222
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 2222
   
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 3333
+  - <<: *SeqMLP_defaults
+    general:
+      <<: *SeqMLP_general
+      seed: 3333
   
   # - <<: *Mamba2_defaults
   #   general:

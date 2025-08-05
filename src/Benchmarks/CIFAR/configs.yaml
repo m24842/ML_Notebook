@@ -209,7 +209,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     n_layers: 8
     input_dim: 1
     output_dim: 10
-    mode: bidirectional
+    bidirectional: True
     use_embedding: False
   
   optimizer:

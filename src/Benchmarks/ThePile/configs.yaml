@@ -233,7 +233,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     n_layers: 24
     input_dim: 50277
     output_dim: 50277
-    mode: causal
+    bidirectional: False
     use_embedding: True
     weight_tying: True
   

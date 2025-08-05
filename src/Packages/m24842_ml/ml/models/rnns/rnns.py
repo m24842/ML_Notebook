@@ -459,8 +459,8 @@ class SeqLinear(nn.Module):
         out = self.out_proj(out)
         return out[:, :src_len]
     
-    def forward(self, x, mode="causal"):
-        if mode == "bidirectional": return self.bidirectional(x)
+    def forward(self, x, bidirectional=False):
+        if bidirectional: return self.bidirectional(x)
         bsz, src_len, d_model = x.size()
         
         pad_src_len = src_len
@@ -502,13 +502,9 @@ class SeqLinear(nn.Module):
         x = rearrange(x, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         I = rearrange(I, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         O = rearrange(O, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-                
-        if mode == "causal":
-            w = w * self.w_base#-F.silu(w * self.w_base)
-            out = self.ssd(O, w, I, x, self.chunk_size)
-        elif mode == "noncausal":
-            decay = F.softmax(-F.silu(w * self.w_base), dim=1)
-            out = torch.einsum('bthd, bsh, bshd, bshe -> bthe', x, decay, I, O)
+        
+        w = w * self.w_base#-F.silu(w * self.w_base)
+        out = self.ssd(O, w, I, x, self.chunk_size)
 
         out = rearrange(out, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
@@ -517,18 +513,18 @@ class SeqLinear(nn.Module):
 class SeqMLP(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  d_state=None, d_inner=None, d_conv=4,
-                 chunk_size=64,
+                 chunk_size=64, bidirectional=False,
                  n_layers=1, n_heads=1, dropout=0.0,
                  pos_encoding=False, pos_encoding_max_len=None,
                  use_embedding=True, weight_tying=False,
-                 mode="causal", device="cpu"):
+                 device="cpu"):
         super().__init__()
         self.emb_dim = emb_dim
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.mode = mode
+        self.bidirectional = bidirectional
         self.use_embedding = use_embedding
         self.device = device
 
@@ -578,7 +574,7 @@ class SeqMLP(nn.Module):
             x = x + self.abs_pos_encoding(pos)
         for layer in self.layers:
             x_norm = layer.norm(x)
-            y = layer.mixer(x_norm, mode=self.mode)
+            y = layer.mixer(x_norm, bidirectional=self.bidirectional)
             x = x + layer.dropout(y)
         x = self.norm_f(x)
         x = self.out_proj(x)
