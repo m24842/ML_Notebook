@@ -221,12 +221,36 @@ SeqMLP_defaults: &SeqMLP_defaults
     d_state: 128
     d_inner: 128
     n_heads: 4
-    n_layers: 1
+    n_layers: 12
     input_dim: 50277
     output_dim: 50277
     mode: causal
     use_embedding: True
     weight_tying: True
+    chunk_size: 64
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
+DecayNet_defaults: &DecayNet_defaults
+  general: &DecayNet_general
+    <<: *general_defaults
+  
+  model: &DecayNet_model
+    name: DecayNet
+    emb_dim: 128
+    d_inner: 128
+    n_heads: 4
+    n_layers: 12
+    input_dim: 50277
+    output_dim: 50277
+    bidirectional: False
+    use_embedding: True
+    weight_tying: True
+    chunk_size: 64
   
   optimizer:
     <<: *optimizer_defaults
@@ -236,11 +260,15 @@ SeqMLP_defaults: &SeqMLP_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *SeqMLP_defaults
+  - <<: *DecayNet_defaults
     general:
-      <<: *SeqMLP_general
+      <<: *DecayNet_general
       seed: 0
-      # load_checkpoint: True
+
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 0
 
   # - <<: *SeqMLP_defaults
   #   general:
