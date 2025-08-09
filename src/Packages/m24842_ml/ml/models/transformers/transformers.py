@@ -10,7 +10,7 @@ from ..common import *
 class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
-                 attn_sink=False, dropout=0.0, causal=True,
+                 dropout=0.0, causal=True,
                  use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -51,7 +51,6 @@ class Transformer(nn.Module):
                         emb_dim,
                         self.n_heads,
                         qk_dim=qk_dim,
-                        attn_sink=attn_sink,
                         bias=attn_bias,
                         batch_first=True,
                         device=device
@@ -89,7 +88,7 @@ class Transformer(nn.Module):
 class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None,
-                 qk_dim=None, attn_sink=False, dropout=0.0,
+                 qk_dim=None, dropout=0.0,
                  causal=True, use_embedding=True,
                  weight_tying=False, ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -129,7 +128,6 @@ class LinearTransformer(nn.Module):
                         emb_dim,
                         self.n_heads,
                         qk_dim=qk_dim,
-                        attn_sink=attn_sink,
                         bias=attn_bias,
                         batch_first=True,
                         device=device
@@ -166,7 +164,7 @@ class LinearTransformer(nn.Module):
 
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, ff_dim=None, attn_sink=False,
+                 n_layers=1, n_heads=1, ff_dim=None,
                  qk_dim=None, dropout=0.0, causal=True, use_embedding=True,
                  weight_tying=False, ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -206,7 +204,6 @@ class OrthoLinearTransformer(nn.Module):
                         emb_dim,
                         self.n_heads,
                         qk_dim=qk_dim,
-                        attn_sink=attn_sink,
                         bias=attn_bias,
                         batch_first=True,
                         device=device
@@ -244,7 +241,7 @@ class OrthoLinearTransformer(nn.Module):
 class CompressionTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
-                 mem_dim=16, attn_sink=False, dropout=0.0,
+                 mem_dim=16, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -286,7 +283,6 @@ class CompressionTransformer(nn.Module):
                         self.n_heads,
                         qk_dim=qk_dim,
                         compressed_len=self.compressed_len,
-                        attn_sink=attn_sink,
                         dropout=dropout,
                         bias=attn_bias,
                         batch_first=True,
@@ -326,7 +322,7 @@ class SlidingWindowTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  window_len=64, dilate=True,dilation_factor=None,
-                 use_flex_attn=True, attn_sink=False, dropout=0.0,
+                 use_flex_attn=True, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -369,7 +365,6 @@ class SlidingWindowTransformer(nn.Module):
                         qk_dim=qk_dim,
                         window_len=window_len,
                         use_flex_attn=use_flex_attn,
-                        attn_sink=attn_sink,
                         dilation=dilation_factor**i if dilate else 1,
                         dropout=dropout,
                         bias=attn_bias,
