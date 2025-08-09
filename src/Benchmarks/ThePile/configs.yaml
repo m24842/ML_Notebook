@@ -48,6 +48,7 @@ general_defaults: &general_defaults
   train_steps: 5000
   grad_clip_norm: 1.0
   mixed_precision: False
+  parallelism: model
   num_workers: 8
 
 optimizer_defaults: &optimizer_defaults
@@ -74,7 +75,6 @@ Transformer_defaults: &Transformer_defaults
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    attn_sink: False
     ff_bias: False
     attn_bias: False
     causal: True
@@ -101,7 +101,6 @@ CompressionTransformer_defaults: &CompressionTransformer_defaults
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    attn_sink: False
     ff_bias: False
     attn_bias: False
     causal: True
@@ -127,7 +126,6 @@ LinearTransformer_defaults: &LinearTransformer_defaults
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    attn_sink: False
     ff_bias: False
     attn_bias: False
     causal: True
@@ -153,7 +151,6 @@ OrthoLinearTransformer_defaults: &OrthoLinearTransformer_defaults
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    attn_sink: False
     ff_bias: False
     attn_bias: False
     causal: True
@@ -183,7 +180,6 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     n_layers: 12
     input_dim: 50277
     output_dim: 50277
-    attn_sink: False
     ff_bias: False
     attn_bias: False
     causal: True

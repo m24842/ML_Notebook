@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m24842_ml"
-version = "1.5.0"
+version = "1.5.1"
 description = "Collection of ML models and benchmarking tools"
 requires-python = ">=3.8"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "torchvision",
     "transformers",
     "datasets==3.6.0",
+    "tensor_parallel",
     "numpy",
     "pandas",
     "einops",

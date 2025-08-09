@@ -10,6 +10,7 @@ import warnings
 import traceback
 from tqdm import tqdm
 import torch.nn as nn
+import tensor_parallel as tp
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
 from contextlib import nullcontext
@@ -316,7 +317,7 @@ def test_epoch(model, test_loader, loss_fn, log_fn=default_log_fn, data_fn=defau
 
 def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, loss_fn, log_fn=default_log_fn, data_fn=default_data_fn,
           scheduler=None, device="cpu", compile_backend="aot_eager",
-          train_config=None, mixed_precision=False,
+          train_config=None, mixed_precision=False, parallelism="data",
           checkpoint_dir="", model_name=None,
           val_loader=None, test_loader=None,
           wandb_logging=True, wandb_entity=None, wandb_project=None,
@@ -349,7 +350,17 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
             )
         
         # Use multiple GPUs if available
-        if torch.cuda.device_count() > 1: model = nn.DataParallel(model)
+        if torch.cuda.device_count() > 1:
+            if parallelism == "model":
+                device_ids = list(range(torch.cuda.device_count()))
+                model = tp.tensor_parallel(model, device_ids)
+            elif parallelism == "data":
+                model = nn.DataParallel(model.to(device))
+            else:
+                raise ValueError(f"Invalid parallelism type: {parallelism}. Must be 'data' or 'model'.")
+        else:
+            model = model.to(device)
+        setattr(model, 'device', device)
         
         if hasattr(train_loader.dataset, "seq_len_range"):
             # Allocate dynamic memory if applicable for dataset
@@ -493,6 +504,8 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                     
                     `mixed_precision` (default: False): Whether to use mixed precision for training.
                     
+                    `parallelism` (default: data): Type of parallelism to use if multiple GPUs are available. Either "data" or "model".
+                    
                     `num_workers` (default: 0): Number of workers for data loading.
                 
                 `model`:
@@ -620,6 +633,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
             
             grad_clip_norm = general_config.get("grad_clip_norm", None)
             mixed_precision = general_config.get("mixed_precision", False) and device=="cuda"
+            parallelism = general_config.get("parallelism", "data")
             if torch.cuda.is_available(): torch.set_float32_matmul_precision('high')
             
             loss_backoff_count = general_config.get("loss_backoff_count", 10)
@@ -659,7 +673,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
             model_name = model_config.pop("name")
             model_config = try_to_float(model_config)
             model_args = model_config.copy()
-            model_args["device"] = device
+            model_args["device"] = "cpu"
             
             # Initialize model
             compile_backend = general_config.get("compile_backend", "auto")
@@ -722,7 +736,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
                 epochs=epochs, train_steps=train_steps, benchmark_name=benchmark_name, model_name=model_name,
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 loss_fn=experiment_loss_fn, log_fn=experiment_log_fn, data_fn=experiment_data_fn,
-                train_config=train_config, mixed_precision=mixed_precision,
+                train_config=train_config, mixed_precision=mixed_precision, parallelism=parallelism,
                 compile_backend=compile_backend, checkpoint_dir=checkpoint_dir,
                 train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
                 wandb_logging=wandb_logging, wandb_entity=wandb_entity, wandb_project=wandb_project,

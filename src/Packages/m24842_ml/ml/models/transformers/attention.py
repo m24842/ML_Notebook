@@ -14,7 +14,7 @@ class MultiheadAttention(nn.Module):
     Vanilla Softmax Attention.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 qk_dim=None, dropout=0.0, attn_sink=False,
+                 qk_dim=None, dropout=0.0,
                  batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
@@ -23,7 +23,6 @@ class MultiheadAttention(nn.Module):
         self.dropout = dropout
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
-        self.attn_sink = attn_sink
         self.device = device
                 
         self.beta = nn.Parameter(torch.empty(n_heads, device=device))
@@ -60,11 +59,6 @@ class MultiheadAttention(nn.Module):
         k = self.k_proj(x)  # (src_len, batch_size, d_model)
         v = self.v_proj(x)  # (src_len, batch_size, d_model)
         
-        if self.attn_sink:
-            src_len += 1
-            k = torch.cat([k, torch.zeros((1, bsz, d_model), dtype=k.dtype, device=k.device)], dim=0)
-            v = torch.cat([v, torch.zeros((1, bsz, d_model), dtype=v.dtype, device=v.device)], dim=0)
-        
         q = rearrange(q, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, tgt_len, d_head)
         k = rearrange(k, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
         v = rearrange(v, 's b (h d) -> b h s d', h=self.n_heads).contiguous()  # (bsz, n_heads, src_len, d_head)
@@ -97,14 +91,12 @@ class LinearAttention(nn.Module):
     Vanilla Linear Attention.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 qk_dim=None, attn_sink=False,
-                 batch_first=False, device="cpu"):
+                 qk_dim=None, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.qk_dim = d_model if qk_dim is None else qk_dim
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.device = device
         
@@ -140,11 +132,6 @@ class LinearAttention(nn.Module):
         q = rearrange(self.q_proj(x), 's b (h d) -> b h s d', h=self.n_heads)
         k = rearrange(self.k_proj(x), 's b (h d) -> b h s d', h=self.n_heads)
         v = rearrange(self.v_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads).contiguous()
-        
-        if self.attn_sink:
-            src_len += 1
-            k = torch.cat([k, torch.zeros((bsz, self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=2)
-            v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=1)
         
         if rope:
             if rope.use_xpos:
@@ -183,14 +170,12 @@ class OrthoLinearAttention(nn.Module):
     A derivative of linear attention that orthogonalizes queries and keys for each head to reduce crossterm interference.
     """
     def __init__(self, d_model, n_heads, bias=True,
-                 qk_dim=None, attn_sink=False,
-                 batch_first=False, device="cpu"):
+                 qk_dim=None, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.qk_dim = d_model if qk_dim is None else qk_dim
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
-        self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.device = device
         
@@ -226,11 +211,6 @@ class OrthoLinearAttention(nn.Module):
         q = rearrange(self.q_proj(x), 's b (h d) -> b h s d', h=self.n_heads)
         k = rearrange(self.k_proj(x), 's b (h d) -> b h s d', h=self.n_heads)
         v = rearrange(self.v_proj(x), 's b (h d) -> (b h) s d', h=self.n_heads)
-                
-        if self.attn_sink:
-            src_len += 1
-            k = torch.cat([k, torch.zeros((bsz, self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=2)
-            v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=x.dtype, device=self.device)], dim=1)
         
         if rope:
             if rope.use_xpos:
@@ -270,7 +250,7 @@ class CompressionAttention(nn.Module):
     Achieved by two attention operations of linear complexity with respect to sequence length.
     """
     def __init__(self, d_model, n_heads, compressed_len,
-                 qk_dim=None, attn_sink=False, dropout=0.0,
+                 qk_dim=None, dropout=0.0,
                  bias=True, batch_first=False, device="cpu"):
         super().__init__()
         self.d_model = d_model
@@ -278,7 +258,6 @@ class CompressionAttention(nn.Module):
         self.n_heads = n_heads
         self.d_head = d_model // n_heads
         self.compressed_len = compressed_len
-        self.attn_sink = attn_sink
         self.batch_first = batch_first
         self.dropout = dropout
         self.device = device
@@ -321,11 +300,6 @@ class CompressionAttention(nn.Module):
         q_s = self.q_proj(x)  # (tgt_len, batch_size, d_model)
         k_s = self.k_proj(x)  # (src_len, batch_size, d_model)
         v_s = self.v_proj(x)  # (src_len, batch_size, d_model)
-        
-        if self.attn_sink:
-            src_len += 1
-            k_s = torch.cat([k_s, torch.zeros((1, bsz, d_model), dtype=x.dtype, device=x.device)], dim=0)
-            v_s = torch.cat([v_s, torch.zeros((1, bsz, d_model), dtype=x.dtype, device=x.device)], dim=0)
         
         # Reshape for multi-head attention
         q_c = rearrange(q_c, 'c b (h d) -> b h c d', h=self.n_heads).contiguous()
@@ -384,7 +358,7 @@ class SlidingWindowAttention(nn.Module):
     Applies softmax attention over a dilated sliding window of fixed length.
     """
     def __init__(self, d_model, n_heads, window_len, dilation=1,
-                 qk_dim=None, attn_sink=False, dropout=0.0, bias=True,
+                 qk_dim=None, dropout=0.0, bias=True,
                  batch_first=False, use_flex_attn=True, device="cpu"):
         super().__init__()
         self.d_model = d_model
@@ -396,7 +370,6 @@ class SlidingWindowAttention(nn.Module):
         self.batch_first = batch_first
         self.d_head = d_model // n_heads
         self.use_flex_attn = use_flex_attn
-        self.attn_sink = attn_sink
         self.device = device
         
         self.beta = nn.Parameter(torch.empty(n_heads, device=device))
@@ -516,23 +489,11 @@ class SlidingWindowAttention(nn.Module):
                 attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, tgt_len, src_len)
             else:
                 attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, tgt_len, src_len)
-            
-            if self.attn_sink:
-                src_len += 1
-                k = torch.cat([k, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=k.dtype, device=k.device)], dim=1)
-                v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=v.dtype, device=v.device)], dim=1)
-                if attn_mask is not None:
-                    attn_mask = F.pad(attn_mask, (0, 1))  # (1, tgt_len, src_len + 1)
 
             attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, scale=1.0, dropout_p=self.dropout)  # (bsz * n_heads, tgt_len, d_head)
             
             attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
         else:
-            if self.attn_sink:
-                src_len += 1
-                k = torch.cat([k, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=k.dtype, device=k.device)], dim=1)
-                v = torch.cat([v, torch.zeros((bsz*self.n_heads, 1, self.d_head), dtype=v.dtype, device=v.device)], dim=1)
-            
             if causal:
                 block_mask = self.causal_windowed_block_mask(src_len, tgt_len)
             else:
