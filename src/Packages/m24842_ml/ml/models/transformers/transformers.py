@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.linalg as LA
-import torch.autograd as AG
 from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
 from ..common import *
