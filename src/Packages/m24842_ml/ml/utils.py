@@ -116,6 +116,7 @@ def apply_weight_decay(model, weight_decay, exclude=["bias", "norm"]):
     ]
 
 def checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler=None):
+    checkpoint_dir = os.path.expanduser(checkpoint_dir)
     model_dir = f'{checkpoint_dir}/{model_name}'
     model_path = f'{model_dir}/{model_name}.pt'
     optimizer_path = f'{model_dir}/{model_name}_opt.pt'
@@ -128,6 +129,7 @@ def checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler=None
     if scheduler: torch.save(scheduler.state_dict(), scheduler_path)
 
 def load_checkpoint(model_name, checkpoint_dir, model, optimizer=None, scheduler=None, device="cpu"):
+    checkpoint_dir = os.path.expanduser(checkpoint_dir)
     model_dir = f'{checkpoint_dir}/{model_name}'
     model_path = f'{model_dir}/{model_name}.pt'
     optimizer_path = f'{model_dir}/{model_name}_opt.pt'
