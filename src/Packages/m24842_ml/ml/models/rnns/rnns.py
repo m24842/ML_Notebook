@@ -293,14 +293,12 @@ class SeqLinear(nn.Module):
     """
     def __init__(self, d_model, n_heads,
                  d_conv=4, d_state=None, d_inner=None,
-                 chunk_size=64,
                  device="cpu"):
         super().__init__()
         self.d_model = d_model
         self.d_state = d_state if d_state is not None else d_model
         self.d_inner = d_inner if d_inner is not None else d_model
         self.n_heads = n_heads
-        self.chunk_size = chunk_size
         self.device = device
         
         d_in_proj = 2 * self.d_state + self.d_inner + self.n_heads
@@ -338,48 +336,6 @@ class SeqLinear(nn.Module):
         x_segsum = x_segsum.masked_fill(~mask, -torch.inf)
         return x_segsum
 
-    def ssd(self, x, A, B, C, chunk_size):
-        x, A, B, C = [
-            rearrange(m, "b (c l) ... -> b c l ...", l=chunk_size) for m in (x, A, B, C)
-        ]
-
-        A = rearrange(A, "b c l h -> b h c l")
-        A_cumsum = torch.cumsum(A, dim=-1)
-
-        # 1. Compute the output for each intra-chunk (diagonal blocks)
-        L_log = self.segsum(A)
-        L = torch.exp(L_log - L_log.topk(1, dim=-1).values)
-        norm_diag = rearrange(L.sum(-1), "b h c l -> b c l h")
-        Y_diag = torch.einsum("bclhn, bcshn, bhcls, bcshp -> bclhp", C, B, L, x)
-
-        # 2. Compute the state for each intra-chunk
-        # (right term of low-rank factorization of off-diagonal blocks; B terms)
-        decay_states = A_cumsum[:, :, :, -1:] - A_cumsum
-        decay_states = torch.exp(decay_states - decay_states.topk(1, dim=-1).values)
-        norm_decay = rearrange(decay_states.sum(-1), "b h c -> b c h")
-        states = torch.einsum("bclhn, bhcl, bclhp -> bchpn", B, decay_states, x)
-
-        # 3. Compute the inter-chunk SSM recurrence; produces correct SSM states at chunk boundaries
-        # (middle term of factorization of off-diag blocks; A terms)
-        norm_decay = F.pad(norm_decay, (0, 0, 1, 0), value=0.0)
-        states = F.pad(states, (0, 0, 0, 0, 0, 0, 1, 0), value=0.0)
-        decay_chunk = self.segsum(F.pad(A_cumsum[:, :, :, -1], (1, 0)))
-        decay_chunk = torch.exp(decay_chunk - decay_chunk.topk(1, dim=-1).values)
-        norm_decay = torch.einsum("bhzc, bch -> bzh", decay_chunk, norm_decay)[:, :-1]
-        states = torch.einsum("bhzc, bchpn -> bzhpn", decay_chunk, states)[:, :-1]
-
-        # 4. Compute state -> output conversion per chunk
-        # (left term of low-rank factorization of off-diagonal blocks; C terms)
-        state_decay_out = torch.exp(A_cumsum - A_cumsum.topk(1, dim=-1).values)
-        norm_off = torch.einsum("bch, bhcl -> bclh", norm_decay, state_decay_out)
-        Y_off = torch.einsum("bclhn, bchpn, bhcl -> bclhp", C, states, state_decay_out)
-
-        # Add output of intra-chunk and inter-chunk terms (diagonal and off-diagonal blocks)
-        Y = rearrange(Y_diag + Y_off, "b c l h n -> b (c l) h n")
-        norm = rearrange(norm_diag + norm_off, "b c l h -> b (c l) h")
-
-        return Y / norm.unsqueeze(-1)
-    
     def bidirectional(self, x):
         bsz, src_len, d_model = x.size()
         
@@ -430,17 +386,6 @@ class SeqLinear(nn.Module):
             dim=-1
         )
         
-        if src_len % self.chunk_size != 0:
-            pad_src_len = (src_len // self.chunk_size + 1) * self.chunk_size
-            x_f = F.pad(x_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            x_b = F.pad(x_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            O_f = F.pad(O_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            O_b = F.pad(O_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            I_f = F.pad(I_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            I_b = F.pad(I_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            w_f = F.pad(w_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            w_b = F.pad(w_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-        
         x_f = rearrange(x_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         I_f = rearrange(I_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         O_f = rearrange(O_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
@@ -449,25 +394,23 @@ class SeqLinear(nn.Module):
         I_b = rearrange(I_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         O_b = rearrange(O_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
 
-        w_f = -F.silu(w * self.w_base)
+        w_f = w * self.w_base#-F.silu(w * self.w_base)
         w_b = w_f.flip(1)
         
-        out_f = self.ssd(O_f, w_f, I_f, x_f, self.chunk_size)
-        out_b = self.ssd(O_b, w_b, I_b, x_b, self.chunk_size)
+        L_f = self.segsum(w_f.transpose(1, 2)).softmax(-1)
+        L_b = self.segsum(w_b.transpose(1, 2)).softmax(-1)
+        
+        out_f = torch.einsum("bshn, bhls, bshn, blhe -> blhe", x_f, L_f, I_f, O_f)
+        out_b = torch.einsum("bshn, bhls, bshn, blhe -> blhe", x_b, L_b, I_b, O_b)
         
         out = rearrange(out_f + out_b, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
-        return out[:, :src_len]
+        return out
     
     def forward(self, x, bidirectional=False):
         if bidirectional: return self.bidirectional(x)
         bsz, src_len, d_model = x.size()
         
-        pad_src_len = src_len
-        if src_len % self.chunk_size != 0:
-            pad_src_len = (src_len // self.chunk_size + 1) * self.chunk_size
-            x = F.pad(x, (0, 0, 0, pad_src_len - src_len), value=0.0)
-
         xIOw = self.in_proj(x)
         
         xIO, w = torch.split(
@@ -487,7 +430,7 @@ class SeqLinear(nn.Module):
                 activation=None,
             ).transpose(1, 2)
         else:
-            xIO = self.conv(xIO.transpose(1, 2).contiguous()).transpose(1, 2)[:, :pad_src_len]
+            xIO = self.conv(xIO.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
         
         x, I, O = torch.split(
             xIO,
@@ -504,16 +447,17 @@ class SeqLinear(nn.Module):
         O = rearrange(O, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
         
         w = w * self.w_base#-F.silu(w * self.w_base)
-        out = self.ssd(O, w, I, x, self.chunk_size)
-
+        L = self.segsum(w.transpose(1, 2)).softmax(-1)
+        out = torch.einsum("bshn, bhls, bshn, blhe -> blhe", x, L, I, O)
+        
         out = rearrange(out, 'b s h d -> b s (h d)')
         out = self.out_proj(out)
-        return out[:, :src_len]
+        return out
 
 class SeqMLP(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  d_state=None, d_inner=None, d_conv=4,
-                 chunk_size=64, bidirectional=False,
+                 bidirectional=False,
                  n_layers=1, n_heads=1, dropout=0.0,
                  pos_encoding=False, pos_encoding_max_len=None,
                  use_embedding=True, weight_tying=False,
@@ -545,249 +489,6 @@ class SeqMLP(nn.Module):
                     mixer=SeqLinear(
                         d_model=emb_dim,
                         d_state=d_state,
-                        d_inner=d_inner,
-                        d_conv=d_conv,
-                        chunk_size=chunk_size,
-                        n_heads=n_heads,
-                        device=device
-                    ),
-                    dropout = nn.Dropout(dropout),
-                    norm=nn.RMSNorm(emb_dim, device=device),
-                )
-            ) for _ in range(n_layers)
-        ])
-        self.norm_f=nn.RMSNorm(emb_dim, device=device)
-        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
-        
-        nn.init.xavier_uniform_(self.embedding.weight)
-        if weight_tying: self.out_proj.weight = self.embedding.weight
-        else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
-        self.to(device)
-
-    def forward(self, x):
-        seq_len = x.size(1)
-        if self.use_embedding: x = self.embedding(x.long())
-        else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
-            pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
-            x = x + self.abs_pos_encoding(pos)
-        for layer in self.layers:
-            x_norm = layer.norm(x)
-            y = layer.mixer(x_norm, bidirectional=self.bidirectional)
-            x = x + layer.dropout(y)
-        x = self.norm_f(x)
-        x = self.out_proj(x)
-        return x
-
-class DecayBlock(nn.Module):
-    def __init__(self, d_model, n_heads,
-                 d_conv=4, d_inner=None, chunk_size=64,
-                 device="cpu"):
-        super().__init__()
-        self.d_model = d_model
-        self.d_inner = d_inner if d_inner is not None else d_model
-        self.n_heads = n_heads
-        self.chunk_size = chunk_size
-        self.device = device
-        
-        d_in_proj = self.d_inner + self.n_heads
-        self.in_proj = nn.Linear(d_model, d_in_proj, bias=False, device=device)
-        self.conv = nn.Conv1d(
-            in_channels=self.d_inner,
-            out_channels=self.d_inner,
-            kernel_size=d_conv,
-            groups=self.d_inner,
-            padding=d_conv-1,
-            device=device,
-        )
-        self.w_base = nn.Parameter(torch.empty(n_heads, device=device))
-        self.out_proj = nn.Linear(self.d_inner, d_model, bias=False, device=device)
-        
-        self._reset_parameters()
-    
-    def _reset_parameters(self):
-        nn.init.xavier_uniform_(self.in_proj.weight)
-        nn.init.xavier_uniform_(self.conv.weight)
-        nn.init.uniform_(self.w_base, -0.5, 0.5)
-        nn.init.xavier_uniform_(self.out_proj.weight)
-        
-        if self.conv.bias is not None:
-            nn.init.constant_(self.conv.bias, 0.)
-    
-    def segsum(self, x):
-        T = x.size(-1)
-        x = repeat(x, "... d -> ... d e", e=T)
-        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device), diagonal=-1)
-        x = x.masked_fill(~mask, 0)
-        x_segsum = torch.cumsum(x, dim=-2)
-        mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device), diagonal=0)
-        x_segsum = x_segsum.masked_fill(~mask, -torch.inf)
-        return x_segsum
-
-    def ssd(self, x, A, chunk_size):
-        x = rearrange(x, "b (c l) h n -> b c l h n", l=chunk_size)
-        A = rearrange(A, "b (c l) h -> b h c l", l=chunk_size)
-
-        A_cumsum = torch.cumsum(A, dim=-1)
-
-        # 1. Compute the output for each intra-chunk (diagonal blocks)
-        L_log = self.segsum(A)
-        L = torch.exp(L_log - L_log.topk(1, dim=-1).values)
-        norm_diag = rearrange(L.sum(-1), "b h c l -> b c l h")
-        Y_diag = torch.einsum("bhcls, bcshn -> bclhn", L, x)
-
-        # 2. Compute the state for each intra-chunk
-        # (right term of low-rank factorization of off-diagonal blocks; B terms)
-        decay_states = A_cumsum[:, :, :, -1:] - A_cumsum
-        decay_states = torch.exp(decay_states - decay_states.topk(1, dim=-1).values)
-        norm_decay = rearrange(decay_states.sum(-1), "b h c -> b c h")
-        states = torch.einsum("bhcl, bclhn -> bchn", decay_states, x)
-
-        # 3. Compute the inter-chunk SSM recurrence; produces correct SSM states at chunk boundaries
-        # (middle term of factorization of off-diag blocks; A terms)
-        norm_decay = F.pad(norm_decay, (0, 0, 1, 0), value=0.0)
-        states = F.pad(states, (0, 0, 0, 0, 1, 0), value=0.0)
-        decay_chunk = self.segsum(F.pad(A_cumsum[:, :, :, -1], (1, 0)))
-        decay_chunk = torch.exp(decay_chunk - decay_chunk.topk(1, dim=-1).values)
-        norm_decay = torch.einsum("bhzc, bch -> bzh", decay_chunk, norm_decay)[:, :-1]
-        states = torch.einsum("bhzc, bchn -> bzhn", decay_chunk, states)[:, :-1]
-
-        # 4. Compute state -> output conversion per chunk
-        # (left term of low-rank factorization of off-diagonal blocks; C terms)
-        state_decay_out = torch.exp(A_cumsum - A_cumsum.topk(1, dim=-1).values)
-        norm_off = torch.einsum("bch, bhcl -> bclh", norm_decay, state_decay_out)
-        Y_off = torch.einsum("bchn, bhcl -> bclhn", states, state_decay_out)
-
-        # Add output of intra-chunk and inter-chunk terms (diagonal and off-diagonal blocks)
-        Y = rearrange(Y_diag + Y_off, "b c l h n -> b (c l) h n")
-        norm = rearrange(norm_diag + norm_off, "b c l h -> b (c l) h")
-
-        return Y / norm.unsqueeze(-1)
-    
-    def bidirectional(self, x):
-        bsz, src_len, d_model = x.size()
-        
-        xw = self.in_proj(x)
-        
-        x, w = torch.split(
-            xw,
-            [
-                self.d_inner,
-                self.n_heads,
-            ],
-            dim=-1
-        )
-
-        if cuda_causal_conv1d is not None:
-            x_f = cuda_causal_conv1d(
-                x.transpose(1, 2).contiguous(),
-                self.conv.weight.squeeze(1),
-                bias=self.conv.bias,
-                activation=None,
-            ).transpose(1, 2)
-            x_b = cuda_causal_conv1d(
-                x.flip(1).transpose(1, 2).contiguous(),
-                self.conv.weight.squeeze(1),
-                bias=self.conv.bias,
-                activation=None,
-            ).transpose(1, 2)
-        else:
-            x_f = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
-            x_b = self.conv(x.flip(1).transpose(1, 2).contiguous()).transpose(1, 2)[:, :src_len]
-        
-        if src_len % self.chunk_size != 0:
-            pad_src_len = (src_len // self.chunk_size + 1) * self.chunk_size
-            x_f = F.pad(x_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            x_b = F.pad(x_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            w_f = F.pad(w_f, (0, 0, 0, pad_src_len - src_len), value=0.0)
-            w_b = F.pad(w_b, (0, 0, 0, pad_src_len - src_len), value=0.0)
-        
-        x_f = rearrange(x_f, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        x_b = rearrange(x_b, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        
-        w_f = w * self.w_base#-F.silu(w * self.w_base)
-        w_b = w_f.flip(1)
-        
-        out_f = self.ssd(x_f, w_f, self.chunk_size)
-        out_b = self.ssd(x_b, w_b, self.chunk_size)
-        
-        out = rearrange(out_f + out_b, 'b s h d -> b s (h d)')
-        out = self.out_proj(out)
-        return out[:, :src_len]
-    
-    def forward(self, x, bidirectional=False):
-        if bidirectional: return self.bidirectional(x)
-        bsz, src_len, d_model = x.size()
-        
-        pad_src_len = src_len
-        if src_len % self.chunk_size != 0:
-            pad_src_len = (src_len // self.chunk_size + 1) * self.chunk_size
-            x = F.pad(x, (0, 0, 0, pad_src_len - src_len), value=0.0)
-
-        xw = self.in_proj(x)
-        
-        x, w = torch.split(
-            xw,
-            [
-                self.d_inner,
-                self.n_heads,
-            ],
-            dim=-1
-        )
-        
-        if cuda_causal_conv1d is not None:
-            x = cuda_causal_conv1d(
-                x.transpose(1, 2).contiguous(),
-                self.conv.weight.squeeze(1),
-                bias=self.conv.bias,
-                activation=None,
-            ).transpose(1, 2)
-        else:
-            x = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2)[:, :pad_src_len]
-        
-        x = rearrange(x, 'b s (h d) -> b s h d', h=self.n_heads).contiguous()
-        
-        w = w * self.w_base#-F.silu(w * self.w_base)
-        out = self.ssd(x, w, self.chunk_size)
-        out = rearrange(out, 'b s h d -> b s (h d)')
-        out = self.out_proj(out)
-        return out[:, :src_len]
-
-class DecayNet(nn.Module):
-    def __init__(self, emb_dim, input_dim, output_dim,
-                 d_inner=None, chunk_size=64, d_conv=4,
-                 n_layers=1, n_heads=1, dropout=0.0,
-                 pos_encoding=False, pos_encoding_max_len=None,
-                 use_embedding=True, weight_tying=False,
-                 bidirectional=False, device="cpu"):
-        super().__init__()
-        self.emb_dim = emb_dim
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.n_layers = n_layers
-        self.n_heads = n_heads
-        self.bidirectional = bidirectional
-        self.use_embedding = use_embedding
-        self.device = device
-
-        if use_embedding:
-            self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
-        else:
-            self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
-        
-        self.abs_pos_encoding = None
-        if pos_encoding:
-            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
-            self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
-        
-        self.layers = nn.ModuleList([
-            nn.ModuleDict(
-                dict(
-                    mixer=DecayBlock(
-                        d_model=emb_dim,
-                        chunk_size=chunk_size,
                         d_inner=d_inner,
                         d_conv=d_conv,
                         n_heads=n_heads,

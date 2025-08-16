@@ -214,7 +214,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     name: SeqMLP
     emb_dim: 128
     d_state: 128
-    d_inner: 128
+    d_inner: 256
     n_heads: 4
     n_layers: 12
     input_dim: 50277
@@ -222,30 +222,6 @@ SeqMLP_defaults: &SeqMLP_defaults
     bidirectional: False
     use_embedding: True
     weight_tying: True
-    chunk_size: 64
-  
-  optimizer:
-    <<: *optimizer_defaults
-  
-  scheduler:
-    <<: *scheduler_defaults
-
-DecayNet_defaults: &DecayNet_defaults
-  general: &DecayNet_general
-    <<: *general_defaults
-  
-  model: &DecayNet_model
-    name: DecayNet
-    emb_dim: 128
-    d_inner: 128
-    n_heads: 4
-    n_layers: 12
-    input_dim: 50277
-    output_dim: 50277
-    bidirectional: False
-    use_embedding: True
-    weight_tying: True
-    chunk_size: 64
   
   optimizer:
     <<: *optimizer_defaults
@@ -255,183 +231,38 @@ DecayNet_defaults: &DecayNet_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 0
-
   # - <<: *SeqMLP_defaults
   #   general:
   #     <<: *SeqMLP_general
   #     seed: 0
 
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 42
-  
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 1111
-  
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 2222
-  
-  # - <<: *SeqMLP_defaults
-  #   general:
-  #     <<: *SeqMLP_general
-  #     seed: 3333
-  
   # - <<: *Mamba2_defaults
   #   general:
   #     <<: *Mamba2_general
   #     seed: 0
 
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 42
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 1111
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 2222
-  
-  # - <<: *Mamba2_defaults
-  #   general:
-  #     <<: *Mamba2_general
-  #     seed: 3333
-  
   # - <<: *SlidingWindowTransformer_defaults
   #   general:
   #     <<: *SlidingWindowTransformer_general
   #     seed: 0
 
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 42
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 1111
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 2222
-  
-  # - <<: *SlidingWindowTransformer_defaults
-  #   general:
-  #     <<: *SlidingWindowTransformer_general
-  #     seed: 3333
-  
   # - <<: *CompressionTransformer_defaults
   #   general:
   #     <<: *CompressionTransformer_general
   #     seed: 0
-  
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 42
-  
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 1111
-  
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 2222
-  
-  # - <<: *CompressionTransformer_defaults
-  #   general:
-  #     <<: *CompressionTransformer_general
-  #     seed: 3333
   
   # - <<: *Transformer_defaults
   #   general:
   #     <<: *Transformer_general
   #     seed: 0
   
-  # - <<: *Transformer_defaults
-  #   general:
-  #     <<: *Transformer_general
-  #     seed: 42
-  
-  # - <<: *Transformer_defaults
-  #   general:
-  #     <<: *Transformer_general
-  #     seed: 1111
-  
-  # - <<: *Transformer_defaults
-  #   general:
-  #     <<: *Transformer_general
-  #     seed: 2222
-  
-  # - <<: *Transformer_defaults
-  #   general:
-  #     <<: *Transformer_general
-  #     seed: 3333
-  
   # - <<: *OrthoLinearTransformer_defaults
   #   general:
   #     <<: *OrthoLinearTransformer_general
   #     seed: 0
   
-  # - <<: *OrthoLinearTransformer_defaults
-  #   general:
-  #     <<: *OrthoLinearTransformer_general
-  #     seed: 42
-  
-  # - <<: *OrthoLinearTransformer_defaults
-  #   general:
-  #     <<: *OrthoLinearTransformer_general
-  #     seed: 1111
-  
-  # - <<: *OrthoLinearTransformer_defaults
-  #   general:
-  #     <<: *OrthoLinearTransformer_general
-  #     seed: 2222
-  
-  # - <<: *OrthoLinearTransformer_defaults
-  #   general:
-  #     <<: *OrthoLinearTransformer_general
-  #     seed: 3333
-  
   # - <<: *LinearTransformer_defaults
   #   general:
   #     <<: *LinearTransformer_general
   #     seed: 0
-  
-  # - <<: *LinearTransformer_defaults
-  #   general:
-  #     <<: *LinearTransformer_general
-  #     seed: 42
-  
-  # - <<: *LinearTransformer_defaults
-  #   general:
-  #     <<: *LinearTransformer_general
-  #     seed: 1111
-  
-  # - <<: *LinearTransformer_defaults
-  #   general:
-  #     <<: *LinearTransformer_general
-  #     seed: 2222
-  
-  # - <<: *LinearTransformer_defaults
-  #   general:
-  #     <<: *LinearTransformer_general
-  #     seed: 3333
   

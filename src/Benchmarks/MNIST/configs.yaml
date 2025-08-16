@@ -198,7 +198,7 @@ SeqMLP_defaults: &SeqMLP_defaults
     name: SeqMLP
     emb_dim: 128
     d_state: 128
-    d_inner: 128
+    d_inner: 256
     n_heads: 4
     n_layers: 4
     input_dim: 1
@@ -207,31 +207,6 @@ SeqMLP_defaults: &SeqMLP_defaults
     use_embedding: False
     pos_encoding: True
     pos_encoding_max_len: 784
-    chunk_size: 28
-  
-  optimizer:
-    <<: *optimizer_defaults
-  
-  scheduler:
-    <<: *scheduler_defaults
-
-DecayNet_defaults: &DecayNet_defaults
-  general: &DecayNet_general
-    <<: *general_defaults
-  
-  model: &DecayNet_model
-    name: DecayNet
-    emb_dim: 128
-    d_inner: 128
-    n_heads: 4
-    n_layers: 4
-    input_dim: 1
-    output_dim: 10
-    bidirectional: True
-    use_embedding: False
-    pos_encoding: True
-    pos_encoding_max_len: 784
-    chunk_size: 28
   
   optimizer:
     <<: *optimizer_defaults
@@ -241,31 +216,6 @@ DecayNet_defaults: &DecayNet_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 0
-    
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 42
-  
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 1111
-
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 2222
-  
-  - <<: *DecayNet_defaults
-    general:
-      <<: *DecayNet_general
-      seed: 3333
-
   - <<: *SeqMLP_defaults
     general:
       <<: *SeqMLP_general
