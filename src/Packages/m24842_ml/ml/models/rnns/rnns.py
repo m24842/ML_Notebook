@@ -66,6 +66,11 @@ class Mamba2Block(nn.Module):
         # Initialize D with small values (identity-like for residual connections)
         nn.init.uniform_(self.D, 0.9, 1.1)
 
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def forward(self, u):
         """
         Arguments
@@ -269,7 +274,10 @@ class Mamba2(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
 
     def forward(self, x):
         seq_len = x.size(1)
@@ -325,6 +333,11 @@ class SeqLinear(nn.Module):
         
         if self.conv.bias is not None:
             nn.init.constant_(self.conv.bias, 0.)
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     def segsum(self, x):
         T = x.size(-1)
@@ -506,7 +519,10 @@ class SeqMLP(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
 
     def forward(self, x):
         seq_len = x.size(1)

@@ -47,7 +47,12 @@ class MultiheadAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
-        
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def forward(self, x, causal=False, rope=None):
         if self.batch_first:
             x = x.transpose(0, 1)
@@ -122,6 +127,11 @@ class LinearAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -201,6 +211,11 @@ class OrthoLinearAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -287,6 +302,11 @@ class CompressionAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -394,6 +414,11 @@ class SlidingWindowAttention(nn.Module):
             nn.init.constant_(self.k_proj.bias, 0.)
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     @lru_cache(maxsize=2)
     def causal_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):

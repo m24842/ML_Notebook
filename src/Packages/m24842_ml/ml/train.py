@@ -360,7 +360,6 @@ def train(epochs, train_steps, benchmark_name, model, train_loader, optimizer, l
                 raise ValueError(f"Invalid parallelism type: {parallelism}. Must be 'data' or 'model'.")
         else:
             model = model.to(device)
-        setattr(model, 'device', device)
         
         if hasattr(train_loader.dataset, "seq_len_range"):
             # Allocate dynamic memory if applicable for dataset

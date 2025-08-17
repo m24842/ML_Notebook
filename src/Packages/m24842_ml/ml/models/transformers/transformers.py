@@ -64,9 +64,12 @@ class Transformer(nn.Module):
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
-        self.to(device)
-        
+    
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def forward(self, x):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
@@ -142,7 +145,10 @@ class LinearTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
         
     def forward(self, x):
         seq_len = x.size(1)
@@ -218,7 +224,10 @@ class OrthoLinearTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
         
     def forward(self, x):
         seq_len = x.size(1)
@@ -298,7 +307,10 @@ class CompressionTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
         
     def forward(self, x):
         seq_len = x.size(1)
@@ -381,7 +393,10 @@ class SlidingWindowTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-        self.to(device)
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
     
     def forward(self, x):
         seq_len = x.size(1)

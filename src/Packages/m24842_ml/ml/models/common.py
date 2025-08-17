@@ -15,6 +15,11 @@ class MLP(nn.Module):
         nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
         nn.init.xavier_uniform_(self.fc2.weight)
 
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def forward(self, x):
         x = self.fc1(x)
         x = self.activation(x)
@@ -31,6 +36,11 @@ class SwiGLU(nn.Module):
         
         nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
         nn.init.xavier_uniform_(self.fc2.weight)
+
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
 
     def forward(self, x):
         x, g = torch.chunk(self.fc1(x), 2, dim=-1)
@@ -72,6 +82,11 @@ class Butterfly(nn.Module):
         self._reset_parameters()
         self.to(device)
 
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def _reset_parameters(self):
         """Initialize bias the same way as torch.nn.Linear."""
         if self.bias is not None:
@@ -272,6 +287,11 @@ class GatedRMSNorm(nn.Module):
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(d, device=device))
 
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.device = next(self.parameters(), torch.empty(0)).device
+        return self
+    
     def forward(self, x, z=None):
         if z is not None:
             x = x * F.silu(z)
