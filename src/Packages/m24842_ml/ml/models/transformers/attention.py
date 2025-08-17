@@ -427,7 +427,7 @@ class SlidingWindowAttention(nn.Module):
         cols = idxs.unsqueeze(0)
         diff = rows - cols
 
-        allowed = (diff >= 0) & (diff <= dilation * (window_len - 1)) & ((diff % dilation) == 0)
+        allowed = (diff >= 0) & (diff // dilation >= 0) & (diff // dilation < window_len) & (diff % dilation == 0)
         allowed = allowed.unsqueeze(0)
         
         if not to_bias:
@@ -446,7 +446,7 @@ class SlidingWindowAttention(nn.Module):
         diff = rows - cols
         abs_diff = diff.abs()
 
-        allowed = (abs_diff <= dilation * half) & ((diff % dilation) == 0)
+        allowed = (abs_diff // dilation <= half) & (diff % dilation == 0)
         allowed = allowed.unsqueeze(0)
         
         if not to_bias:
