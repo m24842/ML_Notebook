@@ -66,8 +66,8 @@ class Mamba2Block(nn.Module):
         # Initialize D with small values (identity-like for residual connections)
         nn.init.uniform_(self.D, 0.9, 1.1)
 
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -274,8 +274,8 @@ class Mamba2(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
 
@@ -334,8 +334,8 @@ class SeqLinear(nn.Module):
         if self.conv.bias is not None:
             nn.init.constant_(self.conv.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -519,8 +519,8 @@ class SeqMLP(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
 

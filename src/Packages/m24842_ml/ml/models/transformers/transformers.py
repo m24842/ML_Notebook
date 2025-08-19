@@ -21,6 +21,7 @@ class Transformer(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.ff_dim = ff_dim if ff_dim is not None else emb_dim
+        self.device = device
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -32,9 +33,9 @@ class Transformer(nn.Module):
         self.rope = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -65,8 +66,8 @@ class Transformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -101,6 +102,7 @@ class LinearTransformer(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.ff_dim = ff_dim if ff_dim is not None else emb_dim
+        self.device = device
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -112,9 +114,9 @@ class LinearTransformer(nn.Module):
         self.rope = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -145,8 +147,8 @@ class LinearTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
         
@@ -180,6 +182,7 @@ class OrthoLinearTransformer(nn.Module):
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.ff_dim = ff_dim if ff_dim is not None else emb_dim
+        self.device = device
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -191,9 +194,9 @@ class OrthoLinearTransformer(nn.Module):
         self.rope = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -224,8 +227,8 @@ class OrthoLinearTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
         
@@ -261,6 +264,7 @@ class CompressionTransformer(nn.Module):
         self.n_heads = n_heads
         self.ff_dim = ff_dim if ff_dim is not None else emb_dim
         self.compressed_len = mem_dim
+        self.device = device
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -272,9 +276,9 @@ class CompressionTransformer(nn.Module):
         self.rope = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -307,8 +311,8 @@ class CompressionTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
         
@@ -344,6 +348,7 @@ class SlidingWindowTransformer(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.ff_dim = ff_dim if ff_dim is not None else emb_dim
+        self.device = device
         
         self.use_embedding = use_embedding
         if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
@@ -355,9 +360,9 @@ class SlidingWindowTransformer(nn.Module):
         self.rope = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False)
+            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -393,8 +398,8 @@ class SlidingWindowTransformer(nn.Module):
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
         
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     

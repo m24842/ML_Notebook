@@ -48,8 +48,8 @@ class MultiheadAttention(nn.Module):
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -128,8 +128,8 @@ class LinearAttention(nn.Module):
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -212,8 +212,8 @@ class OrthoLinearAttention(nn.Module):
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -303,8 +303,8 @@ class CompressionAttention(nn.Module):
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -415,14 +415,14 @@ class SlidingWindowAttention(nn.Module):
         if self.v_proj.bias is not None:
             nn.init.constant_(self.v_proj.bias, 0.)
     
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
     @lru_cache(maxsize=2)
-    def causal_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):
-        idxs = torch.arange(seq_len, device=self.device)
+    def causal_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False, device="cpu"):
+        idxs = torch.arange(seq_len, device=device)
         rows = idxs.unsqueeze(1)
         cols = idxs.unsqueeze(0)
         diff = rows - cols
@@ -437,8 +437,8 @@ class SlidingWindowAttention(nn.Module):
         return mask
     
     @lru_cache(maxsize=2)
-    def symmetric_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False):
-        idxs = torch.arange(seq_len, device=self.device)
+    def symmetric_windowed_mask(self, seq_len, window_len, dilation=1, to_bias=False, device="cpu"):
+        idxs = torch.arange(seq_len, device=device)
         rows = idxs.unsqueeze(1)
         cols = idxs.unsqueeze(0)
 
@@ -456,7 +456,7 @@ class SlidingWindowAttention(nn.Module):
         return mask
     
     @lru_cache(maxsize=2)
-    def causal_windowed_block_mask(self, src_len, tgt_len=None):
+    def causal_windowed_block_mask(self, src_len, tgt_len=None, device="cpu"):
         if tgt_len is None: tgt_len = src_len
         
         half_span = self.dilation * (self.window_len - 1)
@@ -465,10 +465,10 @@ class SlidingWindowAttention(nn.Module):
             diff = q_idx - kv_idx
             return (diff >= 0) & (diff <= half_span) & ((diff % self.dilation) == 0)
 
-        return create_block_mask(mask_mod, B=None, H=None, Q_LEN=src_len, KV_LEN=tgt_len, BLOCK_SIZE=1, device=self.device)
+        return create_block_mask(mask_mod, B=None, H=None, Q_LEN=src_len, KV_LEN=tgt_len, BLOCK_SIZE=1, device=device)
     
     @lru_cache(maxsize=2)
-    def symmetric_windowed_block_mask(self, src_len, tgt_len=None):
+    def symmetric_windowed_block_mask(self, src_len, tgt_len=None, device="cpu"):
         if tgt_len is None: tgt_len = src_len
         
         half = self.window_len // 2
@@ -478,7 +478,7 @@ class SlidingWindowAttention(nn.Module):
             diff = q_idx - kv_idx
             return diff.abs().le(half_span) & ((diff % self.dilation) == 0)
 
-        return create_block_mask(mask_mod,  B=None, H=None, Q_LEN=src_len, KV_LEN=tgt_len, BLOCK_SIZE=1, device=self.device)
+        return create_block_mask(mask_mod,  B=None, H=None, Q_LEN=src_len, KV_LEN=tgt_len, BLOCK_SIZE=1, device=device)
     
     def forward(self, x, rope=None, causal=True):
         if self.batch_first:
@@ -511,18 +511,18 @@ class SlidingWindowAttention(nn.Module):
             v = v.flatten(0, 1)
             
             if causal:
-                attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, tgt_len, src_len)
+                attn_mask = self.causal_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True, device=self.device)  # (1, tgt_len, src_len)
             else:
-                attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True)  # (1, tgt_len, src_len)
+                attn_mask = self.symmetric_windowed_mask(src_len, self.window_len, dilation=self.dilation, to_bias=True, device=self.device)  # (1, tgt_len, src_len)
 
             attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, scale=1.0, dropout_p=self.dropout)  # (bsz * n_heads, tgt_len, d_head)
             
             attn_output = rearrange(attn_output, '(b h) s d -> s b (h d)', h=self.n_heads)
         else:
             if causal:
-                block_mask = self.causal_windowed_block_mask(src_len, tgt_len)
+                block_mask = self.causal_windowed_block_mask(src_len, tgt_len, device=self.device)
             else:
-                block_mask = self.symmetric_windowed_block_mask(src_len, tgt_len)
+                block_mask = self.symmetric_windowed_block_mask(src_len, tgt_len, device=self.device)
             
             attn_device = "cuda" if self.device == "cuda" else "cpu"
             

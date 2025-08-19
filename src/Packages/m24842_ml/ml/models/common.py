@@ -15,8 +15,8 @@ class MLP(nn.Module):
         nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
         nn.init.xavier_uniform_(self.fc2.weight)
 
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -37,8 +37,8 @@ class SwiGLU(nn.Module):
         nn.init.kaiming_uniform_(self.fc1.weight, nonlinearity='relu')
         nn.init.xavier_uniform_(self.fc2.weight)
 
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
 
@@ -82,8 +82,8 @@ class Butterfly(nn.Module):
         self._reset_parameters()
         self.to(device)
 
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
@@ -287,8 +287,8 @@ class GatedRMSNorm(nn.Module):
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(d, device=device))
 
-    def to(self, *args, **kwargs):
-        super().to(*args, **kwargs)
+    def _apply(self, fn):
+        super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
     
