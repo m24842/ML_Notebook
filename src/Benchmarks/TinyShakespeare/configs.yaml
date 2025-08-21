@@ -164,8 +164,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     ff_dim: 128
     window_len: 64
     use_flex_attn: False
-    dilate: True
-    # dilation_factor: 64
+    dilate: False
     n_heads: 4
     n_layers: 6
     input_dim: 50277
