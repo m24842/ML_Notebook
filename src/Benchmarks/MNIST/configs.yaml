@@ -216,30 +216,30 @@ SeqMLP_defaults: &SeqMLP_defaults
 
 ### Experiments Configuration ###
 experiments:
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 0
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 0
 
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 42
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 42
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 1111
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 1111
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 2222
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 2222
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 3333
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 3333
   
   # - <<: *Mamba2_defaults
   #   general:

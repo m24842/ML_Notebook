@@ -205,57 +205,96 @@ SeqMLP_defaults: &SeqMLP_defaults
   scheduler:
     <<: *scheduler_defaults
 
+FlowTransformer_defaults: &FlowTransformer_defaults
+  general:
+    <<: *Transformer_general
+  
+  model:
+    <<: *Transformer_model
+    name: FlowTransformer
+  
+  optimizer:
+    <<: *optimizer_defaults
+  
+  scheduler:
+    <<: *scheduler_defaults
+
 ### Experiments Configuration ###
 experiments:
-  - <<: *SeqMLP_defaults
+  - <<: *FlowTransformer_defaults
     general:
-      <<: *SeqMLP_general
+      <<: *Transformer_general
       seed: 0
+  
+  # - <<: *FlowTransformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 42
+  
+  # - <<: *FlowTransformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 1111
+  
+  # - <<: *FlowTransformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 2222
+  
+  # - <<: *FlowTransformer_defaults
+  #   general:
+  #     <<: *Transformer_general
+  #     seed: 3333
+  
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 0
 
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 42
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 42
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 1111
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 1111
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 2222
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 2222
   
-  - <<: *SeqMLP_defaults
-    general:
-      <<: *SeqMLP_general
-      seed: 3333
+  # - <<: *SeqMLP_defaults
+  #   general:
+  #     <<: *SeqMLP_general
+  #     seed: 3333
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 0
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 0
 
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 42
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 42
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 1111
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 1111
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 2222
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 2222
   
-  - <<: *Mamba2_defaults
-    general:
-      <<: *Mamba2_general
-      seed: 3333
+  # - <<: *Mamba2_defaults
+  #   general:
+  #     <<: *Mamba2_general
+  #     seed: 3333
   
   # - <<: *SlidingWindowTransformer_defaults
   #   general:
