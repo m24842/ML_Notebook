@@ -6,10 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "m24842_ml"
 version = "1.5.36"
 description = "Collection of ML models and benchmarking tools"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "torch",
-    "torchdiffeq",
     "torchvision",
     "transformers",
     "datasets==3.6.0",

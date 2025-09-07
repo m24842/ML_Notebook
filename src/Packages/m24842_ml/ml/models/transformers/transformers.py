@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchdiffeq import odeint, odeint_adjoint
 from rotary_embedding_torch import RotaryEmbedding
 from .attention import *
 from ..common import *
@@ -416,92 +415,6 @@ class SlidingWindowTransformer(nn.Module):
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
-        x = self.norm_f(x)
-        x = self.out_proj(x)
-        return x
-
-class FlowTransformer(nn.Module):
-    def __init__(self, emb_dim, input_dim, output_dim,
-                 n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
-                 dropout=0.0, causal=True,
-                 use_embedding=True, weight_tying=False,
-                 ff_bias=False, attn_bias=False,
-                 pos_encoding=None, pos_encoding_max_len=None,
-                 device="cpu"):
-        super().__init__()
-        self.emb_dim = emb_dim
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.causal = causal
-        self.n_layers = n_layers
-        self.n_heads = n_heads
-        self.ff_dim = ff_dim if ff_dim is not None else emb_dim
-        self.device = device
-        
-        self.use_embedding = use_embedding
-        if use_embedding: self.embedding = nn.Embedding(input_dim, emb_dim, device=device)
-        else: self.embedding = nn.Linear(input_dim, emb_dim, bias=False, device=device)
-        
-        self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
-        
-        self.pos_encoding = pos_encoding
-        self.rope = None
-        self.abs_pos_encoding = None
-        if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
-        elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
-        elif pos_encoding == "abs":
-            assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
-            self.pos_encoding_max_len = pos_encoding_max_len
-            self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
-        
-        self.layers = nn.ModuleList([
-            nn.ModuleDict(
-                dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
-                    dropout1 = nn.Dropout(dropout),
-                    attention = MultiheadAttention(
-                        emb_dim,
-                        self.n_heads,
-                        qk_dim=qk_dim,
-                        bias=attn_bias,
-                        batch_first=True,
-                        device=device
-                    ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
-                    dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
-                )
-            ) for _ in range(self.n_layers)
-        ])
-        self.norm_f = nn.RMSNorm(emb_dim, device=device)
-        
-        nn.init.xavier_uniform_(self.embedding.weight)
-        if weight_tying: self.out_proj.weight = self.embedding.weight
-        else: nn.init.xavier_uniform_(self.out_proj.weight)
-    
-    def _apply(self, fn):
-        super()._apply(fn)
-        self.device = next(self.parameters(), torch.empty(0)).device
-        return self
-    
-    def internal_pass(self, t, x):
-        for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
-            x = x + layer.dropout1(a_out)
-            ff_out = layer.feedforward(layer.norm2(x))
-            x = x + layer.dropout2(ff_out)
-        return x
-    
-    def forward(self, x):
-        seq_len = x.size(1)
-        if self.use_embedding: x = self.embedding(x.long())
-        else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
-            pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
-            x = x + self.abs_pos_encoding(pos)
-        x = odeint(self.internal_pass, x, torch.tensor([0., 1.], device=x.device), method='dopri5', rtol=1e-3, atol=1e-4)[-1]
         x = self.norm_f(x)
         x = self.out_proj(x)
         return x
