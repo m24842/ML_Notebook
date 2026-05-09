@@ -36,6 +36,8 @@ class Transformer(nn.Module):
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+        elif pos_encoding == "sin":
+            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -117,6 +119,8 @@ class LinearTransformer(nn.Module):
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+        elif pos_encoding == "sin":
+            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -197,6 +201,8 @@ class OrthoLinearTransformer(nn.Module):
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+        elif pos_encoding == "sin":
+            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -279,6 +285,8 @@ class CompressionTransformer(nn.Module):
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+        elif pos_encoding == "sin":
+            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
@@ -363,6 +371,8 @@ class SlidingWindowTransformer(nn.Module):
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
             self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+        elif pos_encoding == "sin":
+            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len

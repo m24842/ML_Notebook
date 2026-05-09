@@ -32,7 +32,7 @@ general_defaults: &general_defaults
   load_checkpoint: False
   seed: 0
   batch_size: 64
-  accumulation_steps: 8
+  accumulation_steps: 1
   train_steps: 10000
   grad_clip_norm: 1.0
   mixed_precision: False
@@ -154,7 +154,7 @@ SlidingWindowTransformer_defaults: &SlidingWindowTransformer_defaults
     emb_dim: 128
     ff_dim: 128
     window_len: 64
-    use_flex_attn: True
+    use_flex_attn: False
     dilate: True
     # dilation_factor: 64
     n_heads: 4
