@@ -1,5 +1,6 @@
 from . import transformers
 from . import rnns
+from . import *
 
 def initialize_model(name, *args, **kwargs):
     modules = [

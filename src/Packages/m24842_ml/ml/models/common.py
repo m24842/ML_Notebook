@@ -69,7 +69,7 @@ class GatedRMSNorm(nn.Module):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
 
 class DyFunc(nn.Module):
-    def __init__(self, d_model, func=torch.erf, alpha_0=1.0, shift=False, device="cpu"):
+    def __init__(self, d_model, func=torch.erf, alpha_0=1.0, shift=True, device="cpu"):
         super().__init__()
         self.func = func # erf or tanh
         self.alpha = nn.Parameter(torch.tensor(alpha_0, device=device))

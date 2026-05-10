@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from rotary_embedding_torch import RotaryEmbedding
+from copy import deepcopy
 from .attention import *
 from ..common import *
 
@@ -9,6 +10,7 @@ class Transformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  dropout=0.0, causal=True,
+                 norm_type="rms", ff_type="swiglu",
                  use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -30,23 +32,43 @@ class Transformer(nn.Module):
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
-        self.rope = None
+        self.rope_encoding = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "sin":
-            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
+            self.sin_pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
             self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
+        norm_temp = nn.Identity(emb_dim, device=device)
+        if norm_type == "rms":
+            norm_temp = nn.RMSNorm(emb_dim, device=device)
+        elif norm_type == "layer":
+            norm_temp = nn.LayerNorm(emb_dim, device=device)
+        elif norm_type == "derf":
+            norm_temp = DyFunc(emb_dim, func=torch.erf, device=device)
+        elif norm_type == "dyt":
+            norm_temp = DyFunc(emb_dim, func=torch.tanh, device=device)
+        else:
+            raise ValueError("Invalid norm_tyoe")
+        
+        ff_temp = None
+        if ff_type == "mlp":
+            ff_temp = MLP(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        elif ff_type == "swiglu":
+            ff_temp = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        else:
+            raise ValueError("Invalid ff_type")
+        
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    norm1 = deepcopy(norm_temp),
                     dropout1 = nn.Dropout(dropout),
                     attention = MultiheadAttention(
                         emb_dim,
@@ -56,9 +78,9 @@ class Transformer(nn.Module):
                         batch_first=True,
                         device=device
                     ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    norm2 = deepcopy(norm_temp),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
+                    feedforward = deepcopy(ff_temp),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -72,16 +94,18 @@ class Transformer(nn.Module):
         super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
-    
+
     def forward(self, x):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
+        if self.pos_encoding == "abs":
             pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
             x = x + self.abs_pos_encoding(pos)
+        elif self.pos_encoding == "sin":
+            x = x + self.sin_pos_encoding(x)
         for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
+            a_out = layer.attention(layer.norm1(x), rope=self.rope_encoding, causal=self.causal)
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
@@ -93,6 +117,7 @@ class LinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None,
                  qk_dim=None, dropout=0.0,
+                 norm_type="rms", ff_type="swiglu",
                  causal=True, use_embedding=True,
                  weight_tying=False, ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -113,23 +138,41 @@ class LinearTransformer(nn.Module):
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
-        self.rope = None
+        self.rope_encoding = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "sin":
-            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
+            self.sin_pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
             self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
+        norm_temp = nn.Identity(emb_dim, device=device)
+        if norm_type == "rms":
+            norm_temp = nn.RMSNorm(emb_dim, device=device)
+        elif norm_type == "layer":
+            norm_temp = nn.LayerNorm(emb_dim, device=device)
+        elif norm_type == "derf":
+            norm_temp = DyFunc(emb_dim, func=torch.erf, device=device)
+        elif norm_type == "dyt":
+            norm_temp = DyFunc(emb_dim, func=torch.tanh, device=device)
+        
+        ff_temp = None
+        if ff_type == "mlp":
+            ff_temp = MLP(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        elif ff_type == "swiglu":
+            ff_temp = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        else:
+            raise ValueError("Invalid ff_type")
+        
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    norm1 = deepcopy(norm_temp),
                     dropout1 = nn.Dropout(dropout),
                     attention = LinearAttention(
                         emb_dim,
@@ -139,9 +182,9 @@ class LinearTransformer(nn.Module):
                         batch_first=True,
                         device=device
                     ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    norm2 = deepcopy(norm_temp),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
+                    feedforward = deepcopy(ff_temp),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -150,21 +193,23 @@ class LinearTransformer(nn.Module):
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
+    
     def _apply(self, fn):
         super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
-        
+    
     def forward(self, x):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
+        if self.pos_encoding == "abs":
             pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
             x = x + self.abs_pos_encoding(pos)
+        elif self.pos_encoding == "sin":
+            x = x + self.sin_pos_encoding(x)
         for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
+            a_out = layer.attention(layer.norm1(x), rope=self.rope_encoding, causal=self.causal)
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
@@ -175,7 +220,9 @@ class LinearTransformer(nn.Module):
 class OrthoLinearTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None,
-                 qk_dim=None, dropout=0.0, causal=True, use_embedding=True,
+                 qk_dim=None, dropout=0.0,
+                 norm_type="rms", ff_type="swiglu",
+                 causal=True, use_embedding=True,
                  weight_tying=False, ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
@@ -195,23 +242,41 @@ class OrthoLinearTransformer(nn.Module):
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
-        self.rope = None
+        self.rope_encoding = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "sin":
-            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
+            self.sin_pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
             self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
+        norm_temp = nn.Identity(emb_dim, device=device)
+        if norm_type == "rms":
+            norm_temp = nn.RMSNorm(emb_dim, device=device)
+        elif norm_type == "layer":
+            norm_temp = nn.LayerNorm(emb_dim, device=device)
+        elif norm_type == "derf":
+            norm_temp = DyFunc(emb_dim, func=torch.erf, device=device)
+        elif norm_type == "dyt":
+            norm_temp = DyFunc(emb_dim, func=torch.tanh, device=device)
+        
+        ff_temp = None
+        if ff_type == "mlp":
+            ff_temp = MLP(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        elif ff_type == "swiglu":
+            ff_temp = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        else:
+            raise ValueError("Invalid ff_type")
+        
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    norm1 = deepcopy(norm_temp),
                     dropout1 = nn.Dropout(dropout),
                     attention = OrthoLinearAttention(
                         emb_dim,
@@ -221,9 +286,9 @@ class OrthoLinearTransformer(nn.Module):
                         batch_first=True,
                         device=device
                     ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    norm2 = deepcopy(norm_temp),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
+                    feedforward = deepcopy(ff_temp),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -232,21 +297,23 @@ class OrthoLinearTransformer(nn.Module):
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
+    
     def _apply(self, fn):
         super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
-        
+    
     def forward(self, x):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
+        if self.pos_encoding == "abs":
             pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
             x = x + self.abs_pos_encoding(pos)
+        elif self.pos_encoding == "sin":
+            x = x + self.sin_pos_encoding(x)
         for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
+            a_out = layer.attention(layer.norm1(x), rope=self.rope_encoding, causal=self.causal)
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
@@ -258,6 +325,7 @@ class CompressionTransformer(nn.Module):
     def __init__(self, emb_dim, input_dim, output_dim,
                  n_layers=1, n_heads=1, ff_dim=None, qk_dim=None,
                  mem_dim=16, dropout=0.0,
+                 norm_type="rms", ff_type="swiglu",
                  causal=True, use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
                  pos_encoding=None, pos_encoding_max_len=None,
@@ -279,23 +347,41 @@ class CompressionTransformer(nn.Module):
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
-        self.rope = None
+        self.rope_encoding = None
         self.abs_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "sin":
-            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
+            self.sin_pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
             self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
+        norm_temp = nn.Identity(emb_dim, device=device)
+        if norm_type == "rms":
+            norm_temp = nn.RMSNorm(emb_dim, device=device)
+        elif norm_type == "layer":
+            norm_temp = nn.LayerNorm(emb_dim, device=device)
+        elif norm_type == "derf":
+            norm_temp = DyFunc(emb_dim, func=torch.erf, device=device)
+        elif norm_type == "dyt":
+            norm_temp = DyFunc(emb_dim, func=torch.tanh, device=device)
+        
+        ff_temp = None
+        if ff_type == "mlp":
+            ff_temp = MLP(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        elif ff_type == "swiglu":
+            ff_temp = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        else:
+            raise ValueError("Invalid ff_type")
+        
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    norm1 = deepcopy(norm_temp),
                     dropout1 = nn.Dropout(dropout),
                     attention = CompressionAttention(
                         emb_dim,
@@ -307,9 +393,9 @@ class CompressionTransformer(nn.Module):
                         batch_first=True,
                         device=device
                     ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    norm2 = deepcopy(norm_temp),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
+                    feedforward = deepcopy(ff_temp),
                 )
             ) for _ in range(self.n_layers)
         ])
@@ -318,21 +404,23 @@ class CompressionTransformer(nn.Module):
         nn.init.xavier_uniform_(self.embedding.weight)
         if weight_tying: self.out_proj.weight = self.embedding.weight
         else: nn.init.xavier_uniform_(self.out_proj.weight)
-        
+    
     def _apply(self, fn):
         super()._apply(fn)
         self.device = next(self.parameters(), torch.empty(0)).device
         return self
-        
+    
     def forward(self, x):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
+        if self.pos_encoding == "abs":
             pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
             x = x + self.abs_pos_encoding(pos)
+        elif self.pos_encoding == "sin":
+            x = x + self.sin_pos_encoding(x)
         for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
+            a_out = layer.attention(layer.norm1(x), rope=self.rope_encoding, causal=self.causal)
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
@@ -347,6 +435,7 @@ class SlidingWindowTransformer(nn.Module):
                  dilation_cap=2**32, use_flex_attn=True, dropout=0.0,
                  causal=True, use_embedding=True, weight_tying=False,
                  ff_bias=False, attn_bias=False,
+                 norm_type="rms", ff_type="swiglu",
                  pos_encoding=None, pos_encoding_max_len=None,
                  device="cpu"):
         super().__init__()
@@ -365,24 +454,43 @@ class SlidingWindowTransformer(nn.Module):
         self.out_proj = nn.Linear(emb_dim, output_dim, bias=False, device=device)
         
         self.pos_encoding = pos_encoding
-        self.rope = None
+        self.rope_encoding = None
         self.abs_pos_encoding = None
+        self.sin_pos_encoding = None
         if pos_encoding == "rope":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=False, cache_if_possible=False).to(device)
         elif pos_encoding == "xpos":
-            self.rope = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
+            self.rope_encoding = RotaryEmbedding(dim=emb_dim//(2*self.n_heads), use_xpos=True, cache_if_possible=False).to(device)
         elif pos_encoding == "sin":
-            self.pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
+            self.sin_pos_encoding = SinusoidalPositionalEmbedding(emb_dim, max_len=pos_encoding_max_len, device=device)
         elif pos_encoding == "abs":
             assert pos_encoding_max_len is not None, "pos_encoding_max_len must be provided for absolute positional encoding"
             self.pos_encoding_max_len = pos_encoding_max_len
             self.abs_pos_encoding = nn.Embedding(pos_encoding_max_len, emb_dim, device=device)
         
+        norm_temp = nn.Identity(emb_dim, device=device)
+        if norm_type == "rms":
+            norm_temp = nn.RMSNorm(emb_dim, device=device)
+        elif norm_type == "layer":
+            norm_temp = nn.LayerNorm(emb_dim, device=device)
+        elif norm_type == "derf":
+            norm_temp = DyFunc(emb_dim, func=torch.erf, device=device)
+        elif norm_type == "dyt":
+            norm_temp = DyFunc(emb_dim, func=torch.tanh, device=device)
+        
+        ff_temp = None
+        if ff_type == "mlp":
+            ff_temp = MLP(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        elif ff_type == "swiglu":
+            ff_temp = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device)
+        else:
+            raise ValueError("Invalid ff_type")
+        
         dilation_factor = window_len if dilation_factor is None else dilation_factor
         self.layers = nn.ModuleList([
             nn.ModuleDict(
                 dict(
-                    norm1 = nn.RMSNorm(emb_dim, device=device),
+                    norm1 = deepcopy(norm_temp),
                     dropout1 = nn.Dropout(dropout),
                     attention = SlidingWindowAttention(
                         emb_dim,
@@ -396,9 +504,9 @@ class SlidingWindowTransformer(nn.Module):
                         batch_first=True,
                         device=device
                     ),
-                    norm2 = nn.RMSNorm(emb_dim, device=device),
+                    norm2 = deepcopy(norm_temp),
                     dropout2 = nn.Dropout(dropout),
-                    feedforward = SwiGLU(emb_dim, self.ff_dim, emb_dim, bias=ff_bias, device=device),
+                    feedforward = deepcopy(ff_temp),
                 )
             ) for i in range(self.n_layers)
         ])
@@ -417,11 +525,13 @@ class SlidingWindowTransformer(nn.Module):
         seq_len = x.size(1)
         if self.use_embedding: x = self.embedding(x.long())
         else: x = self.embedding(x)
-        if self.abs_pos_encoding is not None:
+        if self.pos_encoding == "abs":
             pos = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0).expand(x.size(0), -1)
             x = x + self.abs_pos_encoding(pos)
+        elif self.pos_encoding == "sin":
+            x = x + self.sin_pos_encoding(x)
         for layer in self.layers:
-            a_out = layer.attention(layer.norm1(x), rope=self.rope if self.pos_encoding == "rope" else None, causal=self.causal)
+            a_out = layer.attention(layer.norm1(x), rope=self.rope_encoding, causal=self.causal)
             x = x + layer.dropout1(a_out)
             ff_out = layer.feedforward(layer.norm2(x))
             x = x + layer.dropout2(ff_out)
