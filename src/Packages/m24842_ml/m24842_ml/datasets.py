@@ -320,9 +320,10 @@ class TinyShakespeare(Dataset):
     def tokenize(self, text):
         """
         Tokenizes the input text for TinyShakespeare dataset.
-        0: UNKNOWN
+        0: PAD
+        1: UNKNOWN
         """
-        return [(1 + ord(c)) if (1 + ord(c)) < self.vocab_size else 1 for c in text]
+        return [(2 + ord(c)) if (2 + ord(c)) < self.vocab_size else 2 for c in text]
     
     def step(self):
         if self.len + self.step_size <= self.max_len:
