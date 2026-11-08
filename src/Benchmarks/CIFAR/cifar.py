@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
-from ml.utils import get_available_device
-from ml.train import *
+from m24842_ml.utils import get_available_device
+from m24842_ml.train import *
 
 CONFIG_PATH = "src/Benchmarks/CIFAR/configs.yaml"
 

@@ -1,13 +1,12 @@
-import os
 import sys
 import time
-import math
 import yaml
 import copy
 import torch
 import wandb
 import warnings
 import traceback
+import subprocess
 from tqdm import tqdm
 import torch.nn as nn
 import tensor_parallel as tp
@@ -559,7 +558,7 @@ def train_from_config_file(yaml_path, loss_fn, log_fn=default_log_fn, data_fn=de
         device (str, optional):
             Device to run training on. Defaults to cpu.
     """
-    os.system('clear')
+    subprocess.run(['clear'], check=True)
     
     if not isinstance(loss_fn, list): loss_fn = [loss_fn]
     if not isinstance(log_fn, list): log_fn = [log_fn]

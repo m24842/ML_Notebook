@@ -8,10 +8,13 @@ import math
 import re
 import shutil
 import bisect
+import requests
 import pandas as pd
+from pathlib import Path
 import zstandard as zstd
 from collections import defaultdict
 from transformers import AutoTokenizer
+import datasets as hf_datasets
 from datasets import load_dataset, load_from_disk
 from huggingface_hub import hf_hub_download
 
@@ -253,7 +256,7 @@ class IMDb(Dataset):
         self.len = self.min_len
 
 class TinyShakespeare(Dataset):
-    def __init__(self, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, vocab_size=256):
+    def __init__(self, root, train, tokenizer, min_len=1, max_len=1000, warmup_epochs=0, vocab_size=256):
         if warmup_epochs < 1:
             self.min_len = max_len
         else:
@@ -261,10 +264,29 @@ class TinyShakespeare(Dataset):
         self.max_len = max_len
         self.len = self.min_len
         self.step_size = (self.max_len - self.min_len) // (warmup_epochs + 1)
-
+        root = Path(root)
+        root.mkdir(parents=True, exist_ok=True)
+        
         # Load and tokenize entire dataset
         split = 'train' if train else 'test'
-        text = load_dataset('tiny_shakespeare', split=split, trust_remote_code=True)['text'][0]
+        try:
+            dataset = load_from_disk(root / "ml_tinyshakespeare_dataset")
+        except:
+            response = requests.get(f"https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt")
+            response.raise_for_status()
+            text = response.text
+            i = int(len(text) * 0.9)
+            train_text, test_text = text[:i], text[i:]
+            dataset = hf_datasets.DatasetDict({
+                'train': hf_datasets.Dataset.from_dict({
+                    'text': [train_text]
+                }),
+                'test': hf_datasets.Dataset.from_dict({
+                    'text': [test_text]
+                })
+            })
+            dataset.save_to_disk(root / "ml_tinyshakespeare_dataset")
+        text = dataset[split]['text'][0]
         
         # Tokenize the full corpus
         if tokenizer == "char":
@@ -297,11 +319,10 @@ class TinyShakespeare(Dataset):
 
     def tokenize(self, text):
         """
-        Tokenizes the input text for IMDb dataset.
-        0: PAD
-        1: UNKNOWN
+        Tokenizes the input text for TinyShakespeare dataset.
+        0: UNKNOWN
         """
-        return [0] + [(2 + ord(c)) if (2 + ord(c)) < self.vocab_size else 2 for c in text]
+        return [(1 + ord(c)) if (1 + ord(c)) < self.vocab_size else 1 for c in text]
     
     def step(self):
         if self.len + self.step_size <= self.max_len:
@@ -379,10 +400,10 @@ class ThePile(Dataset):
         self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
         # cache directory for this split
-        root = os.path.expanduser(root)
-        pile_dir = os.path.join(root, "ThePile")
-        cache_dir = os.path.join(pile_dir, f"{split}_cache")
-        os.makedirs(cache_dir, exist_ok=True)
+        root = Path(root)
+        pile_dir = root / "ThePile"
+        cache_dir = pile_dir / f"{split}_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
         # find or create shards on disk
         shard_dirs = sorted(
